@@ -19,12 +19,14 @@ This file records honest limitations and the deliberate scope decisions for the 
 
 ## Authentication
 
-- Supabase Auth is used with ES256 JWT verification against the project JWKS (signature,
-  issuer, audience, expiry).
-- `POST /api/v1/auth/register` creates a **confirmed** user via the Supabase Admin API using
-  the server-side secret key, so a learner can start immediately without outbound email. In a
-  production deployment this should be replaced with Supabase's email-confirmation flow; the
-  endpoint is disabled when `APP_ENV=production` unless `DEV_AUTH_ENABLED=true`.
+- Identity is provided by **Clerk**. FastAPI verifies Clerk session tokens (RS256) against the
+  instance JWKS, checking signature, issuer and expiry. Supabase is used only as the PostgreSQL
+  database; internal profile rows are keyed by a unique `clerk_user_id` and created on first
+  authenticated request.
+- The frontend uses Clerk's `<SignIn/>` / `<SignUp/>` components and Clerk's short-lived session
+  tokens are fetched per API call (never cached). A custom avatar component renders Clerk's
+  image URL with an initials fallback; the profile page is custom (no prebuilt Clerk components).
+- New users are routed through a three-step onboarding form before reaching the dashboard.
 - A gated development auth path (`Authorization: Bearer dev:<uuid>`) exists for local testing
   and is hard-disabled in production.
 

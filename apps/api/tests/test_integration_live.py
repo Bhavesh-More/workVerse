@@ -1,19 +1,23 @@
 """Live end-to-end integration test.
 
-Skipped unless ``WORKVERSE_LIVE=1``. Requires valid Supabase and Ollama Cloud credentials
-in ``apps/api/.env``. It creates a throwaway confirmed user via the Supabase Admin API and
-exercises the full learner journey against the real database and hosted model.
+Skipped unless ``WORKVERSE_LIVE=1``. Requires valid Supabase (PostgreSQL) and Ollama Cloud
+credentials in ``apps/api/.env``. Clerk identity is exercised by the Playwright E2E suite;
+here we inject an authenticated principal directly so the test can focus on the authoritative
+simulation + hosted-model evaluation path against the real database.
 """
 
 from __future__ import annotations
 
 import os
-import random
 import uuid
 
 import httpx
 import pytest
 from app.core.config import get_settings
+from app.core.security import Principal
+from app.db.repository import Repository
+from app.db.session import init_engine, session_scope
+from app.deps import current_principal
 from app.main import app
 from httpx import ASGITransport
 
@@ -25,28 +29,18 @@ LIVE = os.environ.get("WORKVERSE_LIVE") == "1"
 @pytest.mark.skipif(not LIVE, reason="set WORKVERSE_LIVE=1 to run the live integration test")
 async def test_full_learner_journey() -> None:
     settings = get_settings()
-    supabase = settings.supabase_url.rstrip("/")
-    email = f"wvtest{random.randint(1000, 999999)}@gmail.com"
-    password = "TestPass123!"
+    init_engine(settings)
+    clerk_id = f"user_test_{uuid.uuid4().hex[:12]}"
+    async with session_scope() as session:
+        profile = await Repository(session).ensure_profile_for_clerk(clerk_id, "Integration Tester")
+        profile_id = str(profile["id"])
 
-    async with httpx.AsyncClient(timeout=120) as raw:
-        created = await raw.post(
-            f"{supabase}/auth/v1/admin/users",
-            headers={
-                "apikey": settings.supabase_secret_key,
-                "Authorization": f"Bearer {settings.supabase_secret_key}",
-            },
-            json={"email": email, "password": password, "email_confirm": True},
-        )
-        assert created.status_code in (200, 201), created.text
-        token_resp = await raw.post(
-            f"{supabase}/auth/v1/token?grant_type=password",
-            headers={"apikey": settings.supabase_publishable_key},
-            json={"email": email, "password": password},
-        )
-        token = token_resp.json()["access_token"]
+    async def fake_principal() -> Principal:
+        return Principal(user_id=profile_id, email="integration@test.local", role="authenticated")
 
-    headers = {"Authorization": f"Bearer {token}"}
+    app.dependency_overrides[current_principal] = fake_principal
+    headers = {"Authorization": "Bearer test-override"}
+
     async with app.router.lifespan_context(app):
         transport = ASGITransport(app=app)
         async with httpx.AsyncClient(transport=transport, base_url="http://test", timeout=120) as c:
@@ -148,16 +142,4 @@ async def test_full_learner_journey() -> None:
             for item in scored:
                 assert item["evidence"], f"scored criterion {item['criterion_id']} lacks evidence"
 
-            # Idempotency: repeating a turn id must not duplicate messages.
-            first = await c.post(
-                f"/api/v1/sessions/{sid}/turns",
-                headers=headers,
-                json={
-                    "client_turn_id": str(uuid.uuid4()),
-                    "expected_state_version": version,
-                    "character_id": "manager",
-                    "message": "Any update?",
-                },
-            )
-            if first.status_code == 409:
-                pass  # session completed; conflict is an acceptable safe response
+    app.dependency_overrides.clear()

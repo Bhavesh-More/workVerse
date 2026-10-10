@@ -15,6 +15,13 @@ import type {
 export const API_BASE =
   process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000/api/v1";
 
+let tokenGetter: (() => Promise<string | null>) | null = null;
+
+/** Registered by a Clerk bridge component so API calls always use a fresh session token. */
+export function setTokenGetter(fn: (() => Promise<string | null>) | null) {
+  tokenGetter = fn;
+}
+
 export class ApiError extends Error {
   status: number;
   code: string;
@@ -32,25 +39,33 @@ export class ApiError extends Error {
 
 type RequestOptions = {
   method?: string;
-  token?: string | null;
   body?: unknown;
   signal?: AbortSignal;
 };
 
 async function request<T>(path: string, opts: RequestOptions = {}): Promise<T> {
-  const headers: Record<string, string> = {};
-  if (opts.body !== undefined) headers["Content-Type"] = "application/json";
-  if (opts.token) headers["Authorization"] = `Bearer ${opts.token}`;
-
-  let res: Response;
-  try {
-    res = await fetch(`${API_BASE}${path}`, {
+  const doFetch = async (): Promise<Response> => {
+    const headers: Record<string, string> = {};
+    if (opts.body !== undefined) headers["Content-Type"] = "application/json";
+    const token = tokenGetter ? await tokenGetter() : null;
+    if (token) headers["Authorization"] = `Bearer ${token}`;
+    return fetch(`${API_BASE}${path}`, {
       method: opts.method ?? "GET",
       headers,
       body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
       signal: opts.signal,
       cache: "no-store",
     });
+  };
+
+  let res: Response;
+  try {
+    res = await doFetch();
+    // A freshly signed-in Clerk session may not expose a token for a brief moment; retry.
+    for (let attempt = 0; attempt < 3 && res.status === 401; attempt += 1) {
+      await new Promise((r) => setTimeout(r, 400));
+      res = await doFetch();
+    }
   } catch {
     throw new ApiError(0, "network_error", "Could not reach the WorkVerse API.");
   }
@@ -73,77 +88,76 @@ async function request<T>(path: string, opts: RequestOptions = {}): Promise<T> {
 }
 
 export const api = {
-  register: (body: { email: string; password: string; display_name?: string }) =>
-    request<{ user_id: string; email: string }>("/auth/register", { method: "POST", body }),
+  getMe: () => request<Profile>("/me"),
 
-  getMe: (token: string) => request<Profile>("/me", { token }),
+  updateMe: (body: Partial<Profile>) => request<Profile>("/me", { method: "PATCH", body }),
 
-  updateMe: (token: string, body: Partial<Profile>) =>
-    request<Profile>("/me", { method: "PATCH", token, body }),
+  addSkill: (body: { name: string; level_self_reported?: string | null }) =>
+    request<unknown>("/me/skills", { method: "POST", body }),
 
-  addSkill: (token: string, body: { name: string; level_self_reported?: string | null }) =>
-    request<unknown>("/me/skills", { method: "POST", token, body }),
+  deleteSkill: (skillId: string) => request<void>(`/me/skills/${skillId}`, { method: "DELETE" }),
 
-  deleteSkill: (token: string, skillId: string) =>
-    request<void>(`/me/skills/${skillId}`, { method: "DELETE", token }),
+  listTemplates: () => request<{ items: ScenarioTemplate[] }>("/scenario-templates"),
 
-  listTemplates: (token: string) =>
-    request<{ items: ScenarioTemplate[] }>("/scenario-templates", { token }),
+  createInstance: (body: {
+    template_slug: string;
+    mode?: string;
+    difficulty?: string;
+    variation_request?: string;
+  }) => request<ScenarioInstance>("/scenario-instances", { method: "POST", body }),
 
-  createInstance: (
-    token: string,
-    body: { template_slug: string; mode?: string; difficulty?: string; variation_request?: string },
-  ) => request<ScenarioInstance>("/scenario-instances", { method: "POST", token, body }),
+  getInstance: (instanceId: string) =>
+    request<ScenarioInstance>(`/scenario-instances/${instanceId}`),
 
-  getInstance: (token: string, instanceId: string) =>
-    request<ScenarioInstance>(`/scenario-instances/${instanceId}`, { token }),
-
-  startSession: (token: string, scenarioInstanceId: string, mode = "quick") =>
+  startSession: (scenarioInstanceId: string, mode = "quick") =>
     request<SessionView>("/sessions", {
       method: "POST",
-      token,
       body: { scenario_instance_id: scenarioInstanceId, mode },
     }),
 
-  listSessions: (token: string) =>
-    request<{ items: SessionSummary[] }>("/sessions", { token }),
+  listSessions: () => request<{ items: SessionSummary[] }>("/sessions"),
 
-  getSession: (token: string, sessionId: string) =>
-    request<SessionView>(`/sessions/${sessionId}`, { token }),
+  getSession: (sessionId: string) => request<SessionView>(`/sessions/${sessionId}`),
 
   submitAction: (
-    token: string,
     sessionId: string,
-    body: { client_action_id: string; expected_state_version: number; type: string; payload?: Record<string, unknown> },
-  ) => request<ActionResponse>(`/sessions/${sessionId}/actions`, { method: "POST", token, body }),
+    body: {
+      client_action_id: string;
+      expected_state_version: number;
+      type: string;
+      payload?: Record<string, unknown>;
+    },
+  ) => request<ActionResponse>(`/sessions/${sessionId}/actions`, { method: "POST", body }),
 
   submitTurn: (
-    token: string,
     sessionId: string,
-    body: { client_turn_id: string; expected_state_version: number; character_id: string; message: string },
-  ) => request<TurnResponse>(`/sessions/${sessionId}/turns`, { method: "POST", token, body }),
+    body: {
+      client_turn_id: string;
+      expected_state_version: number;
+      character_id: string;
+      message: string;
+    },
+  ) => request<TurnResponse>(`/sessions/${sessionId}/turns`, { method: "POST", body }),
 
-  transcript: (token: string, sessionId: string) =>
-    request<{ items: TranscriptMessage[] }>(`/sessions/${sessionId}/transcript`, { token }),
+  transcript: (sessionId: string) =>
+    request<{ items: TranscriptMessage[] }>(`/sessions/${sessionId}/transcript`),
 
-  complete: (token: string, sessionId: string, body: { expected_state_version?: number; force?: boolean }) =>
+  complete: (sessionId: string, body: { expected_state_version?: number; force?: boolean }) =>
     request<{ status: string; evaluation: Evaluation }>(`/sessions/${sessionId}/complete`, {
       method: "POST",
-      token,
       body,
     }),
 
-  getEvaluation: (token: string, sessionId: string) =>
-    request<Evaluation>(`/sessions/${sessionId}/evaluation`, { token }),
+  getEvaluation: (sessionId: string) =>
+    request<Evaluation>(`/sessions/${sessionId}/evaluation`),
 
-  retry: (token: string, sessionId: string) =>
+  retry: (sessionId: string) =>
     request<{ scenario_instance_id: string; session: SessionView; prebrief: ScenarioInstance["prebrief"] }>(
       `/sessions/${sessionId}/retry`,
-      { method: "POST", token },
+      { method: "POST" },
     ),
 
-  progress: (token: string) => request<ProgressResponse>("/progress", { token }),
+  progress: () => request<ProgressResponse>("/progress"),
 
-  competencies: (token: string) =>
-    request<{ items: CompetencyTrend[] }>("/progress/competencies", { token }),
+  competencies: () => request<{ items: CompetencyTrend[] }>("/progress/competencies"),
 };

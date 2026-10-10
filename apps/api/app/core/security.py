@@ -1,8 +1,8 @@
-"""Supabase JWT verification.
+"""Clerk session-token verification.
 
-Tokens are cryptographically verified against the project JWKS (ES256/RS256). We do
-not accept a merely decoded token. A clearly-gated development path exists for local
-testing and is hard-disabled in production.
+Tokens are cryptographically verified against the Clerk instance JWKS (RS256). We never
+accept a merely decoded token. A clearly-gated development path exists for local testing and
+is hard-disabled in production.
 """
 
 from __future__ import annotations
@@ -23,7 +23,7 @@ _jwk_client: PyJWKClient | None = None
 
 @dataclass(frozen=True)
 class Principal:
-    user_id: str
+    user_id: str  # Clerk subject (e.g. "user_xxx")
     email: str | None = None
     role: str | None = None
     dev: bool = False
@@ -32,9 +32,9 @@ class Principal:
 def _get_jwk_client(settings: Settings) -> PyJWKClient:
     global _jwk_client
     if _jwk_client is None:
-        if not settings.supabase_jwks_url:
+        if not settings.clerk_jwks_url:
             raise AuthError("Authentication is not configured on the server.")
-        _jwk_client = PyJWKClient(settings.supabase_jwks_url, cache_keys=True, lifespan=300)
+        _jwk_client = PyJWKClient(settings.clerk_jwks_url, cache_keys=True, lifespan=300)
     return _jwk_client
 
 
@@ -59,10 +59,13 @@ def verify_token(token: str, settings: Settings) -> Principal:
         claims = jwt.decode(
             token,
             signing_key.key,
-            algorithms=["ES256", "RS256"],
-            audience=settings.supabase_jwt_audience or None,
-            issuer=settings.supabase_jwt_issuer or None,
-            options={"verify_exp": True, "verify_aud": bool(settings.supabase_jwt_audience)},
+            algorithms=["RS256", "ES256"],
+            issuer=settings.clerk_jwt_issuer or None,
+            options={
+                "verify_exp": True,
+                "verify_iss": bool(settings.clerk_jwt_issuer),
+                "verify_aud": False,
+            },
         )
     except AuthError:
         raise
@@ -77,8 +80,4 @@ def verify_token(token: str, settings: Settings) -> Principal:
     user_id = claims.get("sub")
     if not user_id:
         raise AuthError("Access token is missing a subject.")
-    return Principal(
-        user_id=user_id,
-        email=claims.get("email"),
-        role=claims.get("role"),
-    )
+    return Principal(user_id=user_id, email=claims.get("email"), role=claims.get("role"))

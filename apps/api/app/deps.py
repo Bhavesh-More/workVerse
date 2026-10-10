@@ -25,17 +25,27 @@ async def repo_dep(session: Annotated[AsyncSession, Depends(get_db)]) -> AsyncIt
     yield Repository(session)
 
 
-def current_principal(
+async def current_principal(
     request: Request,
     settings: Annotated[Settings, Depends(settings_dep)],
+    repo: Annotated[Repository, Depends(repo_dep)],
     authorization: Annotated[str | None, Header()] = None,
 ) -> Principal:
     if not authorization or not authorization.lower().startswith("bearer "):
         raise AuthError("Missing bearer token.")
     token = authorization.split(" ", 1)[1].strip()
-    principal = verify_token(token, settings)
-    request.state.user_id = principal.user_id
-    return principal
+    clerk_principal = verify_token(token, settings)
+
+    # Map the Clerk subject to the internal profile (created on first authenticated request).
+    profile = await repo.ensure_profile_for_clerk(clerk_principal.user_id)
+    request.state.user_id = str(profile["id"])
+    request.state.clerk_user_id = clerk_principal.user_id
+    return Principal(
+        user_id=str(profile["id"]),
+        email=clerk_principal.email,
+        role=clerk_principal.role,
+        dev=clerk_principal.dev,
+    )
 
 
 def ai_client_dep(settings: Annotated[Settings, Depends(settings_dep)]) -> OllamaCloudClient:

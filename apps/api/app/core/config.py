@@ -28,6 +28,22 @@ def _is_local_host(host: str) -> bool:
     return ip.is_loopback or ip.is_private or ip.is_link_local
 
 
+def _clerk_domain(publishable_key: str) -> str | None:
+    """Decode a Clerk publishable key to its frontend-API domain.
+
+    ``pk_test_<base64>`` / ``pk_live_<base64>`` encode ``<domain>$``.
+    """
+    try:
+        encoded = publishable_key.split("_", 2)[2]
+        padded = encoded + "=" * (-len(encoded) % 4)
+        import base64
+
+        domain = base64.b64decode(padded).decode("utf-8").rstrip("$").strip()
+        return domain or None
+    except Exception:  # noqa: BLE001
+        return None
+
+
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=(".env", "apps/api/.env"),
@@ -43,13 +59,20 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
     cors_allowed_origins: str = "http://localhost:3000"
 
-    # --- Supabase ----------------------------------------------------------
+    # --- Supabase (PostgreSQL database only; identity is Clerk) ------------
     supabase_url: str = ""
     supabase_publishable_key: str = ""
     supabase_secret_key: str = ""
     supabase_jwks_url: str = ""
     supabase_jwt_issuer: str = ""
     supabase_jwt_audience: str = "authenticated"
+
+    # --- Clerk (identity provider) ----------------------------------------
+    clerk_publishable_key: str = ""
+    clerk_secret_key: str = ""
+    clerk_jwks_url: str = ""
+    clerk_jwt_issuer: str = ""
+    clerk_authorized_parties: str = ""
 
     # --- Database ----------------------------------------------------------
     database_url: str = ""
@@ -123,6 +146,13 @@ class Settings(BaseSettings):
             self.supabase_jwks_url = f"{self.supabase_url.rstrip('/')}/auth/v1/.well-known/jwks.json"
         if self.supabase_url and not self.supabase_jwt_issuer:
             self.supabase_jwt_issuer = f"{self.supabase_url.rstrip('/')}/auth/v1"
+        if self.clerk_publishable_key:
+            domain = _clerk_domain(self.clerk_publishable_key)
+            if domain:
+                if not self.clerk_jwt_issuer:
+                    self.clerk_jwt_issuer = f"https://{domain}"
+                if not self.clerk_jwks_url:
+                    self.clerk_jwks_url = f"https://{domain}/.well-known/jwks.json"
         return self
 
     def validate_runtime(self) -> list[str]:
@@ -130,8 +160,8 @@ class Settings(BaseSettings):
         warnings: list[str] = []
         if not self.database_url:
             warnings.append("DATABASE_URL is not set; database features will fail.")
-        if not self.supabase_url:
-            warnings.append("SUPABASE_URL is not set; authentication cannot be verified.")
+        if not self.clerk_publishable_key:
+            warnings.append("CLERK_PUBLISHABLE_KEY is not set; authentication cannot be verified.")
         if not self.ollama_key_pool:
             warnings.append("No OLLAMA_API_KEY configured; AI features will return a setup error.")
         return warnings

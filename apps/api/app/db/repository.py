@@ -44,6 +44,29 @@ class Repository:
             )
         )
 
+    async def get_profile_by_clerk(self, clerk_user_id: str) -> dict[str, Any] | None:
+        return _row(
+            await self.session.execute(
+                text("select * from public.profiles where clerk_user_id = :cid"),
+                {"cid": clerk_user_id},
+            )
+        )
+
+    async def ensure_profile_for_clerk(
+        self, clerk_user_id: str, display_name: str | None = None
+    ) -> dict[str, Any]:
+        await self.session.execute(
+            text(
+                "insert into public.profiles (clerk_user_id, display_name) values (:cid, :name) "
+                "on conflict (clerk_user_id) do nothing"
+            ),
+            {"cid": clerk_user_id, "name": display_name},
+        )
+        profile = await self.get_profile_by_clerk(clerk_user_id)
+        if profile is None:  # pragma: no cover - defensive
+            raise RuntimeError("Failed to provision profile for Clerk user.")
+        return profile
+
     async def update_profile(self, user_id: str, fields: dict[str, Any]) -> dict[str, Any]:
         allowed = {
             "display_name",

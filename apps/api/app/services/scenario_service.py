@@ -7,7 +7,7 @@ import random
 from typing import Any
 
 from app.agents.ollama_cloud import OllamaCloudClient
-from app.core.errors import AppError, NotFoundError, ValidationAppError
+from app.core.errors import NotFoundError, ValidationAppError
 from app.db.repository import Repository
 from app.schemas.runtime import SimulationState
 from app.schemas.scenario import ActionDefinition, ScenarioBlueprint
@@ -147,23 +147,9 @@ async def create_instance(
         profile_goals=profile_goals,
     )
 
+    # Scenario generation is deterministic so a session can start immediately. The hosted
+    # model is reserved for dialogue and evaluation (the latency-sensitive path).
     generator_model: str | None = None
-    if ai.configured:
-        try:
-            narrative = await ai.chat_json(
-                _narrative_messages(blueprint), max_tokens=220
-            )
-            if narrative.get("title"):
-                blueprint.title = str(narrative["title"])[:160]
-            if narrative.get("briefing"):
-                blueprint.briefing = str(narrative["briefing"])[:2000]
-            for char in blueprint.characters:
-                greeting = narrative.get(f"{char.id}_greeting")
-                if greeting:
-                    char.greeting = str(greeting)[:400]
-            generator_model = blueprint.metadata.get("variation", {}).get("model")
-        except AppError as exc:
-            logger.warning("narrative_generation_failed", extra={"event": exc.code})
 
     report = validate_blueprint(blueprint)
     if not report.ok:
@@ -220,18 +206,6 @@ async def create_instance(
             "warnings": report.warnings,
         },
     }
-
-
-def _narrative_messages(blueprint: ScenarioBlueprint) -> list[dict[str, str]]:
-    from app.agents.prompts import build_narrative_messages
-
-    incident = blueprint.initial_state.get("incident", {})
-    return build_narrative_messages(
-        service=str(incident.get("service", "the service")),
-        pct=int(incident.get("impact_pct", 25)),
-        role=blueprint.role,
-        deploy_minutes=int(incident.get("deploy_minutes_ago", 10)),
-    )
 
 
 def _empty_state(blueprint: ScenarioBlueprint, version_id: str) -> SimulationState:

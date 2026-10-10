@@ -26,6 +26,8 @@ objective completion, event/transcript persistence, and evaluation. Phaser is a
 presentation/input layer only. Every consequential action is re-validated on the server and
 committed through deterministic code; model output is parsed into Pydantic models and never
 trusted directly. All AI inference is remote (hosted Ollama Cloud) — no local model ever runs.
+Identity is provided by **Clerk** (verified server-side against the instance JWKS); Supabase is
+used only as the PostgreSQL database, and internal profile rows are keyed by a `clerk_user_id`.
 
 ## Prerequisites
 
@@ -33,7 +35,8 @@ trusted directly. All AI inference is remote (hosted Ollama Cloud) — no local 
 - pnpm (this repo pins `pnpm@11.25.0`)
 - Python 3.12+ and [uv](https://docs.astral.sh/uv/)
 - Docker (only for the optional MinIO container)
-- A Supabase project and an Ollama Cloud API key
+- A Clerk application (publishable + secret keys), a Supabase project (database only), and an
+  Ollama Cloud API key
 
 ## Setup
 
@@ -46,18 +49,18 @@ trusted directly. All AI inference is remote (hosted Ollama Cloud) — no local 
 2. Configure environment files (see `.env.example`):
 
    ```sh
-   cp .env.example apps/web/.env.local   # then edit the NEXT_PUBLIC_* values
-   cp .env.example apps/api/.env         # then edit the server secrets
+   cp .env.example apps/web/.env.local   # NEXT_PUBLIC_* values + Clerk keys
+   cp .env.example apps/api/.env         # server secrets (Clerk, DB, Ollama)
    ```
 
-   `apps/web/.env.local` may only contain the public Supabase URL/publishable key and the API
-   base URL. Server secrets (service/secret key, database URL, Ollama key) go in
-   `apps/api/.env` and are never exposed to the browser.
+   `apps/web/.env.local` may only contain public values plus the Clerk secret key (used by
+   Next middleware; never exposed to the browser). Server secrets go in `apps/api/.env`.
 
-3. Apply the database schema to your Supabase project:
+3. Apply the database schema to your Supabase project (database only — identity is Clerk):
 
    ```sh
    psql "$DATABASE_URL" -f supabase/migrations/0001_init.sql
+   psql "$DATABASE_URL" -f supabase/migrations/0002_clerk_identity.sql
    ```
 
 4. Sync the Python environment:

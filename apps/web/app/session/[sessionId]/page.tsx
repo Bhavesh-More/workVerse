@@ -2,12 +2,12 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { AppNav } from "../../../components/AppNav";
-import { RequireAuth } from "../../../components/RequireAuth";
+import { AnimatePresence, motion } from "framer-motion";
 import { PhaserGame, type PhaserGameHandle } from "../../../game/PhaserGame";
 import { api, ApiError } from "../../../lib/api";
-import { useAuth } from "../../../lib/auth";
 import type { SessionView, TranscriptMessage, WorldAction } from "../../../lib/types";
+
+type GuideStep = { title: string; body: string; room?: string; character?: string };
 
 function statusBadge(status: string) {
   if (status === "completed") return "badge badge--ok";
@@ -15,10 +15,9 @@ function statusBadge(status: string) {
   return "badge";
 }
 
-function Simulation() {
+export default function SessionPage() {
   const params = useParams<{ sessionId: string }>();
   const sessionId = params.sessionId;
-  const { token } = useAuth();
   const router = useRouter();
 
   const gameRef = useRef<PhaserGameHandle>(null);
@@ -35,17 +34,18 @@ function Simulation() {
   const [busy, setBusy] = useState(false);
   const [sending, setSending] = useState(false);
   const [gameReady, setGameReady] = useState(false);
+  const [guideOn, setGuideOn] = useState(false);
+  const [guideIndex, setGuideIndex] = useState(0);
 
   const load = useCallback(async () => {
-    if (!token) return;
     try {
-      const [s, t] = await Promise.all([api.getSession(token, sessionId), api.transcript(token, sessionId)]);
+      const [s, t] = await Promise.all([api.getSession(sessionId), api.transcript(sessionId)]);
       setSession(s);
       setMessages(t.items);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not load the session.");
     }
-  }, [token, sessionId]);
+  }, [sessionId]);
 
   useEffect(() => {
     load();
@@ -57,6 +57,57 @@ function Simulation() {
 
   const actions = session?.world.actions ?? [];
   const characters = session?.world.characters ?? [];
+
+  const guideSteps = useMemo<GuideStep[]>(() => {
+    if (!session) return [];
+    const done = (id: string) => session.objectives.find((o) => o.id === id)?.status === "completed";
+    const knows = (id: string) => session.facts_known.some((f) => f.id === id);
+    const steps: GuideStep[] = [];
+    if (!done("o_establish_impact"))
+      steps.push({
+        title: "Establish the impact",
+        body: "Open the chat with your manager and ask what the customer impact and reporting deadline are.",
+        character: "manager",
+      });
+    if (!knows("f_migration_ran"))
+      steps.push({
+        title: "Find out what shipped",
+        body: "Ask your engineering teammate whether the deployment included a database migration.",
+        character: "teammate",
+      });
+    if (!done("o_gather_evidence"))
+      steps.push({
+        title: "Investigate evidence",
+        body: "Walk to the engineering workspace (or use the action panel) and inspect the application logs.",
+        room: "engineering_workspace",
+      });
+    if (!done("o_identify_risk"))
+      steps.push({
+        title: "Check rollback safety",
+        body: "Before reverting, verify the migration's compatibility. Use “Check migration compatibility”.",
+        room: "engineering_workspace",
+      });
+    if (!done("o_choose_mitigation"))
+      steps.push({
+        title: "Mitigate safely",
+        body: "Now that you know the risk, apply a mitigation — roll back or apply the forward fix.",
+        room: "engineering_workspace",
+      });
+    if (!done("o_communicate"))
+      steps.push({
+        title: "Update stakeholders",
+        body: "Write a clear status update in the “Stakeholder update” panel: impact, cause, action, next update and owner.",
+      });
+    steps.push({
+      title: "Finish and debrief",
+      body: "When every required objective is complete, hit “Complete & debrief” to get your evidence-grounded report.",
+    });
+    return steps;
+  }, [session]);
+
+  useEffect(() => {
+    if (guideOn) setGuideIndex(0);
+  }, [guideOn]);
 
   const actionsByObject = useMemo(() => {
     const map = new Map<string, WorldAction[]>();
@@ -72,38 +123,33 @@ function Simulation() {
 
   const runAction = useCallback(
     async (action: WorldAction, payload?: Record<string, unknown>) => {
-      if (!token || !session) return;
+      if (!session) return;
       setBusy(true);
       setError(null);
       setNotice(null);
       try {
-        const res = await api.submitAction(token, sessionId, {
+        const res = await api.submitAction(sessionId, {
           client_action_id: crypto.randomUUID(),
           expected_state_version: session.state_version,
           type: action.id,
           payload: payload ?? {},
         });
         setSession(res.session);
-        const t = await api.transcript(token, sessionId);
-        setMessages(t.items);
-        if (res.state_delta && Array.isArray(res.state_delta.newly_discovered_fact_ids)) {
-          const newly = res.state_delta.newly_discovered_fact_ids as string[];
-          if (newly.length) setNotice(`New information: ${newly.join(", ")}`);
-        }
+        setMessages((await api.transcript(sessionId)).items);
+        const newly = res.state_delta?.newly_discovered_fact_ids as string[] | undefined;
+        if (newly?.length) setNotice(`New information: ${newly.join(", ")}`);
       } catch (e) {
         if (e instanceof ApiError && e.status === 409) {
           await load();
           setError("The session changed; state refreshed. Try again.");
-        } else if (e instanceof ApiError) {
-          setError(e.message);
         } else {
-          setError("Action failed.");
+          setError(e instanceof ApiError ? e.message : "Action failed.");
         }
       } finally {
         setBusy(false);
       }
     },
-    [token, session, sessionId, load],
+    [session, sessionId, load],
   );
 
   const interactObject = useCallback(
@@ -134,79 +180,75 @@ function Simulation() {
   }, []);
 
   const sendMessage = useCallback(async () => {
-    if (!token || !session || !activeCharacter || !chatInput.trim()) return;
+    if (!session || !activeCharacter || !chatInput.trim()) return;
     setSending(true);
     setError(null);
     const text = chatInput.trim();
     setChatInput("");
     try {
-      const res = await api.submitTurn(token, sessionId, {
+      const res = await api.submitTurn(sessionId, {
         client_turn_id: crypto.randomUUID(),
         expected_state_version: session.state_version,
         character_id: activeCharacter,
         message: text,
       });
       setSession(res.session);
-      const t = await api.transcript(token, sessionId);
-      setMessages(t.items);
+      setMessages((await api.transcript(sessionId)).items);
     } catch (e) {
       if (e instanceof ApiError && e.status === 409) {
         await load();
         setError("The session changed; state refreshed. Please resend.");
-      } else if (e instanceof ApiError) {
-        setError(e.message);
       } else {
-        setError("Message failed.");
+        setError(e instanceof ApiError ? e.message : "Message failed.");
       }
     } finally {
       setSending(false);
     }
-  }, [token, session, activeCharacter, chatInput, sessionId, load]);
+  }, [session, activeCharacter, chatInput, sessionId, load]);
 
   const finish = useCallback(
     async (force: boolean) => {
-      if (!token || !session) return;
+      if (!session) return;
       setBusy(true);
       setError(null);
       try {
-        await api.complete(token, sessionId, {
-          expected_state_version: session.state_version,
-          force,
-        });
+        await api.complete(sessionId, { expected_state_version: session.state_version, force });
         router.push(`/session/${sessionId}/debrief`);
       } catch (e) {
-        if (e instanceof ApiError) setError(e.message);
-        else setError("Could not complete the session.");
+        setError(e instanceof ApiError ? e.message : "Could not complete the session.");
         setBusy(false);
       }
     },
-    [token, session, sessionId, router],
+    [session, sessionId, router],
   );
 
   if (!session) {
-    return <main className="app-main spinner">{error ?? "Loading simulation…"}</main>;
+    return (
+      <div className="sim-full">
+        <div className="spinner" style={{ margin: "auto" }}>
+          {error ?? "Loading simulation…"}
+        </div>
+      </div>
+    );
   }
 
   const incident = session.incident as Record<string, unknown>;
   const activeName = characters.find((c) => c.id === activeCharacter)?.name;
   const chatMessages = activeCharacter
-    ? messages.filter(
-        (m) =>
-          (m.speaker_type === "learner" && !m.character_id) ||
-          m.character_id === activeCharacter,
-      )
+    ? messages.filter((m) => (m.speaker_type === "learner" && !m.character_id) || m.character_id === activeCharacter)
     : [];
+  const currentStep = guideSteps[Math.min(guideIndex, guideSteps.length - 1)];
 
   return (
-    <main className="app-main app-main--wide">
-      <div className="row between" style={{ marginBottom: 14 }}>
+    <div className="sim-full">
+      <div className="sim-full__bar">
         <div>
-          <p className="eyebrow">
-            Incident · {String(incident.service ?? "service")} · severity {String(incident.severity ?? "?")}
+          <p className="eyebrow" style={{ fontSize: 10 }}>
+            {String(incident.service ?? "service")} · {String(incident.severity ?? "?")} severity
           </p>
-          <h1 className="page-title" style={{ fontSize: "1.4rem" }}>
+          <strong style={{ letterSpacing: "0.14em", textTransform: "uppercase", fontSize: 12 }}>
             {session.phase} · v{session.state_version}
-          </h1>
+          </strong>
         </div>
         <div className="row">
           <span className={statusBadge(session.status)}>{session.status}</span>
@@ -225,103 +267,92 @@ function Simulation() {
         </div>
       </div>
 
-      {error && (
-        <div className="banner banner--error" style={{ marginBottom: 12 }} role="alert">
-          {error}
-        </div>
-      )}
-      {notice && <div className="banner banner--info" style={{ marginBottom: 12 }}>{notice}</div>}
-
-      <div className="sim-layout">
-        <div className="stack">
-          <div className="game-frame">
-            <PhaserGame
-              ref={gameRef}
-              world={session.world}
-              sessionId={sessionId}
-              playerTexture="blonde_man"
-              onPrompt={setPrompt}
-              onInteractCharacter={openCharacter}
-              onInteractObject={interactObject}
-              onLocationChange={() => {}}
-              onReady={() => setGameReady(true)}
-            />
-            {!gameReady && (
-              <div
-                style={{
-                  position: "absolute",
-                  inset: 0,
-                  display: "grid",
-                  placeItems: "center",
-                  color: "#e7e6db",
-                }}
-                className="spinner"
-              >
-                Loading office…
-              </div>
-            )}
-            {prompt && (
-              <div
-                style={{
-                  position: "absolute",
-                  bottom: 12,
-                  left: "50%",
-                  transform: "translateX(-50%)",
-                  background: "#e7e6db",
-                  border: "1px solid #222c21",
-                  padding: "6px 12px",
-                  fontSize: 12,
-                }}
-              >
-                Press <strong>E</strong> to interact with {prompt}
-              </div>
-            )}
-          </div>
-
-          <div className="panel stack stack--sm">
-            <div className="row between">
-              <span className="section-title">Quick navigation</span>
-              <span className="small muted">Keyboard: WASD/arrows · E to interact</span>
+      <div className="sim-full__body">
+        <div className="sim-full__game">
+          <PhaserGame
+            ref={gameRef}
+            world={session.world}
+            sessionId={sessionId}
+            playerTexture="blonde_man"
+            onPrompt={setPrompt}
+            onInteractCharacter={openCharacter}
+            onInteractObject={interactObject}
+            onLocationChange={() => {}}
+            onReady={() => setGameReady(true)}
+          />
+          {!gameReady && (
+            <div style={{ position: "absolute", inset: 0, display: "grid", placeItems: "center", color: "#e7e6db" }} className="spinner">
+              Loading office…
             </div>
-            <div className="row">
-              {session.world.locations
-                .filter((l) => l.kind === "room")
-                .map((l) => (
-                  <button
-                    key={l.id}
-                    className="btn btn--ghost btn--small"
-                    onClick={() => gameRef.current?.travelTo(l.id)}
-                  >
-                    {l.name}
+          )}
+          {prompt && !guideOn && (
+            <div style={{ position: "absolute", top: 12, left: "50%", transform: "translateX(-50%)", background: "#e7e6db", border: "1px solid #222c21", padding: "6px 12px", fontSize: 12 }}>
+              Press <strong>E</strong> to interact with {prompt}
+            </div>
+          )}
+
+          <AnimatePresence>
+            {guideOn && currentStep && (
+              <motion.div
+                className="guide-panel"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: 20 }}
+                transition={{ duration: 0.22 }}
+              >
+                <div className="guide-panel__head">
+                  <span className="eyebrow" style={{ fontSize: 10 }}>
+                    Guide · step {guideIndex + 1} of {guideSteps.length}
+                  </span>
+                  <button className="btn btn--ghost btn--small" onClick={() => setGuideOn(false)}>
+                    Stop guide
                   </button>
-                ))}
-            </div>
-            <div className="row">
-              <span className="section-title">Talk to</span>
-              {characters.map((c) => (
-                <button
-                  key={c.id}
-                  data-testid={`talk-${c.id}`}
-                  className={c.id === activeCharacter ? "btn btn--small" : "btn btn--ghost btn--small"}
-                  onClick={() => openCharacter(c.id)}
-                >
-                  {c.name}
-                </button>
-              ))}
-            </div>
-          </div>
+                </div>
+                <h3 style={{ fontSize: 15, marginBottom: 6 }}>{currentStep.title}</h3>
+                <p className="small muted">{currentStep.body}</p>
+                <div className="row" style={{ marginTop: 12 }}>
+                  {currentStep.character && (
+                    <button className="btn btn--small" onClick={() => openCharacter(currentStep.character!)}>
+                      Open chat
+                    </button>
+                  )}
+                  {currentStep.room && (
+                    <button className="btn btn--small" onClick={() => gameRef.current?.travelTo(currentStep.room!)}>
+                      Take me there
+                    </button>
+                  )}
+                  <button className="btn btn--ghost btn--small" onClick={() => setGuideIndex((i) => Math.max(0, i - 1))} disabled={guideIndex === 0}>
+                    Back
+                  </button>
+                  <button className="btn btn--ghost btn--small" onClick={() => setGuideIndex((i) => Math.min(guideSteps.length - 1, i + 1))} disabled={guideIndex >= guideSteps.length - 1}>
+                    Next
+                  </button>
+                </div>
+                <div className="guide-step-dots">
+                  {guideSteps.map((_, i) => (
+                    <button key={i} className={i === guideIndex ? "is-on" : ""} onClick={() => setGuideIndex(i)} aria-label={`Step ${i + 1}`} />
+                  ))}
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          <button className="guide-toggle" onClick={() => setGuideOn((v) => !v)}>
+            {guideOn ? "Hide guide" : "Need help? Show guide"}
+          </button>
         </div>
 
-        <aside className="sim-side">
+        <aside className="sim-full__side">
+          {error && <div className="banner banner--error" role="alert">{error}</div>}
+          {notice && <div className="banner banner--info">{notice}</div>}
+
           <section className="panel stack stack--sm">
             <h2 className="section-title">Objectives</h2>
             <ul className="list-reset">
               {session.objectives.map((o) => (
                 <li key={o.id} className="objective">
                   <span>{o.label}</span>
-                  <span className={o.status === "completed" ? "badge badge--ok" : "badge"}>
-                    {o.status}
-                  </span>
+                  <span className={o.status === "completed" ? "badge badge--ok" : "badge"}>{o.status}</span>
                 </li>
               ))}
             </ul>
@@ -335,16 +366,11 @@ function Simulation() {
                 .map((a) => (
                   <li key={a.id}>
                     <button
-                      key={a.id}
                       data-testid={`action-${a.id}`}
                       className="btn btn--ghost btn--small"
                       style={{ width: "100%", textAlign: "left" }}
                       disabled={busy || !a.ready}
-                      onClick={() =>
-                        a.requires_text
-                          ? setNotice(`Use the “Stakeholder update” panel to submit “${a.label}”.`)
-                          : runAction(a)
-                      }
+                      onClick={() => (a.requires_text ? setNotice(`Use the “Stakeholder update” panel to submit “${a.label}”.`) : runAction(a))}
                       title={a.locked_reason ?? a.description}
                     >
                       {a.label}
@@ -394,31 +420,40 @@ function Simulation() {
             )}
           </section>
 
-          <section className="panel stack stack--sm" style={{ flex: 1, minHeight: 220 }}>
-            <h2 className="section-title">
-              {activeName ? `Chat · ${activeName}` : "Conversation"}
-            </h2>
+          <section className="panel stack stack--sm" style={{ minHeight: 240 }}>
+            <div className="row between">
+              <h2 className="section-title">{activeName ? `Chat · ${activeName}` : "Conversation"}</h2>
+              <div className="row" style={{ gap: 6 }}>
+                {characters.map((c) => (
+                  <button
+                    key={c.id}
+                    data-testid={`talk-${c.id}`}
+                    className={c.id === activeCharacter ? "btn btn--small" : "btn btn--ghost btn--small"}
+                    onClick={() => openCharacter(c.id)}
+                    title={`Talk to ${c.name}`}
+                  >
+                    {c.name.split(" ")[0]}
+                  </button>
+                ))}
+              </div>
+            </div>
             {!activeCharacter ? (
-              <p className="small muted">
-                Walk to a colleague or use “Talk to” above, then ask a question.
-              </p>
+              <p className="small muted">Pick a colleague above, then ask a question. Or walk to them and press E.</p>
             ) : (
               <>
-                <div
-                  ref={transcriptRef}
-                  data-testid="chat-log"
-                  style={{ flex: 1, overflowY: "auto", maxHeight: 260, display: "flex", flexDirection: "column", gap: 10 }}
-                >
-                  {chatMessages.length === 0 && (
-                    <p className="small muted">Start the conversation.</p>
-                  )}
+                <div ref={transcriptRef} data-testid="chat-log" style={{ flex: 1, overflowY: "auto", maxHeight: 260, display: "flex", flexDirection: "column", gap: 10 }}>
+                  {chatMessages.length === 0 && <p className="small muted">Start the conversation.</p>}
                   {chatMessages.map((m) => (
-                    <div key={m.id} className="small">
-                      <span className="eyebrow" style={{ fontSize: 9 }}>
-                        {m.speaker_type === "learner" ? "You" : activeName}
-                      </span>
-                      <p style={{ marginTop: 2 }}>{m.content}</p>
-                    </div>
+                    <motion.div
+                      key={m.id}
+                      className={`bubble${m.speaker_type === "learner" ? " bubble--learner" : ""}`}
+                      initial={{ opacity: 0, y: 8 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ duration: 0.2 }}
+                    >
+                      <span className="bubble__who">{m.speaker_type === "learner" ? "You" : activeName}</span>
+                      {m.content}
+                    </motion.div>
                   ))}
                 </div>
                 <div className="row" style={{ alignItems: "flex-end" }}>
@@ -436,12 +471,7 @@ function Simulation() {
                       }
                     }}
                   />
-                  <button
-                    className="btn btn--small"
-                    data-testid="chat-send"
-                    onClick={sendMessage}
-                    disabled={sending || !chatInput.trim()}
-                  >
+                  <button className="btn btn--small" data-testid="chat-send" onClick={sendMessage} disabled={sending || !chatInput.trim()}>
                     {sending ? "…" : "Send"}
                   </button>
                 </div>
@@ -450,17 +480,6 @@ function Simulation() {
           </section>
         </aside>
       </div>
-    </main>
-  );
-}
-
-export default function SessionPage() {
-  return (
-    <div className="app-shell">
-      <AppNav />
-      <RequireAuth>
-        <Simulation />
-      </RequireAuth>
     </div>
   );
 }

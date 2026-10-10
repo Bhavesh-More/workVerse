@@ -7,7 +7,7 @@ import asyncio
 import httpx
 import pytest
 from app.agents.ollama_cloud import ChatResult, OllamaCloudClient, _extract_json
-from app.core.config import Settings
+from app.core.config import Settings, _clerk_domain
 from app.core.errors import AIConfigError, RateLimitError
 from pydantic import ValidationError
 
@@ -37,6 +37,18 @@ def test_extract_json_handles_fences_and_prose() -> None:
     assert _extract_json('```json\n{"a": 1}\n```') == {"a": 1}
     assert _extract_json('Sure! {"a": 2} done') == {"a": 2}
     assert _extract_json("not json") is None
+
+
+def test_clerk_domain_decoding() -> None:
+    # pk_test_<base64("example.clerk.accounts.dev$")>
+    import base64
+
+    domain = "mutual-monkfish-935.clerk.accounts.dev"
+    pk = "pk_test_" + base64.b64encode(f"{domain}$".encode()).decode().rstrip("=")
+    assert _clerk_domain(pk) == domain
+    settings = Settings(clerk_publishable_key=pk)
+    assert settings.clerk_jwt_issuer == f"https://{domain}"
+    assert settings.clerk_jwks_url == f"https://{domain}/.well-known/jwks.json"
 
 
 def test_key_rotation_on_rate_limit(monkeypatch: pytest.MonkeyPatch) -> None:
