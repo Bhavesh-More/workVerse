@@ -1,0 +1,74 @@
+"use client";
+
+import {
+  forwardRef,
+  useEffect,
+  useImperativeHandle,
+  useRef,
+} from "react";
+import type { WorldView } from "../lib/types";
+
+export type PhaserGameHandle = {
+  travelTo: (locationId: string) => void;
+  focusCharacter: (characterId: string) => void;
+};
+
+type Props = {
+  world: WorldView;
+  sessionId: string;
+  playerTexture?: string;
+  onPrompt: (label: string | null) => void;
+  onInteractCharacter: (characterId: string) => void;
+  onInteractObject: (objectId: string) => void;
+  onLocationChange: (locationId: string) => void;
+  onReady: () => void;
+};
+
+export const PhaserGame = forwardRef<PhaserGameHandle, Props>(function PhaserGame(props, ref) {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const gameRef = useRef<unknown>(null);
+  const callbacks = useRef(props);
+  callbacks.current = props;
+
+  useImperativeHandle(ref, () => ({
+    travelTo: (locationId: string) => {
+      const game = gameRef.current as { __scene?: () => { travelTo: (id: string) => void } } | null;
+      game?.__scene?.().travelTo(locationId);
+    },
+    focusCharacter: (characterId: string) => {
+      const game = gameRef.current as {
+        __scene?: () => { focusCharacter: (id: string) => void };
+      } | null;
+      game?.__scene?.().focusCharacter(characterId);
+    },
+  }));
+
+  useEffect(() => {
+    let disposed = false;
+    const parent = containerRef.current;
+    if (!parent) return;
+
+    (async () => {
+      const { createOfficeGame } = await import("./office");
+      if (disposed) return;
+      gameRef.current = createOfficeGame(parent, {
+        world: callbacks.current.world,
+        playerTexture: callbacks.current.playerTexture ?? "blonde_man",
+        onPrompt: (label) => callbacks.current.onPrompt(label),
+        onInteractCharacter: (id) => callbacks.current.onInteractCharacter(id),
+        onInteractObject: (id) => callbacks.current.onInteractObject(id),
+        onLocationChange: (id) => callbacks.current.onLocationChange(id),
+        onReady: () => callbacks.current.onReady(),
+      });
+    })();
+
+    return () => {
+      disposed = true;
+      const game = gameRef.current as { destroy?: (removeCanvas: boolean) => void } | null;
+      game?.destroy?.(true);
+      gameRef.current = null;
+    };
+  }, [props.sessionId]);
+
+  return <div ref={containerRef} style={{ width: "100%", height: "100%" }} aria-label="Office game" />;
+});

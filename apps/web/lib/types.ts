@@ -1,0 +1,241 @@
+export type WorldAction = {
+  id: string;
+  label: string;
+  description: string;
+  action_type: string;
+  kind: string;
+  location_id: string | null;
+  target_id: string | null;
+  risk_level: string;
+  requires_text: boolean;
+  available: boolean;
+  ready: boolean;
+  locked_reason: string | null;
+};
+
+export type WorldCharacter = {
+  id: string;
+  name: string;
+  role: string;
+  sprite: string;
+  location_id: string;
+  greeting: string;
+};
+
+export type WorldObject = {
+  id: string;
+  label: string;
+  location_id: string;
+  marker: string;
+};
+
+export type WorldLocation = {
+  id: string;
+  name: string;
+  kind: string;
+  description: string;
+};
+
+export type WorldView = {
+  locations: WorldLocation[];
+  characters: WorldCharacter[];
+  objects: WorldObject[];
+  actions: WorldAction[];
+};
+
+export type Objective = {
+  id: string;
+  label: string;
+  status: string;
+  required: boolean;
+};
+
+export type KnownFact = { id: string; label: string; detail: string };
+
+export type CompletionStatus = {
+  ready: boolean;
+  required_objectives: string[];
+  completed_objectives: string[];
+  missing_objectives: string[];
+  missing_actions: string[];
+};
+
+export type SessionView = {
+  id: string;
+  status: string;
+  state_version: number;
+  current_location_id: string;
+  active_character_id: string | null;
+  phase: string;
+  objectives: Objective[];
+  tasks: Record<string, string>;
+  facts_known: KnownFact[];
+  incident: Record<string, unknown>;
+  available_locations: string[];
+  world: WorldView;
+  completion: CompletionStatus;
+  completed: boolean;
+};
+
+export type Prebrief = {
+  title: string;
+  role: string;
+  difficulty: string;
+  estimated_minutes: number;
+  briefing: string;
+  objectives: string[];
+  competency_goals: string[];
+  controls: string[];
+};
+
+export type ScenarioInstance = {
+  scenario_instance_id: string;
+  template_id: string;
+  scenario_version: number;
+  status: string;
+  prebrief: Prebrief;
+  world: WorldView;
+  validation_summary?: Record<string, unknown>;
+};
+
+export type ScenarioTemplate = {
+  id: string;
+  slug: string;
+  title: string;
+  summary: string;
+  categories: string[];
+  target_roles: string[];
+  supported_modes: string[];
+  estimated_minutes: number;
+  difficulty_options: string[];
+};
+
+export type SuggestedAction = {
+  id: string;
+  label: string;
+  action_type: string;
+  confidence: string;
+};
+
+export type TurnResponse = {
+  turn_id: string;
+  duplicate: boolean;
+  state_version: number;
+  assistant_message_id: string;
+  character_id: string;
+  message: string;
+  suggested_actions: SuggestedAction[];
+  newly_discovered_facts: string[];
+  session: SessionView;
+};
+
+export type ActionResponse = {
+  accepted: boolean;
+  duplicate: boolean;
+  state_version: number;
+  state_delta: Record<string, unknown>;
+  events: { id: string; type: string }[];
+  session: SessionView;
+};
+
+export type TranscriptMessage = {
+  id: string;
+  session_id: string;
+  sequence_number: number;
+  speaker_type: "learner" | "character" | "system";
+  character_id: string | null;
+  content: string;
+  modality: string;
+  status: string;
+  created_at: string | null;
+};
+
+export type EvidenceRef = {
+  source_type: "message" | "event" | "deliverable";
+  source_id: string;
+  quote: string | null;
+  interpretation: string;
+};
+
+export type EvaluationItem = {
+  criterion_id: string;
+  criterion_name: string;
+  status: "scored" | "insufficient_evidence" | "needs_review";
+  score: number | null;
+  score_max: number;
+  explanation: string;
+  recommendation: string;
+  counterevidence: unknown[];
+  evidence: EvidenceRef[];
+};
+
+export type Evaluation = {
+  id: string;
+  session_id: string;
+  status: string;
+  rubric_version: string;
+  evaluator_version: string;
+  evaluator_model: string | null;
+  overall_score: number | null;
+  score_scale: { minimum: number; maximum: number; interpretation: string };
+  summary: string;
+  limitations: string[];
+  validation_warnings: string[];
+  items: EvaluationItem[];
+  created_at: string | null;
+};
+
+export type Profile = {
+  id: string;
+  email?: string | null;
+  display_name: string | null;
+  education_summary: string | null;
+  experience_summary: string | null;
+  target_role: string | null;
+  career_goals: string[];
+  preferred_stack: string[];
+  experience_level: string | null;
+  created_at: string;
+  updated_at: string;
+  skills: ProfileSkill[];
+};
+
+export type ProfileSkill = {
+  id: string;
+  name: string;
+  level_self_reported: string | null;
+  provenance: string;
+};
+
+export type SessionSummary = {
+  id: string;
+  status: string;
+  mode: string;
+  difficulty: string;
+  title: string;
+  state_version: number;
+  started_at: string | null;
+  ended_at: string | null;
+  created_at: string;
+};
+
+export type ProgressResponse = {
+  sessions: { id: string; status: string; difficulty: string; created_at: string }[];
+  evaluations: {
+    session_id: string;
+    overall_score: number | null;
+    rubric_version: string;
+    difficulty: string;
+    completed_at: string;
+  }[];
+};
+
+export type CompetencyTrend = {
+  criterion_id: string;
+  criterion_name: string;
+  attempts: number;
+  average_score: number | null;
+  score_max: number;
+  rubric_version: string;
+  sufficient_data: boolean;
+};

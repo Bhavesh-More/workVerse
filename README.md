@@ -1,159 +1,115 @@
-# Turborepo starter
+# WorkVerse AI
 
-This Turborepo starter is maintained by the Turborepo core team.
+An AI-powered 2D workplace simulator. Learners enter a virtual office, interact with
+AI-controlled managers and teammates, complete a realistic workplace scenario, and receive
+an evidence-grounded debrief that cites their own transcript and actions.
 
-## Using this example
+**Core loop:** profile → scenario selection → validated scenario → enter the office →
+interact with characters and objects → complete the challenge → evidence-grounded debrief →
+review progress → retry a variant.
 
-Run the following command:
+This repository is a pnpm + Turborepo monorepo containing:
 
-```sh
-npx create-turbo@latest
-```
+- `apps/web` — Next.js App Router frontend, the Phaser 3 office game, and the Playwright E2E tests.
+- `apps/api` — FastAPI backend: auth verification, scenario validation, authoritative
+  simulation state, hosted Ollama Cloud AI orchestration, and evaluation.
+- `packages/*` — existing shared UI / eslint / TypeScript configs.
+- `supabase/` — SQL schema and migrations.
+- `infra/` — local MinIO compose file (optional).
+- `assets/` — the supplied art packs (Neko Office, PixelSerial RPG characters) and license.
+- `scripts/build_office_map.py` — deterministic generator for the office map layers.
 
-## What's inside?
+## Architecture in one paragraph
 
-This Turborepo includes the following packages/apps:
+FastAPI is authoritative: it owns session ownership, scenario rules, allowed actions,
+objective completion, event/transcript persistence, and evaluation. Phaser is a
+presentation/input layer only. Every consequential action is re-validated on the server and
+committed through deterministic code; model output is parsed into Pydantic models and never
+trusted directly. All AI inference is remote (hosted Ollama Cloud) — no local model ever runs.
 
-### Apps and Packages
+## Prerequisites
 
-- `docs`: a [Next.js](https://nextjs.org/) app
-- `web`: another [Next.js](https://nextjs.org/) app
-- `@repo/ui`: a stub React component library shared by both `web` and `docs` applications
-- `@repo/eslint-config`: `eslint` configurations (includes `@next/eslint-plugin-next` and `eslint-config-prettier`)
-- `@repo/typescript-config`: `tsconfig.json`s used throughout the monorepo
+- Node.js ≥ 20 (repo engines target ≥ 24; Node 22 works for the web app)
+- pnpm (this repo pins `pnpm@11.25.0`)
+- Python 3.12+ and [uv](https://docs.astral.sh/uv/)
+- Docker (only for the optional MinIO container)
+- A Supabase project and an Ollama Cloud API key
 
-Each package/app is 100% [TypeScript](https://www.typescriptlang.org/).
+## Setup
 
-### Utilities
+1. Install JavaScript dependencies:
 
-This Turborepo has some additional tools already setup for you:
+   ```sh
+   pnpm install
+   ```
 
-- [TypeScript](https://www.typescriptlang.org/) for static type checking
-- [ESLint](https://eslint.org/) for code linting
-- [Prettier](https://prettier.io) for code formatting
+2. Configure environment files (see `.env.example`):
 
-### Build
+   ```sh
+   cp .env.example apps/web/.env.local   # then edit the NEXT_PUBLIC_* values
+   cp .env.example apps/api/.env         # then edit the server secrets
+   ```
 
-To build all apps and packages, run the following command:
+   `apps/web/.env.local` may only contain the public Supabase URL/publishable key and the API
+   base URL. Server secrets (service/secret key, database URL, Ollama key) go in
+   `apps/api/.env` and are never exposed to the browser.
 
-With [global `turbo`](https://turborepo.dev/docs/getting-started/installation#global-installation) installed (recommended):
+3. Apply the database schema to your Supabase project:
 
-```sh
-cd my-turborepo
-turbo build
-```
+   ```sh
+   psql "$DATABASE_URL" -f supabase/migrations/0001_init.sql
+   ```
 
-Without global `turbo`, use your package manager:
+4. Sync the Python environment:
 
-```sh
-cd my-turborepo
-npx turbo build
-pnpm exec turbo build
-pnpm exec turbo build
-```
+   ```sh
+   cd apps/api && uv sync && cd ../..
+   ```
 
-You can build a specific package by using a [filter](https://turborepo.dev/docs/crafting-your-repository/running-tasks#using-filters):
-
-With [global `turbo`](https://turborepo.dev/docs/getting-started/installation#global-installation) installed:
-
-```sh
-turbo build --filter=docs
-```
-
-Without global `turbo`:
-
-```sh
-npx turbo build --filter=docs
-pnpm exec turbo build --filter=docs
-pnpm exec turbo build --filter=docs
-```
-
-### Develop
-
-To develop all apps and packages, run the following command:
-
-With [global `turbo`](https://turborepo.dev/docs/getting-started/installation#global-installation) installed (recommended):
+## Run
 
 ```sh
-cd my-turborepo
-turbo dev
+pnpm dev            # starts apps/web (3000) and apps/api (8000) via Turbo
 ```
 
-Without global `turbo`, use your package manager:
+Optional local object storage (private bucket, loopback only):
 
 ```sh
-cd my-turborepo
-npx turbo dev
-pnpm exec turbo dev
-pnpm exec turbo dev
+docker compose -f infra/docker-compose.minio.yml --env-file .env up
 ```
 
-You can develop a specific package by using a [filter](https://turborepo.dev/docs/crafting-your-repository/running-tasks#using-filters):
-
-With [global `turbo`](https://turborepo.dev/docs/getting-started/installation#global-installation) installed:
+## Verify
 
 ```sh
-turbo dev --filter=web
+pnpm lint           # ESLint (web) + Ruff (api)
+pnpm check-types    # Next.js typegen + tsc, Ruff for api
+pnpm test           # pytest (unit)
+pnpm --filter web build
+pnpm test:e2e       # Playwright: full learner journey (requires web+api+Supabase+Ollama)
 ```
 
-Without global `turbo`:
+Backend integration test against live services:
 
 ```sh
-npx turbo dev --filter=web
-pnpm exec turbo dev --filter=web
-pnpm exec turbo dev --filter=web
+cd apps/api && WORKVERSE_LIVE=1 uv run pytest tests/test_integration_live.py
 ```
 
-### Remote Caching
+## Hosted inference only
 
-> [!TIP]
-> Vercel Remote Cache is free for all plans. Get started today at [vercel.com](https://vercel.com/signup?utm_source=remote-cache-sdk&utm_campaign=free_remote_cache).
+The backend calls `https://ollama.com/v1` with a server-side Bearer token. The base URL is
+validated at startup against an allow-list; `http://localhost:11434` and other local
+endpoints are rejected by configuration, and no code path falls back to local inference.
+Multiple keys in `OLLAMA_API_KEYS` rotate automatically when one is rate limited.
 
-Turborepo can use a technique known as [Remote Caching](https://turborepo.dev/docs/core-concepts/remote-caching) to share cache artifacts across machines, enabling you to share build caches with your team and CI/CD pipelines.
+## Documentation
 
-By default, Turborepo will cache locally. To enable Remote Caching you will need an account with Vercel. If you don't have an account you can [create one](https://vercel.com/signup?utm_source=turborepo-examples), then enter the following commands:
+- Design system: `../workverse-ai-docs/docs/DESIGN.md` (calm editorial, JetBrains Mono, grid).
+- Supplied product/architecture docs: `../workverse-ai-docs/`.
+- Known limitations and decisions: `docs/LIMITATIONS.md`.
 
-With [global `turbo`](https://turborepo.dev/docs/getting-started/installation#global-installation) installed (recommended):
+## Assets and licenses
 
-```sh
-cd my-turborepo
-turbo login
-```
-
-Without global `turbo`, use your package manager:
-
-```sh
-cd my-turborepo
-npx turbo login
-pnpm exec turbo login
-pnpm exec turbo login
-```
-
-This will authenticate the Turborepo CLI with your [Vercel account](https://vercel.com/docs/concepts/personal-accounts/overview).
-
-Next, you can link your Turborepo to your Remote Cache by running the following command from the root of your Turborepo:
-
-With [global `turbo`](https://turborepo.dev/docs/getting-started/installation#global-installation) installed:
-
-```sh
-turbo link
-```
-
-Without global `turbo`:
-
-```sh
-npx turbo link
-pnpm exec turbo link
-pnpm exec turbo link
-```
-
-## Useful Links
-
-Learn more about the power of Turborepo:
-
-- [Tasks](https://turborepo.dev/docs/crafting-your-repository/running-tasks)
-- [Caching](https://turborepo.dev/docs/crafting-your-repository/caching)
-- [Remote Caching](https://turborepo.dev/docs/core-concepts/remote-caching)
-- [Filtering](https://turborepo.dev/docs/crafting-your-repository/running-tasks#using-filters)
-- [Configuration Options](https://turborepo.dev/docs/reference/configuration)
-- [CLI Usage](https://turborepo.dev/docs/reference/command-line-reference)
+- Neko Office Asset Pack (free assets) — used for tiles and furniture.
+- PixelSerial "RPG Top Down Character Asset Pack" — human character sprites; see
+  `assets/RPG_LICENSE.txt` (free for personal and commercial use; do not redistribute the
+  assets themselves).
