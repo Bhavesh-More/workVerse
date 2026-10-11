@@ -20,6 +20,7 @@ from app.core.errors import AppError, error_envelope
 from app.core.logging import configure_logging
 from app.db.session import dispose_engine, init_engine, session_scope
 from app.services.ai_provider import close_ai_client
+from app.services.voice_provider import close_voice_client
 
 logger = logging.getLogger(__name__)
 
@@ -42,6 +43,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
             logger.warning("seed_templates_failed", extra={"event": type(exc).__name__})
     yield
     await close_ai_client()
+    await close_voice_client()
     await dispose_engine()
 
 

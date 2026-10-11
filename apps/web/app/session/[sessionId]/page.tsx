@@ -2,10 +2,24 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
+import dynamic from "next/dynamic";
 import { AnimatePresence, motion } from "framer-motion";
 import { PhaserGame, type PhaserGameHandle } from "../../../game/PhaserGame";
 import { api, ApiError } from "../../../lib/api";
-import type { SessionView, TranscriptMessage, WorldAction } from "../../../lib/types";
+import type { SessionView, TranscriptMessage, VoiceNpc, WorldAction } from "../../../lib/types";
+
+// Browser-only SDK; never evaluated during SSR.
+const VoiceMeeting = dynamic(
+  () => import("../../../game/VoiceMeeting").then((mod) => mod.VoiceMeeting),
+  { ssr: false },
+);
+
+type VoiceStartState = {
+  npc: VoiceNpc;
+  voiceSessionId: string;
+  conversationToken: string;
+  contextGrant: string | null;
+};
 
 type GuideStep = { title: string; body: string; room?: string; character?: string };
 
@@ -37,6 +51,11 @@ export default function SessionPage() {
   const [guideOn, setGuideOn] = useState(false);
   const [guideIndex, setGuideIndex] = useState(0);
   const [objectMenu, setObjectMenu] = useState<string | null>(null);
+  const [nearCharacter, setNearCharacter] = useState<string | null>(null);
+  const [voice, setVoice] = useState<VoiceStartState | null>(null);
+  const [voiceError, setVoiceError] = useState<string | null>(null);
+  const interactionLocked = useRef(false);
+  const voicePending = useRef(false);
 
   const load = useCallback(async () => {
     try {
@@ -184,6 +203,55 @@ export default function SessionPage() {
     gameRef.current?.focusCharacter(characterId);
   }, []);
 
+  const startVoiceMeeting = useCallback(
+    async (characterId: string) => {
+      if (interactionLocked.current || voicePending.current) return;
+      const npc = characters.find((c) => c.id === characterId);
+      if (!npc) return;
+      voicePending.current = true;
+      setVoiceError(null);
+      setNotice(null);
+      try {
+        if (!navigator.mediaDevices?.getUserMedia) {
+          throw new Error("Microphone access is not available in this browser.");
+        }
+        // Explain-then-request: this runs inside the E-key user gesture.
+        await navigator.mediaDevices.getUserMedia({ audio: true });
+        const res = await api.startVoiceSession(sessionId, {
+          npc_id: characterId,
+          client_request_id: crypto.randomUUID(),
+        });
+        interactionLocked.current = true;
+        setVoice({
+          npc: res.npc,
+          voiceSessionId: res.voice_session_id,
+          conversationToken: res.conversation_token,
+          contextGrant: res.context_grant,
+        });
+      } catch (e) {
+        const denied = e instanceof DOMException && e.name === "NotAllowedError";
+        setVoiceError(
+          denied
+            ? "Microphone access was denied. You can keep using text chat."
+            : e instanceof ApiError
+              ? e.message
+              : e instanceof Error
+                ? e.message
+                : "Could not start the voice meeting.",
+        );
+      } finally {
+        voicePending.current = false;
+      }
+    },
+    [characters, sessionId],
+  );
+
+  const endVoiceMeeting = useCallback(async () => {
+    interactionLocked.current = false;
+    setVoice(null);
+    await load();
+  }, [load]);
+
   const sendMessage = useCallback(async () => {
     if (!session || !activeCharacter || !chatInput.trim()) return;
     setSending(true);
@@ -288,20 +356,52 @@ export default function SessionPage() {
             sessionId={sessionId}
             playerTexture="blonde_man"
             onPrompt={setPrompt}
+            onNearCharacter={setNearCharacter}
             onInteractCharacter={openCharacter}
+            onVoiceCharacter={startVoiceMeeting}
             onInteractObject={interactObject}
             onLocationChange={() => {}}
             onReady={() => setGameReady(true)}
+            isLocked={() => interactionLocked.current}
           />
           {!gameReady && (
             <div style={{ position: "absolute", inset: 0, display: "grid", placeItems: "center", color: "#e7e6db" }} className="spinner">
               Loading office…
             </div>
           )}
-          {prompt && !guideOn && (
+          {!voice && prompt && !guideOn && (
             <div style={{ position: "absolute", top: 12, left: "50%", transform: "translateX(-50%)", background: "#e7e6db", border: "1px solid #222c21", padding: "6px 12px", fontSize: 12 }}>
-              Press <strong>E</strong> to interact with {prompt}
+              {nearCharacter ? (
+                <>
+                  Press <strong>E</strong> to talk to{" "}
+                  {characters.find((c) => c.id === nearCharacter)?.name ?? prompt}
+                </>
+              ) : (
+                <>
+                  Press <strong>E</strong> to interact with {prompt}
+                </>
+              )}
             </div>
+          )}
+          {voiceError && !voice && (
+            <div
+              className="banner banner--error"
+              role="alert"
+              data-testid="voice-error"
+              style={{ position: "absolute", top: 46, left: "50%", transform: "translateX(-50%)", width: "min(420px, calc(100% - 24px))" }}
+            >
+              {voiceError}
+            </div>
+          )}
+          {voice && (
+            <VoiceMeeting
+              sessionId={sessionId}
+              npc={voice.npc}
+              voiceSessionId={voice.voiceSessionId}
+              conversationToken={voice.conversationToken}
+              contextGrant={voice.contextGrant}
+              onEnd={endVoiceMeeting}
+            />
           )}
 
           <div className="hud-objectives" aria-label="Objectives">

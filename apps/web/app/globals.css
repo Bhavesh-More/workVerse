@@ -1141,6 +1141,66 @@ p {
   margin-bottom: 3px;
 }
 
+/* =========================================================================
+   Real-time voice meeting (bottom-right transcript overlay)
+   ========================================================================= */
+.voice-meeting {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  z-index: 6;
+  width: min(360px, calc(100% - 24px));
+  max-height: calc(100% - 24px);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 14px;
+  border: 1px solid var(--color-ink);
+  background: var(--color-canvas);
+  box-shadow: 0 12px 44px rgba(0, 0, 0, 0.28);
+}
+.voice-meeting__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+.voice-transcript {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  overflow-y: auto;
+  max-height: 240px;
+  min-height: 72px;
+  padding: 4px 2px;
+}
+.voice-entry {
+  max-width: 92%;
+  padding: 7px 10px;
+  border: 1px solid var(--color-rule);
+  background: var(--color-surface);
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+.voice-entry--user {
+  align-self: flex-end;
+  background: var(--color-ink);
+  color: var(--color-canvas);
+  border-color: var(--color-ink);
+}
+.voice-entry__who {
+  display: block;
+  font-size: 9px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  opacity: 0.68;
+  margin-bottom: 2px;
+}
+.voice-meeting__controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
 @media (prefers-reduced-motion: reduce) {
   * {
     animation-duration: 0.001ms !important;

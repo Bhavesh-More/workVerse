@@ -9,10 +9,13 @@ export type OfficeOptions = {
   world: WorldView;
   playerTexture: string;
   onPrompt: (label: string | null) => void;
+  onNearCharacter: (characterId: string | null) => void;
   onInteractCharacter: (characterId: string) => void;
+  onVoiceCharacter: (characterId: string) => void;
   onInteractObject: (objectId: string) => void;
   onLocationChange: (locationId: string) => void;
   onReady: () => void;
+  isLocked?: () => boolean;
 };
 
 type MapMeta = {
@@ -49,6 +52,7 @@ export function createOfficeGame(parent: HTMLElement, options: OfficeOptions): P
     private interactables: Interactable[] = [];
     private foreground?: Phaser.GameObjects.Image;
     private currentTarget: Interactable | null = null;
+    private lastNearCharacter: string | null = null;
     private lastLocation = "";
     private lastDir = "down";
     private cursors!: Phaser.Types.Input.Keyboard.CursorKeys;
@@ -216,6 +220,7 @@ export function createOfficeGame(parent: HTMLElement, options: OfficeOptions): P
         sprite.setDepth(20);
         sprite.setInteractive({ useHandCursor: true });
         sprite.on("pointerdown", () => {
+          if (options.isLocked?.()) return;
           this.currentTarget = null;
           options.onInteractCharacter(character.id);
         });
@@ -307,10 +312,10 @@ export function createOfficeGame(parent: HTMLElement, options: OfficeOptions): P
     }
 
     private interact() {
-      if (this.isTyping()) return;
+      if (this.isTyping() || options.isLocked?.()) return;
       if (this.currentTarget) {
         const target = this.currentTarget;
-        if (target.kind === "character") options.onInteractCharacter(target.id);
+        if (target.kind === "character") options.onVoiceCharacter(target.id);
         else options.onInteractObject(target.id);
       }
     }
@@ -319,7 +324,7 @@ export function createOfficeGame(parent: HTMLElement, options: OfficeOptions): P
       if (!this.player || !this.player.body) return;
       const speed = 190;
       const body = this.player.body as Phaser.Physics.Arcade.Body;
-      const typing = this.isTyping();
+      const typing = this.isTyping() || (options.isLocked?.() ?? false);
       let vx = 0;
       let vy = 0;
       const left = !typing && (this.cursors.left.isDown || this.keys.A?.isDown === true);
@@ -359,6 +364,11 @@ export function createOfficeGame(parent: HTMLElement, options: OfficeOptions): P
       if (nearest !== this.currentTarget) {
         this.currentTarget = nearest;
         options.onPrompt(nearest ? nearest.label : null);
+      }
+      const nearCharId = nearest && nearest.kind === "character" ? nearest.id : null;
+      if (nearCharId !== this.lastNearCharacter) {
+        this.lastNearCharacter = nearCharId;
+        options.onNearCharacter(nearCharId);
       }
 
       const loc = this.locationAt(this.player.x, this.player.y);

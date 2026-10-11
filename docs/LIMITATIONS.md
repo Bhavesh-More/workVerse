@@ -57,6 +57,32 @@ This file records honest limitations and the deliberate scope decisions for the 
   maintenance/licensing status should be reviewed and an image pinned (the compose file
   intentionally requires an explicit `MINIO_IMAGE`) before any real use.
 
+## Real-time voice (ElevenAgents)
+
+- **Custom-LLM bridge.** Voice reasoning goes through a FastAPI OpenAI-compatible bridge
+  (`POST /api/v1/voice/llm`) so per-turn authorized scenario context can be injected securely.
+  The browser only ever receives a short-lived conversation token and a signed context grant.
+  See `docs/elevenagents-setup.md` and `docs/adr/0001-elevenagents-ollama-voice.md`.
+- **Live provider verification is pending.** The WebRTC connection and the
+  ElevenLabs→bridge call path are covered by mocked unit tests. They are **not** marked verified
+  until run against a real published agent and credentials. In particular the exact Custom-LLM
+  auth header in the dashboard must be confirmed.
+- **No automatic reconnection.** A dropped WebRTC connection ends the meeting; the learner can
+  restart (the backend reuses the active voice-session row). Server-side expiry/reconciliation of
+  abandoned sessions is not yet scheduled.
+- **Partial/final reconciliation.** The current React SDK does not expose an explicit
+  partial/final flag on `onMessage`. Agent turns dedupe by `response_id`; user turns use a short
+  debounce and server-side dedupe by `provider_message_id`. This is best-effort, not exact.
+- **No audio retention.** Only finalized text is stored. Raw audio is never persisted.
+- **Voice does not mutate state.** Spoken statements are dialogue; completed actions still
+  require the authoritative validated action API.
+
+## Security note (pre-existing)
+
+- `apps/api/app/core/logging.py` contains two hard-coded hex redaction markers that appear to be
+  previously exposed provider keys. They should be **rotated** and removed from source. They are
+  unrelated to voice but should not remain committed.
+
 ## Evaluation framing
 
 - Reports are **formative practice feedback**, not validated predictors of job performance,

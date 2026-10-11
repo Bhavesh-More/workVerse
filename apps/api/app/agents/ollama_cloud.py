@@ -13,6 +13,7 @@ import asyncio
 import json
 import logging
 import time
+from collections.abc import AsyncIterator
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -175,6 +176,80 @@ class OllamaCloudClient:
             )
 
         raise last_exc or UpstreamError("AI provider request failed.")
+
+    async def stream_chat(
+        self,
+        messages: list[dict[str, str]],
+        *,
+        model: str | None = None,
+        max_tokens: int | None = None,
+        temperature: float | None = None,
+    ) -> AsyncIterator[str]:
+        """Yield content deltas from a streamed OpenAI-compatible chat completion.
+
+        Key rotation only happens before the first token is emitted; once a stream has
+        started it is not restarted under a different key.
+        ponytail: no mid-stream reassembly/retry; if it drops the caller surfaces an error.
+        """
+        if not self._keys:
+            raise AIConfigError(
+                "AI is not configured. Set OLLAMA_API_KEY to use dialogue and evaluation features."
+            )
+        model = model or self._settings.ollama_model
+        max_tokens = max_tokens or self._settings.ollama_max_output_tokens
+        temperature = self._settings.ollama_temperature if temperature is None else temperature
+        body: dict[str, Any] = {
+            "model": model,
+            "messages": messages,
+            "max_tokens": max_tokens,
+            "temperature": temperature,
+            "stream": True,
+        }
+        client = await self._get_client()
+        last_error: Exception | None = None
+
+        for index, key in self._ordered_keys():
+            headers = {"Authorization": f"Bearer {key}", "Content-Type": "application/json"}
+            try:
+                async with client.stream(
+                    "POST", "/chat/completions", json=body, headers=headers
+                ) as resp:
+                    if resp.status_code in _RATE_LIMIT_STATUSES:
+                        raise RateLimitError("AI provider rate limit or quota reached.")
+                    if resp.status_code in (401, 403):
+                        raise AIConfigError("AI provider rejected the configured API key.")
+                    if resp.status_code >= 400:
+                        raise UpstreamError(
+                            f"AI provider returned an error ({resp.status_code})."
+                        )
+                    if index != self._cursor:
+                        await self._advance_cursor(index)
+                    async for line in resp.aiter_lines():
+                        if not line or not line.startswith("data:"):
+                            continue
+                        data = line[len("data:") :].strip()
+                        if data == "[DONE]":
+                            return
+                        try:
+                            chunk = json.loads(data)
+                        except json.JSONDecodeError:
+                            continue
+                        choices = chunk.get("choices") or [{}]
+                        delta = choices[0].get("delta") or {}
+                        content = delta.get("content")
+                        if content:
+                            yield content
+                    return
+            except (RateLimitError, AIConfigError) as exc:
+                last_error = exc
+                await self._advance_cursor(index)
+                continue
+            except httpx.TimeoutException as exc:
+                raise AITimeoutError("The AI provider timed out.") from exc
+            except httpx.HTTPError as exc:
+                raise UpstreamError("Unable to reach the AI provider.") from exc
+
+        raise last_error or UpstreamError("AI provider request failed.")
 
     async def chat_json(
         self,

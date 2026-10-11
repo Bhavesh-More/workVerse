@@ -8,6 +8,7 @@ code path can accidentally fall back to a local inference endpoint.
 from __future__ import annotations
 
 import ipaddress
+import json
 from functools import lru_cache
 from urllib.parse import urlparse
 
@@ -15,6 +16,7 @@ from pydantic import field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 ALLOWED_OLLAMA_HOSTS = {"ollama.com"}
+ALLOWED_ELEVENLABS_HOSTS = {"api.elevenlabs.io"}
 FORBIDDEN_HOSTS = {"localhost", "127.0.0.1", "0.0.0.0", "::1", "host.docker.internal"}
 
 
@@ -90,6 +92,26 @@ class Settings(BaseSettings):
     ollama_temperature: float = 0.7
     ollama_max_retries: int = 2
 
+    # --- ElevenLabs ElevenAgents (real-time voice; server-only) ------------
+    # The API key and agent IDs are never sent to the browser: FastAPI mints a
+    # short-lived WebRTC conversation token per voice session.
+    voice_enabled: bool = True
+    elevenlabs_api_key: str = ""
+    elevenlabs_base_url: str = "https://api.elevenlabs.io"
+    elevenlabs_agent_id: str = ""  # default agent used for any NPC without a specific mapping
+    elevenlabs_agent_map: str = "{}"  # JSON: {"manager": "agent_...", "teammate": "agent_..."}
+    # Shared secret configured in the ElevenLabs Custom LLM secret store; authenticates
+    # requests from ElevenLabs to our OpenAI-compatible bridge endpoint.
+    voice_llm_bridge_secret: str = ""
+    # HMAC secret used to sign/verify short-lived, narrowly scoped context grants that
+    # bind a provider conversation to one user + WorkVerse session + NPC. Required for
+    # the custom-LLM bridge; must be a long random value.
+    voice_context_grant_secret: str = ""
+    voice_context_grant_ttl_seconds: int = 900
+    voice_llm_max_output_tokens: int = 220
+    voice_llm_max_history_messages: int = 24
+    voice_llm_max_history_chars: int = 6000
+
     # --- MinIO / S3-compatible object storage -----------------------------
     minio_endpoint: str = ""
     minio_access_key: str = ""
@@ -125,6 +147,57 @@ class Settings(BaseSettings):
     def is_production(self) -> bool:
         return self.app_env.lower() in {"production", "prod"}
 
+    @property
+    def elevenlabs_agents(self) -> dict[str, str]:
+        """Internal NPC-id -> agent-id mapping, plus the default under key ``*``."""
+        mapping: dict[str, str] = {}
+        try:
+            parsed = json.loads(self.elevenlabs_agent_map or "{}")
+            if isinstance(parsed, dict):
+                mapping = {
+                    str(k): str(v) for k, v in parsed.items() if isinstance(v, str) and v.strip()
+                }
+        except (json.JSONDecodeError, TypeError):
+            mapping = {}
+        if self.elevenlabs_agent_id.strip():
+            mapping.setdefault("*", self.elevenlabs_agent_id.strip())
+        return mapping
+
+    def agent_for_npc(self, npc_id: str) -> str | None:
+        agents = self.elevenlabs_agents
+        return agents.get(npc_id) or agents.get("*")
+
+    @property
+    def voice_configured(self) -> bool:
+        """True when the server can mint an ElevenLabs conversation token for some NPC."""
+        return bool(
+            self.voice_enabled
+            and self.elevenlabs_api_key.strip()
+            and (self.elevenlabs_agent_id.strip() or self.elevenlabs_agents)
+        )
+
+    @property
+    def voice_llm_bridge_configured(self) -> bool:
+        return bool(
+            self.voice_llm_bridge_secret.strip() and self.voice_context_grant_secret.strip()
+        )
+
+    @field_validator("elevenlabs_base_url")
+    @classmethod
+    def _validate_elevenlabs_base_url(cls, value: str) -> str:
+        parsed = urlparse(value)
+        host = (parsed.hostname or "").lower()
+        if parsed.scheme != "https":
+            raise ValueError("ELEVENLABS_BASE_URL must use https")
+        if _is_local_host(host):
+            raise ValueError(f"Local voice endpoints are prohibited: {host!r}")
+        if host not in ALLOWED_ELEVENLABS_HOSTS:
+            raise ValueError(
+                f"ELEVENLABS_BASE_URL host {host!r} is not in the allowlist "
+                f"{sorted(ALLOWED_ELEVENLABS_HOSTS)}"
+            )
+        return value.rstrip("/")
+
     @field_validator("ollama_base_url")
     @classmethod
     def _validate_ollama_base_url(cls, value: str) -> str:
@@ -143,7 +216,9 @@ class Settings(BaseSettings):
     @model_validator(mode="after")
     def _defaults(self) -> Settings:
         if self.supabase_url and not self.supabase_jwks_url:
-            self.supabase_jwks_url = f"{self.supabase_url.rstrip('/')}/auth/v1/.well-known/jwks.json"
+            self.supabase_jwks_url = (
+                f"{self.supabase_url.rstrip('/')}/auth/v1/.well-known/jwks.json"
+            )
         if self.supabase_url and not self.supabase_jwt_issuer:
             self.supabase_jwt_issuer = f"{self.supabase_url.rstrip('/')}/auth/v1"
         if self.clerk_publishable_key:
@@ -164,6 +239,17 @@ class Settings(BaseSettings):
             warnings.append("CLERK_PUBLISHABLE_KEY is not set; authentication cannot be verified.")
         if not self.ollama_key_pool:
             warnings.append("No OLLAMA_API_KEY configured; AI features will return a setup error.")
+        if self.voice_enabled and not self.voice_configured:
+            warnings.append(
+                "Voice is enabled but ELEVENLABS_API_KEY / ELEVENLABS_AGENT_ID are not set; "
+                "voice sessions will return a setup error."
+            )
+        if self.voice_enabled and not self.voice_llm_bridge_configured:
+            warnings.append(
+                "Voice custom-LLM bridge is not configured "
+                "(VOICE_LLM_BRIDGE_SECRET / VOICE_CONTEXT_GRANT_SECRET); spoken dialogue "
+                "cannot carry authorized scenario context."
+            )
         return warnings
 
 

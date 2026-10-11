@@ -230,6 +230,41 @@ export type ProgressResponse = {
   }[];
 };
 
+export type VoiceNpc = { id: string; name: string; role: string };
+
+export type VoiceSessionStart = {
+  voice_session_id: string;
+  status: string;
+  connection_type: string;
+  conversation_token: string;
+  context_grant: string | null;
+  grant_expires_at: number | null;
+  npc: VoiceNpc;
+  greeting: string;
+};
+
+export type VoiceSessionView = {
+  id: string;
+  status: string;
+  npc_id: string;
+  created_at: string | null;
+  ended_at: string | null;
+  transcript: {
+    id: string;
+    sequence_number: number;
+    speaker: "learner" | "npc";
+    text: string;
+    created_at: string | null;
+  }[];
+};
+
+export type VoiceTranscriptEntry = {
+  id: string;
+  speaker: "user" | "npc";
+  text: string;
+  status: "partial" | "final";
+};
+
 export type CompetencyTrend = {
   criterion_id: string;
   criterion_name: string;

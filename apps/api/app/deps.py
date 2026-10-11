@@ -8,6 +8,7 @@ from typing import Annotated
 from fastapi import Depends, Header, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.agents.elevenlabs_cloud import ElevenLabsClient
 from app.agents.ollama_cloud import OllamaCloudClient
 from app.core.config import Settings, get_settings
 from app.core.errors import AuthError
@@ -15,6 +16,7 @@ from app.core.security import Principal, verify_token
 from app.db.repository import Repository
 from app.db.session import get_db
 from app.services.ai_provider import get_ai_client
+from app.services.voice_provider import get_voice_client
 
 
 def settings_dep() -> Settings:
@@ -52,7 +54,12 @@ def ai_client_dep(settings: Annotated[Settings, Depends(settings_dep)]) -> Ollam
     return get_ai_client(settings)
 
 
+def voice_client_dep(settings: Annotated[Settings, Depends(settings_dep)]) -> ElevenLabsClient:
+    return get_voice_client(settings)
+
+
 CurrentUser = Annotated[Principal, Depends(current_principal)]
 Repo = Annotated[Repository, Depends(repo_dep)]
 SettingsDep = Annotated[Settings, Depends(settings_dep)]
 AIDep = Annotated[OllamaCloudClient, Depends(ai_client_dep)]
+VoiceDep = Annotated[ElevenLabsClient, Depends(voice_client_dep)]

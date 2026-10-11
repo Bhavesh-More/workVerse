@@ -90,9 +90,7 @@ class Repository:
     async def list_skills(self, user_id: str) -> list[dict[str, Any]]:
         return _rows(
             await self.session.execute(
-                text(
-                    "select * from public.profile_skills where user_id = :id order by created_at"
-                ),
+                text("select * from public.profile_skills where user_id = :id order by created_at"),
                 {"id": user_id},
             )
         )
@@ -321,7 +319,9 @@ class Repository:
         )
         return row
 
-    async def set_session_status(self, session_id: str, status: str, ended_at: Any | None = None) -> None:
+    async def set_session_status(
+        self, session_id: str, status: str, ended_at: Any | None = None
+    ) -> None:
         await self.session.execute(
             text(
                 "update public.simulation_sessions set status = :status, "
@@ -331,6 +331,12 @@ class Repository:
         )
 
     # ---- messages ---------------------------------------------------------
+    async def lock_session_messages(self, session_id: str) -> None:
+        """Serialize message-sequence allocation for a session (transaction-scoped)."""
+        await self.session.execute(
+            text("select pg_advisory_xact_lock(hashtext(:sid))"), {"sid": session_id}
+        )
+
     async def next_message_sequence(self, session_id: str) -> int:
         row = _row(
             await self.session.execute(
@@ -356,14 +362,17 @@ class Repository:
         modality: str = "text",
         status: str = "completed",
         metadata: dict[str, Any] | None = None,
+        provider_message_id: str | None = None,
+        source: str = "text",
     ) -> dict[str, Any]:
         return _row(
             await self.session.execute(
                 text(
                     "insert into public.conversation_messages "
                     "(session_id, sequence_number, turn_id, client_turn_id, speaker_type, character_id, "
-                    "content, modality, status, metadata) values "
-                    "(:sid, :seq, :turn, :ctid, :spk, :char, :content, :modality, :status, cast(:meta as jsonb)) "
+                    "content, modality, status, metadata, provider_message_id, source) values "
+                    "(:sid, :seq, :turn, :ctid, :spk, :char, :content, :modality, :status, "
+                    "cast(:meta as jsonb), :pmid, :source) "
                     "returning *"
                 ),
                 {
@@ -377,17 +386,113 @@ class Repository:
                     "modality": modality,
                     "status": status,
                     "meta": json.dumps(metadata or {}),
+                    "pmid": provider_message_id,
+                    "source": source,
                 },
             )
         )  # type: ignore[return-value]
 
-    async def get_message_by_client_turn(self, session_id: str, client_turn_id: str) -> dict[str, Any] | None:
+    async def get_message_by_client_turn(
+        self, session_id: str, client_turn_id: str
+    ) -> dict[str, Any] | None:
         return _row(
             await self.session.execute(
                 text(
                     "select * from public.conversation_messages where session_id = :sid and client_turn_id = :ctid"
                 ),
                 {"sid": session_id, "ctid": client_turn_id},
+            )
+        )
+
+    async def get_message_by_provider_id(
+        self, session_id: str, provider_message_id: str
+    ) -> dict[str, Any] | None:
+        return _row(
+            await self.session.execute(
+                text(
+                    "select * from public.conversation_messages "
+                    "where session_id = :sid and provider_message_id = :pmid"
+                ),
+                {"sid": session_id, "pmid": provider_message_id},
+            )
+        )
+
+    # ---- voice sessions ---------------------------------------------------
+    async def create_voice_session(
+        self,
+        *,
+        session_id: str,
+        user_id: str,
+        npc_id: str,
+        agent_config_key: str,
+        metadata: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        return _row(
+            await self.session.execute(
+                text(
+                    "insert into public.voice_sessions "
+                    "(session_id, user_id, npc_id, agent_config_key, status, metadata) values "
+                    "(:sid, :uid, :npc, :akey, 'created', cast(:meta as jsonb)) "
+                    "on conflict (session_id) where status in ('created', 'connecting', 'active') "
+                    "do nothing returning *"
+                ),
+                {
+                    "sid": session_id,
+                    "uid": user_id,
+                    "npc": npc_id,
+                    "akey": agent_config_key,
+                    "meta": json.dumps(metadata or {}),
+                },
+            )
+        )  # type: ignore[return-value]
+
+    async def get_voice_session(self, voice_session_id: str) -> dict[str, Any] | None:
+        return _row(
+            await self.session.execute(
+                text("select * from public.voice_sessions where id = :id"), {"id": voice_session_id}
+            )
+        )
+
+    async def get_active_voice_session(self, session_id: str, npc_id: str) -> dict[str, Any] | None:
+        return _row(
+            await self.session.execute(
+                text(
+                    "select * from public.voice_sessions where session_id = :sid and npc_id = :npc "
+                    "and status in ('created', 'connecting', 'active') "
+                    "order by created_at desc limit 1"
+                ),
+                {"sid": session_id, "npc": npc_id},
+            )
+        )
+
+    async def set_voice_session_status(
+        self,
+        voice_session_id: str,
+        status: str,
+        *,
+        provider_conversation_id: str | None = None,
+        end_reason: str | None = None,
+        ended: bool = False,
+    ) -> dict[str, Any] | None:
+        return _row(
+            await self.session.execute(
+                text(
+                    "update public.voice_sessions set "
+                    "status = :status, "
+                    "provider_conversation_id = coalesce(:pcid, provider_conversation_id), "
+                    "end_reason = coalesce(:reason, end_reason), "
+                    "connected_at = case when :status in ('active', 'connecting') "
+                    "  then coalesce(connected_at, now()) else connected_at end, "
+                    "ended_at = case when :ended then coalesce(ended_at, now()) else ended_at end "
+                    "where id = :id returning *"
+                ),
+                {
+                    "status": status,
+                    "pcid": provider_conversation_id,
+                    "reason": end_reason,
+                    "ended": ended,
+                    "id": voice_session_id,
+                },
             )
         )
 
@@ -631,9 +736,7 @@ class Repository:
     async def list_evaluation_evidence(self, item_id: str) -> list[dict[str, Any]]:
         return _rows(
             await self.session.execute(
-                text(
-                    "select * from public.evaluation_evidence where evaluation_item_id = :iid"
-                ),
+                text("select * from public.evaluation_evidence where evaluation_item_id = :iid"),
                 {"iid": item_id},
             )
         )

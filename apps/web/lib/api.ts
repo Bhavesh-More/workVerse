@@ -10,6 +10,8 @@ import type {
   SessionView,
   TranscriptMessage,
   TurnResponse,
+  VoiceSessionStart,
+  VoiceSessionView,
 } from "./types";
 
 export const API_BASE =
@@ -160,4 +162,34 @@ export const api = {
   progress: () => request<ProgressResponse>("/progress"),
 
   competencies: () => request<{ items: CompetencyTrend[] }>("/progress/competencies"),
+
+  startVoiceSession: (sessionId: string, body: { npc_id: string; client_request_id?: string }) =>
+    request<VoiceSessionStart>(`/sessions/${sessionId}/voice-sessions`, {
+      method: "POST",
+      body,
+    }),
+
+  getVoiceSession: (sessionId: string, voiceSessionId: string) =>
+    request<VoiceSessionView>(`/sessions/${sessionId}/voice-sessions/${voiceSessionId}`),
+
+  ingestVoiceMessage: (
+    sessionId: string,
+    voiceSessionId: string,
+    body: {
+      speaker: "user" | "npc";
+      text: string;
+      provider_message_id?: string | null;
+      provider_conversation_id?: string | null;
+    },
+  ) =>
+    request<{ id: string; duplicate: boolean }>(
+      `/sessions/${sessionId}/voice-sessions/${voiceSessionId}/messages`,
+      { method: "POST", body },
+    ),
+
+  endVoiceSession: (sessionId: string, voiceSessionId: string, reason?: string) =>
+    request<{ id: string; status: string; duplicate: boolean }>(
+      `/sessions/${sessionId}/voice-sessions/${voiceSessionId}/end`,
+      { method: "POST", body: { reason: reason ?? null } },
+    ),
 };

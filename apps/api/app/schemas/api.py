@@ -66,3 +66,20 @@ class TurnRequest(BaseModel):
 class CompleteRequest(BaseModel):
     expected_state_version: int | None = Field(default=None, ge=1)
     force: bool = False
+
+
+class StartVoiceSessionRequest(BaseModel):
+    npc_id: str = Field(min_length=1, max_length=80)
+    client_request_id: UUID | None = None
+
+
+class VoiceMessageRequest(BaseModel):
+    speaker: Literal["user", "npc"]
+    text: str = Field(min_length=1, max_length=4000)
+    provider_message_id: str | None = Field(default=None, max_length=200)
+    provider_conversation_id: str | None = Field(default=None, max_length=200)
+    sequence: int | None = Field(default=None, ge=0)
+
+
+class EndVoiceSessionRequest(BaseModel):
+    reason: str | None = Field(default=None, max_length=200)

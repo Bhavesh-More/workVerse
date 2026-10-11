@@ -61,6 +61,7 @@ used only as the PostgreSQL database, and internal profile rows are keyed by a `
    ```sh
    psql "$DATABASE_URL" -f supabase/migrations/0001_init.sql
    psql "$DATABASE_URL" -f supabase/migrations/0002_clerk_identity.sql
+   psql "$DATABASE_URL" -f supabase/migrations/0003_voice_sessions.sql
    ```
 
 4. Sync the Python environment:
@@ -103,6 +104,17 @@ The backend calls `https://ollama.com/v1` with a server-side Bearer token. The b
 validated at startup against an allow-list; `http://localhost:11434` and other local
 endpoints are rejected by configuration, and no code path falls back to local inference.
 Multiple keys in `OLLAMA_API_KEYS` rotate automatically when one is rate limited.
+
+## Real-time voice
+
+Walk to a character and press **E** to hold a live voice conversation (ElevenAgents over WebRTC).
+Reasoning runs through a FastAPI OpenAI-compatible bridge so per-turn scenario context is
+injected server-side; the exact finalized NPC words appear in the bottom-right transcript and
+feed the evidence-grounded debrief. The browser never receives any provider key.
+
+- Owner setup: `docs/elevenagents-setup.md`
+- Design decision: `docs/adr/0001-elevenagents-ollama-voice.md`
+- API contracts: `docs/api-contracts-voice.md`
 
 ## Documentation
 

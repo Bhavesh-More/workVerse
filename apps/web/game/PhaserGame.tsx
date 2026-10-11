@@ -18,10 +18,13 @@ type Props = {
   sessionId: string;
   playerTexture?: string;
   onPrompt: (label: string | null) => void;
+  onNearCharacter: (characterId: string | null) => void;
   onInteractCharacter: (characterId: string) => void;
+  onVoiceCharacter: (characterId: string) => void;
   onInteractObject: (objectId: string) => void;
   onLocationChange: (locationId: string) => void;
   onReady: () => void;
+  isLocked?: () => boolean;
 };
 
 export const PhaserGame = forwardRef<PhaserGameHandle, Props>(function PhaserGame(props, ref) {
@@ -55,10 +58,13 @@ export const PhaserGame = forwardRef<PhaserGameHandle, Props>(function PhaserGam
         world: callbacks.current.world,
         playerTexture: callbacks.current.playerTexture ?? "blonde_man",
         onPrompt: (label) => callbacks.current.onPrompt(label),
+        onNearCharacter: (id) => callbacks.current.onNearCharacter(id),
         onInteractCharacter: (id) => callbacks.current.onInteractCharacter(id),
+        onVoiceCharacter: (id) => callbacks.current.onVoiceCharacter(id),
         onInteractObject: (id) => callbacks.current.onInteractObject(id),
         onLocationChange: (id) => callbacks.current.onLocationChange(id),
         onReady: () => callbacks.current.onReady(),
+        isLocked: () => callbacks.current.isLocked?.() ?? false,
       });
     })();
 
