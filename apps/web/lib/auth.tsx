@@ -1,6 +1,17 @@
 "use client";
 
 import { useUser, useClerk } from "@clerk/nextjs";
+import { isClerkAPIResponseError } from "@clerk/nextjs/errors";
+
+export function clerkErrorMessage(
+  err: unknown,
+  fallback = "Something went wrong. Please try again.",
+): string {
+  if (isClerkAPIResponseError(err)) {
+    return err.errors[0]?.longMessage ?? err.errors[0]?.message ?? fallback;
+  }
+  return fallback;
+}
 
 export type AppUser = {
   fullName: string | null;

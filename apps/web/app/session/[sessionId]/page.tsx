@@ -36,6 +36,7 @@ export default function SessionPage() {
   const [gameReady, setGameReady] = useState(false);
   const [guideOn, setGuideOn] = useState(false);
   const [guideIndex, setGuideIndex] = useState(0);
+  const [objectMenu, setObjectMenu] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     try {
@@ -78,19 +79,19 @@ export default function SessionPage() {
     if (!done("o_gather_evidence"))
       steps.push({
         title: "Investigate evidence",
-        body: "Walk to the engineering workspace (or use the action panel) and inspect the application logs.",
+        body: "Walk to the engineering workspace and inspect the application logs (walk up to the console and press E, or click it).",
         room: "engineering_workspace",
       });
     if (!done("o_identify_risk"))
       steps.push({
         title: "Check rollback safety",
-        body: "Before reverting, verify the migration's compatibility. Use “Check migration compatibility”.",
+        body: "Open the migration notes and check whether the migration is compatible before reverting.",
         room: "engineering_workspace",
       });
     if (!done("o_choose_mitigation"))
       steps.push({
         title: "Mitigate safely",
-        body: "Now that you know the risk, apply a mitigation — roll back or apply the forward fix.",
+        body: "At the deployment console, choose your mitigation — roll back or apply the forward fix.",
         room: "engineering_workspace",
       });
     if (!done("o_communicate"))
@@ -154,22 +155,26 @@ export default function SessionPage() {
 
   const interactObject = useCallback(
     (objectId: string) => {
-      const list = actionsByObject.get(objectId) ?? [];
+      const list = (actionsByObject.get(objectId) ?? []).filter((a) => a.action_type !== "navigate");
       if (list.length === 0) {
         setNotice("Nothing to do here yet.");
         return;
       }
-      const ready = list.find((a) => a.ready) ?? list[0];
-      if (!ready) return;
-      if (!ready.ready) {
-        setError(ready.locked_reason ?? "This action is not available yet.");
+      if (list.length > 1) {
+        setObjectMenu(objectId);
         return;
       }
-      if (ready.requires_text) {
-        setNotice(`Compose your text for “${ready.label}” in the panel, then submit.`);
+      const only = list[0];
+      if (!only) return;
+      if (!only.ready) {
+        setError(only.locked_reason ?? "This action is not available yet.");
         return;
       }
-      runAction(ready);
+      if (only.requires_text) {
+        setNotice(`Compose your text for “${only.label}” in the panel, then submit.`);
+        return;
+      }
+      runAction(only);
     },
     [actionsByObject, runAction],
   );
@@ -238,6 +243,14 @@ export default function SessionPage() {
     ? messages.filter((m) => (m.speaker_type === "learner" && !m.character_id) || m.character_id === activeCharacter)
     : [];
   const currentStep = guideSteps[Math.min(guideIndex, guideSteps.length - 1)];
+  const doneCount = session.objectives.filter((o) => o.status === "completed").length;
+  const nextObjective =
+    session.objectives.find((o) => o.required && o.status !== "completed") ??
+    session.objectives.find((o) => o.status !== "completed");
+  const nextStep = guideSteps[0];
+  const menuLabel = objectMenu
+    ? session.world.objects.find((o) => o.id === objectMenu)?.label ?? "Actions"
+    : "";
 
   return (
     <div className="sim-full">
@@ -288,6 +301,81 @@ export default function SessionPage() {
           {prompt && !guideOn && (
             <div style={{ position: "absolute", top: 12, left: "50%", transform: "translateX(-50%)", background: "#e7e6db", border: "1px solid #222c21", padding: "6px 12px", fontSize: 12 }}>
               Press <strong>E</strong> to interact with {prompt}
+            </div>
+          )}
+
+          <div className="hud-objectives" aria-label="Objectives">
+            <div className="hud-objectives__head">
+              <span className="eyebrow" style={{ fontSize: 10 }}>
+                Objectives
+              </span>
+              <span className="hud-objectives__count">
+                {doneCount}/{session.objectives.length}
+              </span>
+            </div>
+            <ul className="list-reset">
+              {session.objectives.map((o) => {
+                const done = o.status === "completed";
+                const isNext = !done && o.id === nextObjective?.id;
+                return (
+                  <li
+                    key={o.id}
+                    className={`hud-objective${done ? " is-done" : ""}${isNext ? " is-next" : ""}`}
+                  >
+                    <span className="hud-objective__mark">{done ? "✓" : "○"}</span>
+                    <span>{o.label}</span>
+                  </li>
+                );
+              })}
+            </ul>
+            {nextStep && (
+              <div className="hud-objectives__next">
+                <span className="eyebrow" style={{ fontSize: 9 }}>
+                  Next
+                </span>
+                <p>
+                  <strong>{nextStep.title}.</strong> {nextStep.body}
+                </p>
+              </div>
+            )}
+          </div>
+
+          {objectMenu && (
+            <div className="object-menu" role="dialog" aria-label={`Actions at ${menuLabel}`}>
+              <div className="row between" style={{ marginBottom: 10 }}>
+                <h3 style={{ fontSize: 13, letterSpacing: "0.06em", textTransform: "uppercase" }}>
+                  {menuLabel}
+                </h3>
+                <button className="btn btn--ghost btn--small" onClick={() => setObjectMenu(null)}>
+                  Close
+                </button>
+              </div>
+              <ul className="list-reset stack stack--sm">
+                {(actionsByObject.get(objectMenu) ?? [])
+                  .filter((a) => a.action_type !== "navigate")
+                  .map((a) => (
+                    <li key={a.id}>
+                      <button
+                        data-testid={`menu-action-${a.id}`}
+                        className="btn btn--ghost btn--small"
+                        style={{ width: "100%", textAlign: "left" }}
+                        disabled={busy || !a.ready}
+                        onClick={() => {
+                          setObjectMenu(null);
+                          if (a.requires_text) {
+                            setNotice(`Use the “Stakeholder update” panel to submit “${a.label}”.`);
+                            return;
+                          }
+                          runAction(a);
+                        }}
+                        title={a.locked_reason ?? a.description}
+                      >
+                        {a.label}
+                        {!a.ready && <span className="muted"> · locked</span>}
+                      </button>
+                    </li>
+                  ))}
+              </ul>
             </div>
           )}
 
@@ -347,18 +435,21 @@ export default function SessionPage() {
           {notice && <div className="banner banner--info">{notice}</div>}
 
           <section className="panel stack stack--sm">
-            <h2 className="section-title">Objectives</h2>
-            <ul className="list-reset">
-              {session.objectives.map((o) => (
-                <li key={o.id} className="objective">
-                  <span>{o.label}</span>
-                  <span className={o.status === "completed" ? "badge badge--ok" : "badge"}>{o.status}</span>
-                </li>
-              ))}
-            </ul>
+            <h2 className="section-title">Known information</h2>
+            {session.facts_known.length === 0 ? (
+              <p className="small muted">Nothing established yet.</p>
+            ) : (
+              <ul className="list-reset stack stack--sm">
+                {session.facts_known.map((f) => (
+                  <li key={f.id} className="small">
+                    <strong>{f.label}.</strong> <span className="muted">{f.detail}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
           </section>
 
-          <section className="panel stack stack--sm">
+          <section className="sr-only" aria-label="All available actions">
             <h2 className="section-title">Workplace actions</h2>
             <ul className="list-reset stack stack--sm">
               {actions
@@ -404,21 +495,6 @@ export default function SessionPage() {
               </button>
             </section>
           )}
-
-          <section className="panel stack stack--sm">
-            <h2 className="section-title">Known information</h2>
-            {session.facts_known.length === 0 ? (
-              <p className="small muted">Nothing established yet.</p>
-            ) : (
-              <ul className="list-reset stack stack--sm">
-                {session.facts_known.map((f) => (
-                  <li key={f.id} className="small">
-                    <strong>{f.label}.</strong> <span className="muted">{f.detail}</span>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </section>
 
           <section className="panel stack stack--sm" style={{ minHeight: 240 }}>
             <div className="row between">

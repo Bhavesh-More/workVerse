@@ -50,6 +50,7 @@ export function createOfficeGame(parent: HTMLElement, options: OfficeOptions): P
     private foreground?: Phaser.GameObjects.Image;
     private currentTarget: Interactable | null = null;
     private lastLocation = "";
+    private lastDir = "down";
     private cursors!: Phaser.Types.Input.Keyboard.CursorKeys;
     private playerTexture = options.playerTexture;
 
@@ -102,8 +103,18 @@ export function createOfficeGame(parent: HTMLElement, options: OfficeOptions): P
       this.cameras.main.setZoom(1.5);
       this.cameras.main.setRoundPixels(true);
 
-      this.cursors = this.input.keyboard!.createCursorKeys();
-      this.keys = this.input.keyboard!.addKeys("W,A,S,D,E") as Record<
+      this.cursors = this.input.keyboard!.addKeys(
+        {
+          up: Phaser.Input.Keyboard.KeyCodes.UP,
+          down: Phaser.Input.Keyboard.KeyCodes.DOWN,
+          left: Phaser.Input.Keyboard.KeyCodes.LEFT,
+          right: Phaser.Input.Keyboard.KeyCodes.RIGHT,
+          space: Phaser.Input.Keyboard.KeyCodes.SPACE,
+          shift: Phaser.Input.Keyboard.KeyCodes.SHIFT,
+        },
+        false,
+      ) as Phaser.Types.Input.Keyboard.CursorKeys;
+      this.keys = this.input.keyboard!.addKeys("W,A,S,D,E", false) as Record<
         string,
         Phaser.Input.Keyboard.Key
       >;
@@ -284,7 +295,19 @@ export function createOfficeGame(parent: HTMLElement, options: OfficeOptions): P
       return this.lastLocation;
     }
 
+    private isTyping(): boolean {
+      const el = document.activeElement;
+      if (!el) return false;
+      return (
+        el.tagName === "INPUT" ||
+        el.tagName === "TEXTAREA" ||
+        el.tagName === "SELECT" ||
+        (el as HTMLElement).isContentEditable
+      );
+    }
+
     private interact() {
+      if (this.isTyping()) return;
       if (this.currentTarget) {
         const target = this.currentTarget;
         if (target.kind === "character") options.onInteractCharacter(target.id);
@@ -296,12 +319,13 @@ export function createOfficeGame(parent: HTMLElement, options: OfficeOptions): P
       if (!this.player || !this.player.body) return;
       const speed = 190;
       const body = this.player.body as Phaser.Physics.Arcade.Body;
+      const typing = this.isTyping();
       let vx = 0;
       let vy = 0;
-      const left = this.cursors.left.isDown || this.keys.A?.isDown === true;
-      const right = this.cursors.right.isDown || this.keys.D?.isDown === true;
-      const up = this.cursors.up.isDown || this.keys.W?.isDown === true;
-      const down = this.cursors.down.isDown || this.keys.S?.isDown === true;
+      const left = !typing && (this.cursors.left.isDown || this.keys.A?.isDown === true);
+      const right = !typing && (this.cursors.right.isDown || this.keys.D?.isDown === true);
+      const up = !typing && (this.cursors.up.isDown || this.keys.W?.isDown === true);
+      const down = !typing && (this.cursors.down.isDown || this.keys.S?.isDown === true);
       if (left) vx -= speed;
       if (right) vx += speed;
       if (up) vy -= speed;
@@ -315,9 +339,10 @@ export function createOfficeGame(parent: HTMLElement, options: OfficeOptions): P
       else if (vx > 0) dir = "right";
 
       if (vx !== 0 || vy !== 0) {
+        this.lastDir = dir;
         this.player.anims.play(`${this.playerTexture}-walk-${dir}`, true);
       } else {
-        this.player.anims.play(`${this.playerTexture}-idle-${dir}`, true);
+        this.player.anims.play(`${this.playerTexture}-idle-${this.lastDir}`, true);
       }
       this.player.setDepth(10 + this.player.y / 1000);
 

@@ -878,20 +878,6 @@ p {
   text-align: center;
 }
 
-/* Clerk component theming */
-.wv-clerk-card {
-  background: transparent !important;
-  box-shadow: none !important;
-  border: none !important;
-}
-.wv-clerk-button {
-  background: var(--color-ink) !important;
-  border-radius: 0 !important;
-  letter-spacing: 0.14em !important;
-  text-transform: uppercase !important;
-  font-size: 12px !important;
-}
-
 /* =========================================================================
    Onboarding
    ========================================================================= */
@@ -998,6 +984,83 @@ p {
   }
 }
 
+/* in-game objectives HUD */
+.hud-objectives {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  z-index: 2;
+  width: min(264px, calc(100% - 24px));
+  max-height: calc(100% - 24px);
+  overflow: auto;
+  padding: 10px 12px 12px;
+  border: 1px solid var(--color-ink);
+  background: rgba(231, 230, 219, 0.92);
+  color: var(--color-ink);
+  font-size: 12px;
+  pointer-events: none;
+}
+.hud-objectives__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+.hud-objectives__count {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+}
+.hud-objective {
+  display: flex;
+  gap: 8px;
+  padding: 3px 0;
+  line-height: 1.35;
+}
+.hud-objective__mark {
+  flex-shrink: 0;
+  width: 12px;
+}
+.hud-objective.is-done {
+  color: var(--color-ok);
+  text-decoration: line-through;
+  text-decoration-color: var(--color-rule);
+}
+.hud-objective.is-next {
+  font-weight: 700;
+}
+.hud-objectives__next {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--color-rule);
+}
+.hud-objectives__next p {
+  margin-top: 3px;
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--color-muted);
+}
+.hud-objectives__next p strong {
+  color: var(--color-ink);
+}
+
+/* in-game object action chooser */
+.object-menu {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 4;
+  width: min(360px, calc(100% - 32px));
+  max-height: calc(100% - 32px);
+  overflow: auto;
+  padding: 14px 16px;
+  border: 1px solid var(--color-ink);
+  background: var(--color-canvas);
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.22);
+}
+
 /* guide assistant */
 .guide-toggle {
   position: absolute;
@@ -1083,10 +1146,4 @@ p {
     animation-duration: 0.001ms !important;
     transition-duration: 0.001ms !important;
   }
-}
-
-/* Hide Clerk social/SSO buttons: the Google connection is not usable on the current
-   instance, so we offer email sign-in only. */
-.wv-hide {
-  display: none !important;
 }

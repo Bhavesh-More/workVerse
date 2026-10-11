@@ -473,6 +473,7 @@ def _actions() -> list[ActionDefinition]:
             action_type="mitigate",
             kind="mitigation",
             location_id="engineering_workspace",
+            target_id="deploy_console",
             risk_level="high",
             preconditions=[
                 Precondition(
@@ -497,6 +498,7 @@ def _actions() -> list[ActionDefinition]:
             action_type="mitigate",
             kind="mitigation",
             location_id="engineering_workspace",
+            target_id="deploy_console",
             risk_level="low",
             preconditions=[
                 Precondition(
@@ -517,6 +519,7 @@ def _actions() -> list[ActionDefinition]:
             action_type="mitigate",
             kind="mitigation",
             location_id="engineering_workspace",
+            target_id="deploy_console",
             risk_level="low",
             effects=Effect(set_flag={"mitigation": "restart"}),
         ),
@@ -545,6 +548,8 @@ def _actions() -> list[ActionDefinition]:
             description="Record a prevention/follow-up action on the incident.",
             action_type="communicate",
             kind="decision",
+            location_id="engineering_workspace",
+            target_id="incident_dashboard",
             preconditions=[
                 Precondition(
                     kind="objective_complete",
