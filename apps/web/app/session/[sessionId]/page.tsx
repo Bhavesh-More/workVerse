@@ -5,6 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 import { AnimatePresence, motion } from "framer-motion";
 import { PhaserGame, type PhaserGameHandle } from "../../../game/PhaserGame";
+import type { NavigationStatus } from "../../../game/navigation";
 import { api, ApiError } from "../../../lib/api";
 import type { SessionView, TranscriptMessage, VoiceNpc, WorldAction } from "../../../lib/types";
 
@@ -54,6 +55,8 @@ export default function SessionPage() {
   const [nearCharacter, setNearCharacter] = useState<string | null>(null);
   const [voice, setVoice] = useState<VoiceStartState | null>(null);
   const [voiceError, setVoiceError] = useState<string | null>(null);
+  const [routeVisible, setRouteVisible] = useState(true);
+  const [navStatus, setNavStatus] = useState<NavigationStatus>("idle");
   const interactionLocked = useRef(false);
   const voicePending = useRef(false);
 
@@ -74,6 +77,19 @@ export default function SessionPage() {
   useEffect(() => {
     transcriptRef.current?.scrollTo({ top: transcriptRef.current.scrollHeight });
   }, [messages.length]);
+
+  // Push the active task's destination into the Phaser navigation overlay whenever the
+  // task state changes. Pathfinding stays in the scene so React never ticks per frame.
+  const navigation = session?.navigation ?? null;
+  useEffect(() => {
+    if (!gameReady) return;
+    gameRef.current?.setNavigationTarget(navigation);
+  }, [gameReady, navigation]);
+
+  useEffect(() => {
+    if (!gameReady) return;
+    gameRef.current?.setNavigationVisible(routeVisible);
+  }, [gameReady, routeVisible]);
 
   const actions = session?.world.actions ?? [];
   const characters = session?.world.characters ?? [];
@@ -319,6 +335,14 @@ export default function SessionPage() {
   const menuLabel = objectMenu
     ? session.world.objects.find((o) => o.id === objectMenu)?.label ?? "Actions"
     : "";
+  const destLabel =
+    navigation?.target_type === "character" && navigation.target_id
+      ? characters.find((c) => c.id === navigation.target_id)?.name ?? navigation.objective_label
+      : navigation?.target_type === "object" && navigation.target_id
+        ? session.world.objects.find((o) => o.id === navigation.target_id)?.label ??
+          navigation.action_label ??
+          navigation.objective_label
+        : navigation?.action_label ?? navigation?.objective_label ?? "Destination";
 
   return (
     <div className="sim-full">
@@ -361,6 +385,7 @@ export default function SessionPage() {
             onVoiceCharacter={startVoiceMeeting}
             onInteractObject={interactObject}
             onLocationChange={() => {}}
+            onNavigationStatus={setNavStatus}
             onReady={() => setGameReady(true)}
             isLocked={() => interactionLocked.current}
           />
@@ -391,6 +416,48 @@ export default function SessionPage() {
               style={{ position: "absolute", top: 46, left: "50%", transform: "translateX(-50%)", width: "min(420px, calc(100% - 24px))" }}
             >
               {voiceError}
+            </div>
+          )}
+          {navigation && !voice && (
+            <div className="nav-chip" data-testid="nav-chip">
+              <div className="row between" style={{ gap: 8, alignItems: "center" }}>
+                <span className="eyebrow" style={{ fontSize: 9 }}>
+                  Route
+                </span>
+                {navigation.target_type === "none" ? (
+                  <span className="small muted" style={{ flex: 1 }}>
+                    {navigation.reason ?? "Complete this step in the side panel."}
+                  </span>
+                ) : (
+                  <>
+                    <strong className="small" style={{ flex: 1 }} data-testid="nav-destination">
+                      {destLabel}
+                    </strong>
+                    <button
+                      className="btn btn--ghost btn--small"
+                      data-testid="toggle-route"
+                      onClick={() => setRouteVisible((v) => !v)}
+                    >
+                      {routeVisible ? "Hide route" : "Show route"}
+                    </button>
+                  </>
+                )}
+              </div>
+              {navigation.target_type !== "none" && (
+                <p
+                  className={`small${navStatus === "unreachable" ? " nav-chip__warn" : ""}`}
+                  data-testid="nav-status"
+                  style={{ marginTop: 4 }}
+                >
+                  {navStatus === "arrived"
+                    ? "You’ve arrived — press E to interact."
+                    : navStatus === "unreachable"
+                      ? "Route unavailable — try another accessible destination."
+                      : navigation.ready
+                        ? "Follow the glowing path on the floor."
+                        : navigation.reason ?? "Follow the path to continue."}
+                </p>
+              )}
             </div>
           )}
           {voice && (

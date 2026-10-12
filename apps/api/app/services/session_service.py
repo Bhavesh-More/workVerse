@@ -16,6 +16,7 @@ from app.simulation.engine import (
     build_initial_state,
     completion_status,
 )
+from app.simulation.navigation import resolve_navigation
 
 logger = logging.getLogger(__name__)
 MAX_DELIVERABLE_CHARS = 100_000
@@ -70,6 +71,7 @@ def session_view(row: dict[str, Any], blueprint: Any, state: SimulationState) ->
         "incident": state.incident,
         "available_locations": [loc.id for loc in blueprint.locations],
         "world": world_view(blueprint, state),
+        "navigation": resolve_navigation(blueprint, state),
         "completion": completion_status(blueprint, state),
         "completed": bool(state.completed),
     }

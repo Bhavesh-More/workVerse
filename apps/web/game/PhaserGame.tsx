@@ -6,11 +6,14 @@ import {
   useImperativeHandle,
   useRef,
 } from "react";
-import type { WorldView } from "../lib/types";
+import type { NavigationTarget, WorldView } from "../lib/types";
+import type { NavigationStatus } from "./navigation";
 
 export type PhaserGameHandle = {
   travelTo: (locationId: string) => void;
   focusCharacter: (characterId: string) => void;
+  setNavigationTarget: (target: NavigationTarget | null) => void;
+  setNavigationVisible: (visible: boolean) => void;
 };
 
 type Props = {
@@ -23,6 +26,7 @@ type Props = {
   onVoiceCharacter: (characterId: string) => void;
   onInteractObject: (objectId: string) => void;
   onLocationChange: (locationId: string) => void;
+  onNavigationStatus?: (status: NavigationStatus) => void;
   onReady: () => void;
   isLocked?: () => boolean;
 };
@@ -44,6 +48,18 @@ export const PhaserGame = forwardRef<PhaserGameHandle, Props>(function PhaserGam
       } | null;
       game?.__scene?.().focusCharacter(characterId);
     },
+    setNavigationTarget: (target: NavigationTarget | null) => {
+      const game = gameRef.current as {
+        __scene?: () => { setNavigationTarget: (t: NavigationTarget | null) => void };
+      } | null;
+      game?.__scene?.().setNavigationTarget(target);
+    },
+    setNavigationVisible: (visible: boolean) => {
+      const game = gameRef.current as {
+        __scene?: () => { setNavigationVisible: (v: boolean) => void };
+      } | null;
+      game?.__scene?.().setNavigationVisible(visible);
+    },
   }));
 
   useEffect(() => {
@@ -63,6 +79,7 @@ export const PhaserGame = forwardRef<PhaserGameHandle, Props>(function PhaserGam
         onVoiceCharacter: (id) => callbacks.current.onVoiceCharacter(id),
         onInteractObject: (id) => callbacks.current.onInteractObject(id),
         onLocationChange: (id) => callbacks.current.onLocationChange(id),
+        onNavigationStatus: (status) => callbacks.current.onNavigationStatus?.(status),
         onReady: () => callbacks.current.onReady(),
         isLocked: () => callbacks.current.isLocked?.() ?? false,
       });

@@ -60,6 +60,18 @@ export type CompletionStatus = {
   missing_actions: string[];
 };
 
+export type NavigationTarget = {
+  objective_id: string;
+  objective_label: string;
+  action_id: string | null;
+  action_label: string | null;
+  target_type: "character" | "object" | "location" | "none";
+  target_id: string | null;
+  location_id: string | null;
+  ready: boolean;
+  reason: string | null;
+};
+
 export type SessionView = {
   id: string;
   status: string;
@@ -73,6 +85,7 @@ export type SessionView = {
   incident: Record<string, unknown>;
   available_locations: string[];
   world: WorldView;
+  navigation: NavigationTarget | null;
   completion: CompletionStatus;
   completed: boolean;
 };

@@ -1,9 +1,17 @@
 import * as Phaser from "phaser";
-import type { WorldView } from "../lib/types";
+import type { NavigationTarget, WorldView } from "../lib/types";
+import {
+  NavigationOverlay,
+  type NavigationStatus,
+  type RouteTarget,
+} from "./navigation";
+import { buildNavGrid, type NavGrid } from "./pathfinding";
 
 const TILE = 32;
 const HUMAN_SHEET = 32;
 const CAT_FRAME = 16;
+/** Existing interaction radius: also used as the navigation arrival distance. */
+const INTERACT_RADIUS = 64;
 
 export type OfficeOptions = {
   world: WorldView;
@@ -14,6 +22,7 @@ export type OfficeOptions = {
   onVoiceCharacter: (characterId: string) => void;
   onInteractObject: (objectId: string) => void;
   onLocationChange: (locationId: string) => void;
+  onNavigationStatus?: (status: NavigationStatus) => void;
   onReady: () => void;
   isLocked?: () => boolean;
 };
@@ -57,6 +66,10 @@ export function createOfficeGame(parent: HTMLElement, options: OfficeOptions): P
     private lastDir = "down";
     private cursors!: Phaser.Types.Input.Keyboard.CursorKeys;
     private playerTexture = options.playerTexture;
+    private navGrid!: NavGrid;
+    private nav!: NavigationOverlay;
+    private navTarget: NavigationTarget | null = null;
+    private navVisible = true;
 
     constructor() {
       super("office");
@@ -95,6 +108,12 @@ export function createOfficeGame(parent: HTMLElement, options: OfficeOptions): P
       this.buildCollision();
       this.buildInteractables();
       this.buildPlayer();
+
+      this.navGrid = buildNavGrid(this.meta.collision);
+      this.nav = new NavigationOverlay(this, this.navGrid, TILE, (status) =>
+        options.onNavigationStatus?.(status),
+      );
+      this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.nav.destroy());
 
       this.foreground = this.add
         .image(0, 0, "foreground")
@@ -353,7 +372,7 @@ export function createOfficeGame(parent: HTMLElement, options: OfficeOptions): P
 
       // proximity
       let nearest: Interactable | null = null;
-      let nearestDist = 64;
+      let nearestDist = INTERACT_RADIUS;
       for (const it of this.interactables) {
         const d = Phaser.Math.Distance.Between(this.player.x, this.player.y, it.x, it.y);
         if (d < nearestDist) {
@@ -376,6 +395,59 @@ export function createOfficeGame(parent: HTMLElement, options: OfficeOptions): P
         this.lastLocation = loc;
         options.onLocationChange(loc);
       }
+
+      this.nav.update(this.player.x, this.player.y);
+    }
+
+    private labelFor(target: NavigationTarget, fallback: string): string {
+      return target.action_label ?? target.objective_label ?? fallback;
+    }
+
+    private resolveRouteTarget(target: NavigationTarget | null): RouteTarget | null {
+      if (!target || target.target_type === "none") return null;
+      if (target.target_id) {
+        const kind = target.target_type === "character" ? "character" : "object";
+        const it = this.interactables.find((i) => i.kind === kind && i.id === target.target_id);
+        if (it) {
+          return {
+            id: target.target_id,
+            label: it.label,
+            x: it.x,
+            y: it.y,
+            radius: INTERACT_RADIUS,
+            showLabel: false,
+          };
+        }
+      }
+      const room = target.location_id
+        ? this.meta.rooms.find((r) => r.id === target.location_id)
+        : undefined;
+      if (room) {
+        return {
+          id: target.target_id ?? room.id,
+          label: this.labelFor(target, room.id),
+          x: ((room.x0 + room.x1) / 2) * TILE + TILE / 2,
+          y: ((room.y0 + room.y1) / 2) * TILE + TILE / 2,
+          radius: INTERACT_RADIUS,
+          showLabel: true,
+        };
+      }
+      return null;
+    }
+
+    private applyNavigation() {
+      this.nav.setTarget(this.resolveRouteTarget(this.navTarget));
+      this.nav.setVisible(this.navVisible);
+    }
+
+    setNavigationTarget(target: NavigationTarget | null) {
+      this.navTarget = target;
+      this.applyNavigation();
+    }
+
+    setNavigationVisible(visible: boolean) {
+      this.navVisible = visible;
+      this.nav.setVisible(visible);
     }
 
     travelTo(locationId: string) {

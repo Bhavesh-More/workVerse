@@ -1117,6 +1117,24 @@ p {
   border-color: var(--color-ink);
 }
 
+/* task navigation chip (floor route controls + arrival feedback) */
+.nav-chip {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 2;
+  width: min(290px, calc(100% - 24px));
+  padding: 8px 10px;
+  border: 1px solid var(--color-ink);
+  background: rgba(231, 230, 219, 0.94);
+  color: var(--color-ink);
+  font-size: 12px;
+  pointer-events: auto;
+}
+.nav-chip__warn {
+  color: var(--color-danger);
+}
+
 /* conversation bubbles */
 .bubble {
   max-width: 92%;
