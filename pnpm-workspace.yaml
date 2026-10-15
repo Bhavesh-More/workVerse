@@ -2,5 +2,5 @@ packages:
   - "apps/*"
   - "packages/*"
 
-onlyBuiltDependencies:
-  - "@clerk/shared"
+allowBuilds:
+  '@clerk/shared': true
