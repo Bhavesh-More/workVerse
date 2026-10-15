@@ -34,3 +34,11 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# clerk configuration (can include secrets)
+/.clerk/
+
+# playwright output
+/test-results/*
+!/test-results/.last-run.json
+/playwright-report/

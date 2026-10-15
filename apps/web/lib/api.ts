@@ -72,10 +72,19 @@ async function request<T>(path: string, opts: RequestOptions = {}): Promise<T> {
     throw new ApiError(0, "network_error", "Could not reach the WorkVerse API.");
   }
 
+  // Any successful write may change what GETs return; drop cached reads.
+  if (res.ok && (opts.method ?? "GET") !== "GET") clearCache();
+
   if (res.status === 204) return undefined as T;
 
   const text = await res.text();
-  const data = text ? JSON.parse(text) : {};
+  let data: { error?: { code?: string; message?: string; request_id?: string; details?: unknown } } = {};
+  try {
+    data = text ? JSON.parse(text) : {};
+  } catch {
+    // Non-JSON body (e.g. a proxy error page): fall through to the status-based error.
+    if (res.ok) throw new ApiError(res.status, "bad_response", "The WorkVerse API sent an unreadable response.");
+  }
   if (!res.ok) {
     const err = data?.error ?? {};
     throw new ApiError(
@@ -87,6 +96,38 @@ async function request<T>(path: string, opts: RequestOptions = {}): Promise<T> {
     );
   }
   return data as T;
+}
+
+// Stale-while-revalidate read cache: pages render the last known data instantly and refresh
+// in the background. In-flight requests are shared so a hover-prefetch and the page's own
+// fetch never double up. ponytail: in-memory per tab, no TTL — cleared on writes and sign-out.
+const cache = new Map<string, unknown>();
+const inflight = new Map<string, Promise<unknown>>();
+let generation = 0;
+
+export function peek<T>(key: string): T | undefined {
+  return cache.get(key) as T | undefined;
+}
+
+export function revalidate<T>(key: string, fetcher: () => Promise<T>): Promise<T> {
+  const pending = inflight.get(key) as Promise<T> | undefined;
+  if (pending) return pending;
+  const gen = generation;
+  const p = fetcher()
+    .then((data) => {
+      // A write landed while this read was in flight: don't resurrect pre-write data.
+      if (gen === generation) cache.set(key, data);
+      return data;
+    })
+    .finally(() => inflight.delete(key));
+  inflight.set(key, p);
+  return p;
+}
+
+export function clearCache() {
+  generation += 1;
+  cache.clear();
+  inflight.clear();
 }
 
 export const api = {

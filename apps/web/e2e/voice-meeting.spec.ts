@@ -35,7 +35,7 @@ async function signInAndEnterOffice(page: Page, request: Page["request"]): Promi
   expect(ticketRes.ok()).toBeTruthy();
   const ticket = (await ticketRes.json()).token;
 
-  await page.goto("/");
+  await page.goto("/login"); // Clerk loads only on app routes, not the landing page
   await setupClerkTestingToken({ page });
   await clerk.signIn({ page, signInParams: { strategy: "ticket", ticket } });
 

@@ -9,7 +9,7 @@
     "start": "next start",
     "lint": "eslint --max-warnings 0",
     "check-types": "next typegen && tsc --noEmit",
-    "test": "node --test game/pathfinding.test.ts",
+    "test": "node --test game/*.test.ts lib/*.test.ts",
     "test:e2e": "playwright test"
   },
   "dependencies": {

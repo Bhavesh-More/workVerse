@@ -192,22 +192,27 @@ function VoiceSession({
 
   return (
     <div
-      className="voice-meeting"
+      className="overlay voice-meeting"
       role="dialog"
       aria-label={`Voice meeting with ${npc.name}, ${npc.role}`}
       data-testid="voice-meeting"
     >
       <div className="voice-meeting__head">
         <div>
-          <p className="eyebrow" style={{ fontSize: 10 }}>
-            Voice · {npc.role}
-          </p>
-          <strong style={{ fontSize: 13 }}>{npc.name}</strong>
+          <span className="eyebrow">Voice · {npc.role}</span>
+          <strong className="section-title" style={{ fontSize: 18 }}>
+            {npc.name}
+          </strong>
         </div>
         <span
           className={`badge${connected ? " badge--active" : ""}`}
           data-testid="voice-status"
         >
+          <span className={`voice-bars${phase === "speaking" || phase === "listening" ? "" : " is-still"}`} aria-hidden="true">
+            <span />
+            <span />
+            <span />
+          </span>
           {PHASE_LABEL[phase]}
         </span>
       </div>
@@ -218,7 +223,7 @@ function VoiceSession({
 
       <div className="voice-transcript" ref={logRef} data-testid="voice-transcript" aria-live="polite">
         {entries.length === 0 ? (
-          <p className="small muted">Speak naturally — {npc.name} will reply. Your words appear here.</p>
+          <p className="xsmall muted">Speak naturally — {npc.name} will reply. Your words appear here.</p>
         ) : (
           entries.map((entry) => (
             <div
@@ -239,7 +244,7 @@ function VoiceSession({
         </div>
       )}
       {detail && (
-        <p className="small muted" data-testid="voice-detail" style={{ marginTop: 4 }}>
+        <p className="xsmall muted" data-testid="voice-detail" style={{ marginTop: 4 }}>
           {detail}
         </p>
       )}

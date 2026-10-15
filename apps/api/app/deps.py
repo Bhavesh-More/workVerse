@@ -27,6 +27,11 @@ async def repo_dep(session: Annotated[AsyncSession, Depends(get_db)]) -> AsyncIt
     yield Repository(session)
 
 
+# ponytail: per-process dict, one small entry per user ever seen; swap for an LRU if the
+# user count gets large. Profiles are never deleted, so entries can't go stale.
+_profile_ids: dict[str, str] = {}
+
+
 async def current_principal(
     request: Request,
     settings: Annotated[Settings, Depends(settings_dep)],
@@ -39,11 +44,15 @@ async def current_principal(
     clerk_principal = verify_token(token, settings)
 
     # Map the Clerk subject to the internal profile (created on first authenticated request).
-    profile = await repo.ensure_profile_for_clerk(clerk_principal.user_id)
-    request.state.user_id = str(profile["id"])
+    # The mapping never changes, so it is remembered per process: no DB round trip per request.
+    profile_id = _profile_ids.get(clerk_principal.user_id)
+    if profile_id is None:
+        profile = await repo.ensure_profile_for_clerk(clerk_principal.user_id)
+        profile_id = _profile_ids[clerk_principal.user_id] = str(profile["id"])
+    request.state.user_id = profile_id
     request.state.clerk_user_id = clerk_principal.user_id
     return Principal(
-        user_id=str(profile["id"]),
+        user_id=profile_id,
         email=clerk_principal.email,
         role=clerk_principal.role,
         dev=clerk_principal.dev,

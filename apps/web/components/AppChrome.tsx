@@ -1,7 +1,7 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import { motion } from "framer-motion";
+import { m } from "framer-motion";
 import type { ReactNode } from "react";
 import { Sidebar } from "./Sidebar";
 
@@ -14,22 +14,24 @@ export function AppChrome({ children }: { children: ReactNode }) {
     pathname.startsWith("/onboarding");
   const isSimulation = pathname.startsWith("/session/") && !pathname.endsWith("/debrief");
 
-  if (isPublic || isSimulation) {
-    return <>{children}</>;
-  }
-
   return (
-    <div className="app-layout">
-      <Sidebar />
-      <motion.div
-        className="app-content"
-        key={pathname}
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.24, ease: "easeOut" }}
-      >
-        {children}
-      </motion.div>
-    </div>
+    <>
+      {isPublic || isSimulation ? (
+        children
+      ) : (
+        <div className="app-layout">
+          <Sidebar />
+          <m.div
+            className="app-content"
+            key={pathname}
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
+          >
+            {children}
+          </m.div>
+        </div>
+      )}
+    </>
   );
 }

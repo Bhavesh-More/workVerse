@@ -55,14 +55,24 @@ class Repository:
     async def ensure_profile_for_clerk(
         self, clerk_user_id: str, display_name: str | None = None
     ) -> dict[str, Any]:
-        await self.session.execute(
-            text(
-                "insert into public.profiles (clerk_user_id, display_name) values (:cid, :name) "
-                "on conflict (clerk_user_id) do nothing"
-            ),
-            {"cid": clerk_user_id, "name": display_name},
+        # One round trip: insert if missing, otherwise return the existing row (no write).
+        profile = _row(
+            await self.session.execute(
+                text(
+                    "with ins as ("
+                    " insert into public.profiles (clerk_user_id, display_name) values (:cid, :name)"
+                    " on conflict (clerk_user_id) do nothing returning *"
+                    ") select * from ins"
+                    " union all select * from public.profiles where clerk_user_id = :cid"
+                    " limit 1"
+                ),
+                {"cid": clerk_user_id, "name": display_name},
+            )
         )
-        profile = await self.get_profile_by_clerk(clerk_user_id)
+        if profile is None:
+            # A concurrent first request inserted the row after this statement's snapshot
+            # was taken; a fresh statement sees it.
+            profile = await self.get_profile_by_clerk(clerk_user_id)
         if profile is None:  # pragma: no cover - defensive
             raise RuntimeError("Failed to provision profile for Clerk user.")
         return profile
