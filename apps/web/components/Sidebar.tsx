@@ -3,8 +3,10 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { motion } from "framer-motion";
+import { m } from "framer-motion";
 import { useAuth } from "../lib/auth";
+import { clearCache } from "../lib/api";
+import { prefetchRoute } from "../lib/useApi";
 import { Avatar } from "./Avatar";
 
 const NAV = [
@@ -14,19 +16,28 @@ const NAV = [
   { href: "/profile", label: "Profile", icon: "user" },
 ];
 
-const MIN = 180;
+const MIN = 200;
 const MAX = 340;
 const COLLAPSED = 72;
 
 function Icon({ name }: { name: string }) {
-  const common = { width: 18, height: 18, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 1.6 };
+  const common = {
+    width: 18,
+    height: 18,
+    viewBox: "0 0 24 24",
+    fill: "none",
+    stroke: "currentColor",
+    strokeWidth: 1.5,
+    strokeLinecap: "round" as const,
+    strokeLinejoin: "round" as const,
+  };
   if (name === "grid")
     return (
       <svg {...common} aria-hidden="true">
-        <rect x="3" y="3" width="7" height="7" />
-        <rect x="14" y="3" width="7" height="7" />
-        <rect x="3" y="14" width="7" height="7" />
-        <rect x="14" y="14" width="7" height="7" />
+        <rect x="3" y="3" width="7" height="7" rx="2" />
+        <rect x="14" y="3" width="7" height="7" rx="2" />
+        <rect x="3" y="14" width="7" height="7" rx="2" />
+        <rect x="14" y="14" width="7" height="7" rx="2" />
       </svg>
     );
   if (name === "target")
@@ -60,19 +71,23 @@ export function Sidebar() {
   const drag = useRef<{ startX: number; startW: number } | null>(null);
 
   useEffect(() => {
-    const saved = window.localStorage.getItem("wv.sidebar");
-    if (saved) {
+    try {
+      const saved = window.localStorage.getItem("wv.sidebar");
+      if (!saved) return;
       const parsed = JSON.parse(saved) as { width?: number; collapsed?: boolean };
       if (parsed.width) setWidth(Math.min(MAX, Math.max(MIN, parsed.width)));
       if (typeof parsed.collapsed === "boolean") setCollapsed(parsed.collapsed);
+    } catch {
+      // Corrupt or blocked storage: keep defaults.
     }
   }, []);
 
   function persist(nextW: number, nextCollapsed: boolean) {
-    window.localStorage.setItem(
-      "wv.sidebar",
-      JSON.stringify({ width: nextW, collapsed: nextCollapsed }),
-    );
+    try {
+      window.localStorage.setItem("wv.sidebar", JSON.stringify({ width: nextW, collapsed: nextCollapsed }));
+    } catch {
+      // Storage unavailable (private mode); the preference just won't stick.
+    }
   }
 
   function onPointerDown(e: React.PointerEvent) {
@@ -97,7 +112,7 @@ export function Sidebar() {
   const name = user?.fullName ?? user?.firstName ?? user?.primaryEmailAddress?.emailAddress ?? "Learner";
 
   return (
-    <motion.aside
+    <m.aside
       className="sidebar"
       initial={false}
       animate={{ width: effectiveWidth }}
@@ -105,22 +120,42 @@ export function Sidebar() {
     >
       <div className="sidebar__head">
         <Link href="/dashboard" className="sidebar__brand" aria-label="WorkVerse dashboard">
-          <span className="sidebar__mark">WV</span>
+          <span className="sidebar__mark">W</span>
           {!collapsed && <span className="sidebar__wordmark">WorkVerse</span>}
         </Link>
-        <button
-          className="sidebar__collapse"
-          onClick={() => {
-            const next = !collapsed;
-            setCollapsed(next);
-            persist(width, next);
-          }}
-          aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
-          title={collapsed ? "Expand" : "Collapse"}
-        >
-          {collapsed ? "»" : "«"}
-        </button>
+        {!collapsed && (
+          <button
+            className="sidebar__collapse"
+            onClick={() => {
+              setCollapsed(true);
+              persist(width, true);
+            }}
+            aria-label="Collapse sidebar"
+            title="Collapse"
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true">
+              <path d="M15 6l-6 6 6 6" />
+            </svg>
+          </button>
+        )}
       </div>
+
+      {collapsed && (
+        <button
+          className="sidebar__collapse is-collapsed"
+          style={{ margin: "0 auto 4px" }}
+          onClick={() => {
+            setCollapsed(false);
+            persist(width, false);
+          }}
+          aria-label="Expand sidebar"
+          title="Expand"
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" aria-hidden="true">
+            <path d="M15 6l-6 6 6 6" />
+          </svg>
+        </button>
+      )}
 
       <nav className="sidebar__nav" aria-label="Primary">
         {NAV.map((item) => {
@@ -131,21 +166,22 @@ export function Sidebar() {
               href={item.href}
               className={`sidebar__link${active ? " is-active" : ""}`}
               aria-current={active ? "page" : undefined}
+              onMouseEnter={() => prefetchRoute(item.href)}
+              onFocus={() => prefetchRoute(item.href)}
+              aria-label={collapsed ? item.label : undefined}
               title={collapsed ? item.label : undefined}
             >
+              {active && (
+                <m.span
+                  className="sidebar__activebg"
+                  layoutId="sidebar-active"
+                  transition={{ type: "spring", stiffness: 500, damping: 40 }}
+                />
+              )}
               <span className="sidebar__icon">
                 <Icon name={item.icon} />
               </span>
-              {!collapsed && (
-                <motion.span
-                  initial={{ opacity: 0, x: -6 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ duration: 0.18 }}
-                >
-                  {item.label}
-                </motion.span>
-              )}
-              {active && <motion.span className="sidebar__activebar" layoutId="sidebar-active" />}
+              {!collapsed && <span className="sidebar__label">{item.label}</span>}
             </Link>
           );
         })}
@@ -153,16 +189,24 @@ export function Sidebar() {
 
       <div className="sidebar__foot">
         <Link href="/profile" className="sidebar__user" title={name}>
-          <Avatar imageUrl={user?.imageUrl} name={name} size={collapsed ? 34 : 38} />
+          <span className="sidebar__avatar">
+            <Avatar imageUrl={user?.imageUrl} name={name} size={collapsed ? 34 : 38} />
+            <span className="dot" aria-hidden="true" />
+          </span>
           {!collapsed && (
             <span className="sidebar__userinfo">
               <span className="sidebar__username">{name}</span>
-              <span className="sidebar__userrole">Practising</span>
+              <span className="mono muted" style={{ fontSize: 11 }}>
+                In practice
+              </span>
             </span>
           )}
         </Link>
         {!collapsed && (
-          <button className="sidebar__signout" onClick={() => signOut({ redirectUrl: "/" })}>
+          <button className="btn btn--ghost btn--small" onClick={() => {
+              clearCache(); // cached reads belong to this user
+              signOut({ redirectUrl: "/" });
+            }}>
             Sign out
           </button>
         )}
@@ -177,6 +221,6 @@ export function Sidebar() {
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
       />
-    </motion.aside>
+    </m.aside>
   );
 }

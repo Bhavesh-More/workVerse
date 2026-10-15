@@ -1,11 +1,7 @@
 "use client";
 
 import { useState } from "react";
-
-function initials(name: string) {
-  const parts = name.trim().split(/\s+/).slice(0, 2);
-  return parts.map((p) => p[0]?.toUpperCase() ?? "").join("") || "?";
-}
+import { initials } from "../lib/practice";
 
 export function Avatar({
   imageUrl,

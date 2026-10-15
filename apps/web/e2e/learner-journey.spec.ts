@@ -33,7 +33,7 @@ test.describe("WorkVerse learner journey", () => {
     expect(ticketRes.ok()).toBeTruthy();
     const ticket = (await ticketRes.json()).token;
 
-    await page.goto("/");
+    await page.goto("/login"); // Clerk loads only on app routes, not the landing page
     await setupClerkTestingToken({ page });
     await clerk.signIn({ page, signInParams: { strategy: "ticket", ticket } });
 
@@ -85,7 +85,12 @@ test.describe("WorkVerse learner journey", () => {
       "a_apply_rollback",
     ]) {
       const resp = waitForApi(page, "/actions");
-      await page.getByTestId(`action-${actionId}`).click();
+      // The full action list is visually hidden (keyboard/screen-reader path), so activate it
+      // the way those users do rather than with a pointer click.
+      const button = page.getByTestId(`action-${actionId}`);
+      await expect(button).toBeEnabled();
+      await button.focus();
+      await page.keyboard.press("Enter");
       expect((await resp).ok()).toBeTruthy();
     }
 

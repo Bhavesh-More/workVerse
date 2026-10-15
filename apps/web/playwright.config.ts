@@ -5,11 +5,11 @@ import { defineConfig, devices } from "@playwright/test";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 
-// Load apps/web/.env.local so Clerk testing helpers and the app share configuration.
-// These values deliberately override any stale shell exports that would otherwise cause
-// Clerk Backend API calls to fail with "authorization_invalid".
-const envPath = path.join(here, ".env.local");
-if (fs.existsSync(envPath)) {
+// Load apps/web/.env then .env.local (same precedence as Next) so Clerk testing helpers and
+// the app share configuration. These values deliberately override any stale shell exports
+// that would otherwise cause Clerk Backend API calls to fail with "authorization_invalid".
+for (const envPath of [".env", ".env.local"].map((f) => path.join(here, f))) {
+  if (!fs.existsSync(envPath)) continue;
   for (const line of fs.readFileSync(envPath, "utf8").split("\n")) {
     const match = line.match(/^([A-Z0-9_]+)=(.*)$/);
     if (!match) continue;
@@ -23,7 +23,7 @@ if (process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY) {
 }
 if (!process.env.CLERK_SECRET_KEY) {
   throw new Error(
-    "CLERK_SECRET_KEY is missing. Copy .env.example to apps/web/.env.local and set the Clerk keys.",
+    "CLERK_SECRET_KEY is missing. Copy .env.example to apps/web/.env.local (or .env) and set the Clerk keys.",
   );
 }
 

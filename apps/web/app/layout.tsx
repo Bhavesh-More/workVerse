@@ -1,21 +1,27 @@
 import type { Metadata } from "next";
-import { JetBrains_Mono } from "next/font/google";
-import { ClerkProvider } from "@clerk/nextjs";
+import { JetBrains_Mono, Schibsted_Grotesk } from "next/font/google";
 import "./globals.css";
-import { TokenBridge } from "../components/TokenBridge";
-import { AppChrome } from "../components/AppChrome";
+import { MotionProvider } from "../components/MotionProvider";
 
 const jetbrains = JetBrains_Mono({
   subsets: ["latin"],
-  weight: ["400", "500", "600", "700", "800"],
+  weight: ["400"],
   variable: "--font-jetbrains-mono",
+  display: "swap",
+});
+
+// Display face: DESIGN.md's listed substitute for Swizzy, used at weight 500 only.
+const schibsted = Schibsted_Grotesk({
+  subsets: ["latin"],
+  weight: ["500"],
+  variable: "--font-schibsted",
   display: "swap",
 });
 
 export const metadata: Metadata = {
   title: "WorkVerse AI",
   description:
-    "Practise realistic workplace scenarios with AI colleagues in a 2D office and get evidence-grounded feedback.",
+    "A safe place for students and early-career engineers to practise real workplace moments — incidents, updates, tough conversations — with AI colleagues, then get feedback that cites what you actually said.",
 };
 
 export default function RootLayout({
@@ -24,18 +30,10 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <ClerkProvider
-      signInUrl="/login"
-      signUpUrl="/signup"
-      signInFallbackRedirectUrl="/dashboard"
-      signUpFallbackRedirectUrl="/onboarding"
-    >
-      <html lang="en" className={jetbrains.variable}>
-        <body>
-          <TokenBridge />
-          <AppChrome>{children}</AppChrome>
-        </body>
-      </html>
-    </ClerkProvider>
+    <html lang="en" className={`${jetbrains.variable} ${schibsted.variable}`}>
+      <body>
+        <MotionProvider>{children}</MotionProvider>
+      </body>
+    </html>
   );
 }
