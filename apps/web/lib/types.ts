@@ -125,6 +125,11 @@ export type ScenarioTemplate = {
   supported_modes: string[];
   estimated_minutes: number;
   difficulty_options: string[];
+  story?: string;
+  you_will?: string[];
+  people?: { role: string; knows: string }[];
+  skills?: string[];
+  report?: string;
 };
 
 export type SuggestedAction = {

@@ -703,5 +703,31 @@ TEMPLATE_CATALOG = [
         "supported_modes": ["quick", "project"],
         "estimated_minutes": 10,
         "difficulty_options": ["introductory", "standard", "challenging"],
+        "story": (
+            "It's your on-call shift. A deploy went out minutes ago and checkout is throwing errors. "
+            "Your manager wants the blast radius, the client is anxious, and a rollback might make "
+            "things worse. Talk to people, read the consoles, fix it safely and tell everyone."
+        ),
+        "you_will": [
+            "Ask short, sharp questions to 5 colleagues who each know something different",
+            "Inspect logs, metrics, the deploy console and the runbook",
+            "Decide between a rollback and a forward fix — safely",
+            "Write a stakeholder update: impact, cause, action, next update, owner",
+        ],
+        "people": [
+            {"role": "Engineering Manager", "knows": "Customer impact and the reporting deadline"},
+            {"role": "Senior Backend Engineer", "knows": "What shipped in the deploy"},
+            {"role": "QA Engineer", "knows": "What testing missed"},
+            {"role": "Client Product Manager", "knows": "Which client workflows are blocked"},
+            {"role": "Product Designer", "knows": "Office gossip — friendly, not much more"},
+        ],
+        "skills": [
+            "Diagnosis",
+            "Risk-aware decisions",
+            "Stakeholder communication",
+            "Ownership",
+            "Adaptation",
+        ],
+        "report": "Evidence Ledger with proof links, skill scores, talk-time charts, a full transcript and lines to say next time.",
     }
 ]

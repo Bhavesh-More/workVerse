@@ -298,7 +298,6 @@ export default function SessionPage() {
       setError(null);
       try {
         await api.complete(sessionId, { expected_state_version: session.state_version, force });
-        play("complete");
         router.push(`/session/${sessionId}/debrief`);
       } catch (e) {
         setError(e instanceof ApiError ? e.message : "Could not complete the session.");

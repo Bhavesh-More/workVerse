@@ -88,12 +88,20 @@ async def ensure_seed_templates(repo: Repository) -> None:
         await repo.ensure_template(entry["slug"], entry["title"], entry["summary"], entry)
 
 
+_CATALOG_EXTRAS = ("story", "you_will", "people", "skills", "report")
+
+
 async def list_catalog(repo: Repository) -> list[dict[str, Any]]:
     rows = await repo.list_templates()
-    if rows:
-        return rows
-    await ensure_seed_templates(repo)
-    return await repo.list_templates()
+    if not rows:
+        await ensure_seed_templates(repo)
+        rows = await repo.list_templates()
+    # Descriptive copy lives in code so it updates without re-seeding the database.
+    by_slug = {entry["slug"]: entry for entry in TEMPLATE_CATALOG}
+    return [
+        {**row, **{k: by_slug[row["slug"]][k] for k in _CATALOG_EXTRAS if k in by_slug.get(row["slug"], {})}}
+        for row in rows
+    ]
 
 
 def _build_blueprint(

@@ -99,9 +99,38 @@ export default function ScenariosPage() {
                   <h2 className="section-title">{t.title}</h2>
                   <span className="badge">~{t.estimated_minutes} min</span>
                 </div>
-                <p className="small muted">{t.summary}</p>
+                <p className="small muted">{t.story ?? t.summary}</p>
+                {t.you_will && (
+                  <>
+                    <span className="eyebrow" style={{ marginTop: 8 }}>You will</span>
+                    <ul className="list-reset stack stack--sm">
+                      {t.you_will.map((w) => (
+                        <li key={w} className="small row" style={{ gap: 8, alignItems: "baseline", flexWrap: "nowrap" }}>
+                          <span className="dot" aria-hidden="true" /> {w}
+                        </li>
+                      ))}
+                    </ul>
+                  </>
+                )}
+                {t.people && (
+                  <>
+                    <span className="eyebrow" style={{ marginTop: 8 }}>Who you&apos;ll meet</span>
+                    <ul className="list-reset stack stack--sm">
+                      {t.people.map((p) => (
+                        <li key={p.role} className="xsmall">
+                          <strong>{p.role}</strong> <span className="muted">— {p.knows}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </>
+                )}
+                {t.report && (
+                  <p className="xsmall muted" style={{ marginTop: 4 }}>
+                    <span className="mono">Your report →</span> {t.report}
+                  </p>
+                )}
                 <div className="chip-row" style={{ margin: "4px 0 8px" }}>
-                  {t.categories.map((c) => (
+                  {(t.skills ?? t.categories).map((c) => (
                     <span key={c} className="badge">
                       {c.replace(/_/g, " ")}
                     </span>

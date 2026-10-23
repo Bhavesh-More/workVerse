@@ -106,6 +106,72 @@ export default function BriefingPage() {
           </m.div>
         </div>
 
+        {b.incident && (
+          <m.div variants={item} className="stat-tiles" style={{ marginTop: 32 }}>
+            {[
+              ["Service", b.incident.service],
+              ["Requests failing", b.incident.impact_pct !== undefined ? `${String(b.incident.impact_pct)}%` : undefined],
+              ["Severity", b.incident.severity],
+              ["Deploy was", b.incident.deploy_minutes_ago !== undefined ? `${String(b.incident.deploy_minutes_ago)} min ago` : undefined],
+            ]
+              .filter(([, v]) => v !== undefined)
+              .map(([k, v]) => (
+                <div key={String(k)} className="stat-tile">
+                  <span className="eyebrow">{String(k)}</span>
+                  <strong className="mono" style={{ fontSize: 20 }}>{String(v)}</strong>
+                </div>
+              ))}
+          </m.div>
+        )}
+
+        {b.people && (
+          <m.section variants={item} className="card stack" style={{ marginTop: 32 }}>
+            <h2 className="section-title">Who&apos;s in the office</h2>
+            <div className="people-grid">
+              {b.people.map((p) => (
+                <div key={p.id} className="person">
+                  <strong className="small">{p.name}</strong>
+                  <p className="xsmall muted">{p.role}</p>
+                  <p className="xsmall" style={{ marginTop: 6 }}>
+                    <span className="mono">@</span> {p.location}
+                    {p.knows_about ? "" : " · just chatting"}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </m.section>
+        )}
+
+        {(b.assessed || b.tips) && (
+          <div className="grid-2" style={{ alignItems: "start", marginTop: 32 }}>
+            {b.assessed && (
+              <m.section variants={item} className="card stack">
+                <h2 className="section-title">How you&apos;re scored</h2>
+                <p className="xsmall muted">Each skill is 0–4. Here&apos;s what a 4 looks like:</p>
+                <ul className="list-reset stack stack--sm">
+                  {b.assessed.map((a) => (
+                    <li key={a.id} className="small">
+                      <strong>{a.name}.</strong> <span className="muted">{a.great}</span>
+                    </li>
+                  ))}
+                </ul>
+              </m.section>
+            )}
+            {b.tips && (
+              <m.section variants={item} className="card stack">
+                <h2 className="section-title">Tips</h2>
+                <ul className="list-reset stack stack--sm">
+                  {b.tips.map((t) => (
+                    <li key={t} className="small row" style={{ gap: 8, alignItems: "baseline", flexWrap: "nowrap" }}>
+                      <span className="dot" aria-hidden="true" /> {t}
+                    </li>
+                  ))}
+                </ul>
+              </m.section>
+            )}
+          </div>
+        )}
+
         <m.div variants={item} className="row" style={{ marginTop: 32 }}>
           <button className="btn" onClick={enter} disabled={busy}>
             {busy ? <span className="busy-dots">Entering the office</span> : "Enter the office"}

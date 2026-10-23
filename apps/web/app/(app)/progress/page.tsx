@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { m } from "framer-motion";
 import { CountUp } from "../../../components/CountUp";
+import { ScoreLine } from "../../../components/Charts";
 import { api } from "../../../lib/api";
 import { useApi } from "../../../lib/useApi";
 
@@ -90,6 +91,19 @@ export default function ProgressPage() {
           )}
         </m.div>
 
+        <m.section variants={item} className="card stack" style={{ marginBottom: 48 }}>
+          <h2 className="section-title">Overall score by attempt</h2>
+          <ScoreLine
+            points={[...progress.evaluations]
+              .filter((e) => e.overall_score !== null)
+              .sort((a, b) => a.completed_at.localeCompare(b.completed_at))
+              .map((e, i) => ({
+                label: `Attempt ${i + 1} · ${e.difficulty} · ${new Date(e.completed_at).toLocaleDateString()}`,
+                score: Math.round(e.overall_score ?? 0),
+              }))}
+          />
+        </m.section>
+
         <m.h2 variants={item} className="section-title" style={{ marginBottom: 12 }}>
           Sessions
         </m.h2>
@@ -121,9 +135,9 @@ export default function ProgressPage() {
                       )}
                       <Link
                         className="btn btn--ghost btn--small"
-                        href={s.status === "completed" ? `/session/${s.id}/debrief` : `/session/${s.id}`}
+                        href={ev || s.status === "completed" ? `/session/${s.id}/debrief` : `/session/${s.id}`}
                       >
-                        {s.status === "completed" ? "Report" : "Resume"}
+                        {ev || s.status === "completed" ? "Report" : "Resume"}
                       </Link>
                     </span>
                   </li>
