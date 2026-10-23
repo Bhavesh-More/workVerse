@@ -128,3 +128,15 @@ Ranked by judge impact ÷ effort:
    engine — shows the simulator generalises. Only `templates.py` + `QUESTIONS` + ledger checks needed.
 4. **Recruiter view**: compare candidates on the same scenario variant with ledger pass-rates.
 5. **Replay mode**: animate the learner's path through the office from the event timeline.
+
+---
+
+## 7. Fix: logged-in users still saw the login page
+
+**Bug:** `/`, `/login` and `/signup` were "public" routes, and nothing checked whether you were
+*already* signed in — so a logged-in user could land on the login form (or the landing page with
+"Log in" buttons).
+
+**Fix:** `apps/web/middleware.ts`. Every request already passes through Clerk's middleware. For the public
+routes it now asks Clerk "is there a signed-in user?" and, if yes, redirects to `/dashboard`.
+Signed-out visitors see exactly what they saw before.
