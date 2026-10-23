@@ -201,6 +201,9 @@ export default function DebriefPage() {
             <a className="btn btn--ghost btn--block" href="#transcript">
               Read your transcript
             </a>
+            <button className="btn btn--ghost btn--block no-print" onClick={() => window.print()}>
+              Save as PDF
+            </button>
           </div>
         </m.div>
 

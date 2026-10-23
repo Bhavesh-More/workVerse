@@ -118,6 +118,7 @@ feed the evidence-grounded debrief. The browser never receives any provider key.
 
 ## Documentation
 
+- **What's new (Evidence Ledger, coaching, charts, SFX, bug fixes): `docs/IMPROVEMENTS.md`** — start here.
 - Design system: `../workverse-ai-docs/docs/DESIGN.md` (calm editorial, JetBrains Mono, grid).
 - Supplied product/architecture docs: `../workverse-ai-docs/`.
 - Known limitations and decisions: `docs/LIMITATIONS.md`.

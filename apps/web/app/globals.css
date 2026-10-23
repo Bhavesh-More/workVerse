@@ -1813,3 +1813,10 @@ blockquote {
   .chart-bars li { grid-template-columns: 1fr auto; }
   .chart-bars li .chart-bars__track { grid-column: 1 / -1; grid-row: 2; }
 }
+@media print {
+  .sidebar, .no-print, .btn { display: none !important; }
+  body { background: #fff; }
+  .app-main { margin: 0 !important; padding: 0 !important; max-width: none !important; }
+  .card { break-inside: avoid; box-shadow: none !important; }
+  .transcript { max-height: none; overflow: visible; }
+}

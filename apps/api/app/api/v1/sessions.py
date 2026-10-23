@@ -113,8 +113,7 @@ async def retry(
     version_row = await repo.get_scenario_version(str(row["scenario_version_id"]))
     if version_row is None:
         raise NotFoundError("Scenario version not found.")
-    template_row = await repo.get_scenario_version(str(row["scenario_version_id"]))
-    template_id = str(template_row["template_id"])
+    template_id = str(version_row["template_id"])
     templates = await repo.list_templates()
     slug = next((t["slug"] for t in templates if str(t["id"]) == template_id), "production-incident")
 
