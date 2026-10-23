@@ -228,6 +228,27 @@ def prebrief(blueprint: ScenarioBlueprint) -> dict[str, Any]:
             "Use the quick-action panel to interact without walking",
             "Open a character to chat at any time",
         ],
+        "incident": blueprint.initial_state.get("incident", {}),
+        "people": [
+            {
+                "id": c.id,
+                "name": c.name,
+                "role": c.role,
+                "location": next((loc.name for loc in blueprint.locations if loc.id == c.location_id), c.location_id),
+                "knows_about": bool(c.disclosure_rules),
+            }
+            for c in blueprint.characters
+        ],
+        "assessed": [
+            {"id": c.id, "name": c.name, "description": c.description, "great": c.anchors.get("4", "")}
+            for c in blueprint.rubric.criteria
+        ],
+        "tips": [
+            "Talk like you would on a real call: one short question at a time.",
+            "Ask before you act — the people around you hold facts the consoles don't.",
+            "Check that a rollback is safe before you press it.",
+            "Your status update should say impact, cause, action, next update time and owner.",
+        ],
     }
 
 

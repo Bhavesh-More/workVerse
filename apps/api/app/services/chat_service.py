@@ -99,7 +99,7 @@ async def handle_turn(
             turn_id=client_turn_id,
             client_turn_id=client_turn_id,
             speaker_type="learner",
-            character_id=None,
+            character_id=character_id,
             content=message[:MAX_CONTEXT_CHARS],
             modality=modality,
             metadata={},
@@ -114,7 +114,7 @@ async def handle_turn(
         blueprint, state, character, recent_messages, message, newly_revealed
     )
 
-    result = await ai.chat(prompt, max_tokens=320, temperature=0.7)
+    result = await ai.chat(prompt, max_tokens=160, temperature=0.7)
 
     # Persist assistant message
     seq = await repo.next_message_sequence(session_id)
@@ -164,7 +164,8 @@ async def handle_turn(
 def _to_model_messages(messages: list[dict[str, Any]], character_id: str) -> list[dict[str, str]]:
     out: list[dict[str, str]] = []
     for m in messages:
-        if m["speaker_type"] == "learner":
+        # Only this character's thread: questions asked to someone else were never heard here.
+        if m["speaker_type"] == "learner" and m.get("character_id") == character_id:
             out.append({"role": "user", "content": m["content"][:MAX_CONTEXT_CHARS]})
         elif m["speaker_type"] == "character" and m.get("character_id") == character_id:
             out.append({"role": "assistant", "content": m["content"][:MAX_CONTEXT_CHARS]})

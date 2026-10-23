@@ -62,6 +62,10 @@ class OllamaCloudClient:
             self._client = None
 
     @property
+    def model_name(self) -> str:
+        return self._settings.ollama_model
+
+    @property
     def configured(self) -> bool:
         return bool(self._keys)
 

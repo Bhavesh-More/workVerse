@@ -196,7 +196,7 @@ async def ingest_transcript_message(
                 turn_id=None,
                 client_turn_id=None,
                 speaker_type="learner" if speaker == "user" else "character",
-                character_id=None if speaker == "user" else str(voice["npc_id"]),
+                character_id=str(voice["npc_id"]),
                 content=clean,
                 modality="voice_transcript",
                 metadata={
