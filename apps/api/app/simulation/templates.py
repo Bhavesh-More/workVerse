@@ -649,7 +649,8 @@ def build_production_incident(
                     "a_inspect_logs",
                     "a_inspect_deploy",
                     "a_check_migration_compat",
-                    "a_apply_rollback",
+                    # The migration is never backward compatible, so a plain rollback keeps failing.
+                    "a_apply_forward_fix",
                     "a_send_status_update",
                     "a_document_followup",
                 ],

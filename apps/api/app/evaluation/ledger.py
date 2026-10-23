@@ -37,6 +37,7 @@ SAY_NEXT_TIME: dict[str, dict[str, str]] = {
     "compat_checked": {"to": "teammate", "say": "Before I roll back, is the migration backward compatible?"},
     "talked_qa": {"to": "qa", "say": "Did CI run the integration tests on this release?"},
     "talked_client": {"to": "client_pm", "say": "We're on it. I'll update you by the top of the hour."},
+    "right_fix": {"to": "teammate", "say": "Rollback won't fix the schema. Can we ship a forward fix instead?"},
     "update_sent": {"to": "stakeholders", "say": "Impact: X% of checkout failing. Cause: migration. Action: rolling back. Next update 15 min. Owner: me."},
 }
 
@@ -119,6 +120,13 @@ def build_ledger(
         "risk_decision": [
             _check("compat_checked", "Checked migration compatibility", "a_check_migration_compat" in done, "event", ev("a_check_migration_compat")),
             _check("compat_first", "Checked compatibility before mitigating", compat_before, "event", ev("a_check_migration_compat")),
+            _check(
+                "right_fix",
+                "Chose the forward fix (a rollback can't undo an incompatible migration)",
+                state.flags.get("mitigation") == "forward_fix",
+                "event",
+                ev("a_apply_forward_fix"),
+            ),
             _check("runbook", "Read the ops runbook", "a_inspect_runbook" in done, "event", ev("a_inspect_runbook")),
             _check(
                 "no_blocked",

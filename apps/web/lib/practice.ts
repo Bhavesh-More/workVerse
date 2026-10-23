@@ -41,7 +41,7 @@ export function buildGuideSteps(session: SessionView): GuideStep[] {
   if (!done("o_choose_mitigation"))
     steps.push({
       title: "Mitigate safely",
-      body: "At the deployment console, choose your mitigation — roll back or apply the forward fix.",
+      body: "At the deployment console, choose your mitigation. If the migration isn't backward compatible, a rollback won't help — apply the forward fix.",
       room: "engineering_workspace",
     });
   if (!done("o_communicate"))

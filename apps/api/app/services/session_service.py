@@ -241,7 +241,15 @@ async def apply_world_action(
             },
             state_version_after=int(row["state_version"]),
         )
-        await repo.set_session_status(session_id, row["status"])
+        # Keep the bumped event counter (state_version unchanged) and commit now: the error
+        # below rolls the request back, and the evaluator needs to see blocked unsafe attempts.
+        await repo.save_session_state(
+            session_id=session_id,
+            expected_version=int(row["state_version"]),
+            new_version=int(row["state_version"]),
+            state=state.model_dump(),
+        )
+        await repo.session.commit()
         raise ValidationAppError(
             result.reason or "Action not allowed.",
             code="action_rejected",
