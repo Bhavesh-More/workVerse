@@ -99,6 +99,10 @@ export type Prebrief = {
   objectives: string[];
   competency_goals: string[];
   controls: string[];
+  incident?: Record<string, unknown>;
+  people?: { id: string; name: string; role: string; location: string; knows_about: boolean }[];
+  assessed?: { id: string; name: string; description: string; great: string }[];
+  tips?: string[];
 };
 
 export type ScenarioInstance = {
@@ -182,8 +186,63 @@ export type EvaluationItem = {
   evidence: EvidenceRef[];
 };
 
+export type LedgerCheck = {
+  id: string;
+  label: string;
+  passed: boolean;
+  source_type: "message" | "event" | "deliverable" | null;
+  source_id: string | null;
+  detail: string;
+};
+
+export type ConversationTurn = {
+  message_id: string;
+  character_id: string | null;
+  words: number;
+  question: boolean;
+  long: boolean;
+  modality: string;
+};
+
+export type ConversationStats = {
+  turns: ConversationTurn[];
+  people: {
+    character_id: string;
+    name: string;
+    learner_words: number;
+    npc_words: number;
+    learner_turns: number;
+    npc_turns: number;
+  }[];
+  learner_turns: number;
+  questions: number;
+  question_ratio: number;
+  avg_words: number;
+  median_words: number;
+  long_turns: number;
+  npc_avg_words: number;
+  long_turn_words: number;
+};
+
+export type Coaching = { message_id: string; original: string; better: string; why: string };
+
+export type SayNextTime = { check: string; to: string; say: string };
+
+export type SimEvent = {
+  id: string;
+  sequence_number: number;
+  event_type: string;
+  payload: Record<string, unknown>;
+  created_at: string | null;
+};
+
 export type Evaluation = {
   id: string;
+  findings: string[];
+  ledger: Record<string, LedgerCheck[]>;
+  conversation: ConversationStats | null;
+  coaching: Coaching[];
+  say_next_time: SayNextTime[];
   session_id: string;
   status: string;
   rubric_version: string;

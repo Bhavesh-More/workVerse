@@ -8,6 +8,7 @@ import type {
   ScenarioTemplate,
   SessionSummary,
   SessionView,
+  SimEvent,
   TranscriptMessage,
   TurnResponse,
   VoiceSessionStart,
@@ -184,6 +185,8 @@ export const api = {
 
   transcript: (sessionId: string) =>
     request<{ items: TranscriptMessage[] }>(`/sessions/${sessionId}/transcript`),
+
+  events: (sessionId: string) => request<{ items: SimEvent[] }>(`/sessions/${sessionId}/events`),
 
   complete: (sessionId: string, body: { expected_state_version?: number; force?: boolean }) =>
     request<{ status: string; evaluation: Evaluation }>(`/sessions/${sessionId}/complete`, {

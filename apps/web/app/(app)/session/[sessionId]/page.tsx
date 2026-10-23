@@ -16,7 +16,10 @@ import {
   buildGuideSteps,
   destinationLabel,
   nextObjective as findNextObjective,
+  suggestedQuestions,
+  wordCount,
 } from "../../../../lib/practice";
+import { isMuted, play, setMuted } from "../../../../lib/sfx";
 
 // Browser-only SDK; never evaluated during SSR.
 const VoiceMeeting = dynamic(
@@ -66,6 +69,8 @@ export default function SessionPage() {
   const [navStatus, setNavStatus] = useState<NavigationStatus>("idle");
   const [pendingText, setPendingText] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
+  const [muted, setMutedState] = useState(false);
+  useEffect(() => setMutedState(isMuted()), []);
   const completedIds = useRef<Set<string> | null>(null);
   const interactionLocked = useRef(false);
   const voicePending = useRef(false);
@@ -101,7 +106,10 @@ export default function SessionPage() {
     completedIds.current = done;
     if (!prev) return;
     const fresh = session.objectives.find((o) => done.has(o.id) && !prev.has(o.id));
-    if (fresh) setToast(fresh.label);
+    if (fresh) {
+      setToast(fresh.label);
+      play("objective");
+    }
   }, [session]);
 
   useEffect(() => {
@@ -150,13 +158,18 @@ export default function SessionPage() {
         setSession(res.session);
         setMessages((await api.transcript(sessionId)).items);
         const newly = res.state_delta?.newly_discovered_fact_ids as string[] | undefined;
-        if (newly?.length) setNotice(`New information: ${newly.join(", ")}`);
+        if (newly?.length) {
+          const labels = newly.map((id) => res.session.facts_known.find((f) => f.id === id)?.label ?? id);
+          setNotice(`New information: ${labels.join(" · ")}`);
+          play("discover");
+        }
       } catch (e) {
         if (e instanceof ApiError && e.status === 409) {
           await load();
           setError("The session changed; state refreshed. Try again.");
         } else {
           setError(e instanceof ApiError ? e.message : "Action failed.");
+          play("error");
         }
       } finally {
         setBusy(false);
@@ -245,11 +258,12 @@ export default function SessionPage() {
     await load();
   }, [load]);
 
-  const sendMessage = useCallback(async () => {
-    if (!session || !activeCharacter || !chatInput.trim()) return;
+  const sendMessage = useCallback(async (override?: string) => {
+    const text = (override ?? chatInput).trim();
+    if (!session || !activeCharacter || !text) return;
     setSending(true);
     setError(null);
-    const text = chatInput.trim();
+    play("send");
     setChatInput("");
     setPendingText(text);
     try {
@@ -261,7 +275,9 @@ export default function SessionPage() {
       });
       setSession(res.session);
       setMessages((await api.transcript(sessionId)).items);
+      play(res.newly_discovered_facts.length ? "discover" : "receive");
     } catch (e) {
+      play("error");
       if (e instanceof ApiError && e.status === 409) {
         await load();
         setError("The session changed; state refreshed. Please resend.");
@@ -282,6 +298,7 @@ export default function SessionPage() {
       setError(null);
       try {
         await api.complete(sessionId, { expected_state_version: session.state_version, force });
+        play("complete");
         router.push(`/session/${sessionId}/debrief`);
       } catch (e) {
         setError(e instanceof ApiError ? e.message : "Could not complete the session.");
@@ -312,8 +329,10 @@ export default function SessionPage() {
   const incident = session.incident as Record<string, unknown>;
   const activeName = characters.find((c) => c.id === activeCharacter)?.name;
   const chatMessages = activeCharacter
-    ? messages.filter((msg) => (msg.speaker_type === "learner" && !msg.character_id) || msg.character_id === activeCharacter)
+    ? messages.filter((msg) => msg.character_id === activeCharacter)
     : [];
+  const draftWords = wordCount(chatInput);
+  const suggestions = activeCharacter ? suggestedQuestions(session, activeCharacter) : [];
   const currentStep = guideSteps[Math.min(guideIndex, guideSteps.length - 1)];
   const doneCount = session.objectives.filter((o) => o.status === "completed").length;
   const nextObjective = findNextObjective(session.objectives);
@@ -342,6 +361,17 @@ export default function SessionPage() {
           </div>
         </div>
         <div className="row" style={{ gap: 8 }}>
+          <button
+            className="btn btn--ghost btn--small"
+            aria-pressed={!muted}
+            onClick={() => {
+              setMuted(!muted);
+              setMutedState(!muted);
+            }}
+            title={muted ? "Turn sound effects on" : "Mute sound effects"}
+          >
+            {muted ? "Sound off" : "Sound on"}
+          </button>
           <span className={statusBadge(session.status)}>
             <span className={`dot${live ? " dot--live" : " dot--idle"}`} aria-hidden="true" />
             {session.status}
@@ -793,6 +823,24 @@ export default function SessionPage() {
                     </>
                   )}
                 </div>
+                {suggestions.length > 0 && (
+                  <div className="stack stack--sm" aria-label="Suggested questions">
+                    <span className="xsmall muted">Try asking — short questions get real answers:</span>
+                    <div className="chip-row">
+                      {suggestions.map((q) => (
+                        <button
+                          key={q}
+                          className="chip"
+                          data-testid="suggested-question"
+                          disabled={sending}
+                          onClick={() => sendMessage(q)}
+                        >
+                          {q}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
                 <div className="chat-compose">
                   <label className="sr-only" htmlFor="chat-input">
                     Message {activeName}
@@ -811,10 +859,15 @@ export default function SessionPage() {
                       }
                     }}
                   />
-                  <button className="btn" data-testid="chat-send" onClick={sendMessage} disabled={sending || !chatInput.trim()}>
+                  <button className="btn" data-testid="chat-send" onClick={() => sendMessage()} disabled={sending || !chatInput.trim()}>
                     Send
                   </button>
                 </div>
+                {draftWords > 30 && (
+                  <p className="xsmall" style={{ color: "var(--color-ember)" }} role="status">
+                    {draftWords} words — colleagues talk in short turns. Try one question at a time.
+                  </p>
+                )}
                 <p className="xsmall muted">
                   <span className="kbd">Enter</span> to send · <span className="kbd">Shift</span>+<span className="kbd">Enter</span> for a new line
                 </p>

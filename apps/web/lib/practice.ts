@@ -127,3 +127,41 @@ export function toggle<T>(list: T[], value: T): T[] {
 export function splitList(text: string): string[] {
   return [...new Set(text.split(",").map((s) => s.trim()).filter(Boolean))];
 }
+
+// Short, human-sized openers per colleague. `fact` = what the question tends to unlock;
+// ones whose fact is already known drop to the back so suggestions stay useful.
+const QUESTIONS: Record<string, { q: string; fact?: string }[]> = {
+  manager: [
+    { q: "How many customers are affected?", fact: "f_business_impact" },
+    { q: "When do you need an update from me?", fact: "f_reporting_deadline" },
+    { q: "I'll own this. Anything I should know?" },
+  ],
+  teammate: [
+    { q: "Did this deploy include a migration?", fact: "f_migration_ran" },
+    { q: "Is a rollback safe with that migration?", fact: "f_migration_incompatible" },
+    { q: "What would you check first?" },
+  ],
+  qa: [
+    { q: "Did CI run the integration tests?", fact: "f_ci_skipped" },
+    { q: "What would have caught this?" },
+  ],
+  client_pm: [
+    { q: "Which of your workflows are blocked?", fact: "f_client_impact" },
+    { q: "We're on it — can I update you in 15 minutes?" },
+  ],
+  coworker: [{ q: "Seen anything odd this morning?" }],
+};
+
+/** Up to three short questions to ask this colleague, unknown-fact ones first. */
+export function suggestedQuestions(session: SessionView, characterId: string): string[] {
+  const known = new Set(session.facts_known.map((f) => f.id));
+  const list = QUESTIONS[characterId] ?? [];
+  return [...list.filter((x) => !x.fact || !known.has(x.fact)), ...list.filter((x) => x.fact && known.has(x.fact))]
+    .slice(0, 3)
+    .map((x) => x.q);
+}
+
+/** Word count used for the "keep it short" nudge; matches the backend's rough tokenizer. */
+export function wordCount(text: string): number {
+  return (text.match(/[A-Za-z0-9']+/g) ?? []).length;
+}

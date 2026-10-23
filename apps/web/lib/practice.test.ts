@@ -10,6 +10,8 @@ import {
   nextObjective,
   splitList,
   strongestCriterion,
+  suggestedQuestions,
+  wordCount,
   toggle,
 } from "./practice.ts";
 import type { CompetencyTrend, SessionView, WorldAction } from "./types.ts";
@@ -158,4 +160,17 @@ test("initials, toggle and list splitting", () => {
   assert.deepEqual(toggle(["a", "b"], "a"), ["b"]);
   assert.deepEqual(toggle(["a"], "b"), ["a", "b"]);
   assert.deepEqual(splitList(" Python, ,FastAPI,Python "), ["Python", "FastAPI"]);
+});
+
+test("suggestedQuestions puts questions for unknown facts first", () => {
+  const s = { facts_known: [{ id: "f_migration_ran", label: "", detail: "" }] } as unknown as SessionView;
+  const qs = suggestedQuestions(s, "teammate");
+  assert.equal(qs[0], "Is a rollback safe with that migration?");
+  assert.equal(qs.at(-1), "Did this deploy include a migration?");
+  assert.deepEqual(suggestedQuestions(s, "nobody"), []);
+});
+
+test("wordCount counts words not whitespace", () => {
+  assert.equal(wordCount("  Did it   ship? "), 3);
+  assert.equal(wordCount(""), 0);
 });
