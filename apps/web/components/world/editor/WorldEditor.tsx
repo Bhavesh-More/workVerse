@@ -51,6 +51,11 @@ export function WorldEditor({ initial, version, members, judgeNames, publishedVe
   const [previewOpen, setPreviewOpen] = useState(false);
   const [pubVersion, setPubVersion] = useState(publishedVersion);
   const [currentMode, setCurrentMode] = useState(mode);
+  // Narrow screens: the library is a drawer over the canvas.
+  const [libOpen, setLibOpen] = useState(false);
+  useEffect(() => {
+    if (state.placing?.via === "drag") setLibOpen(false);
+  }, [state.placing]);
   const save = useAutosave(state.doc, state.revision, version);
   const issues = useMemo(() => validateWorld(state.doc, KIT, members), [state.doc, members]);
   const errors = issues.filter((i) => i.level === "error").length;
@@ -210,6 +215,9 @@ export function WorldEditor({ initial, version, members, judgeNames, publishedVe
           <Toggle on={state.overlay} label="Walkable" hint="O" onClick={() => dispatch({ type: "toggle", key: "overlay" })} testid="toggle-overlay" />
         </div>
         <div className="we-bar__right">
+          <button type="button" className="btn btn--ghost btn--small we-only-narrow" aria-expanded={libOpen} onClick={() => setLibOpen((v) => !v)}>
+            {libOpen ? "Close library" : "Library"}
+          </button>
           <button type="button" className={`we-issues-btn${errors ? " has-errors" : warnings ? " has-warnings" : ""}`} onClick={() => setIssuesOpen((v) => !v)} aria-expanded={issuesOpen} data-testid="issues-btn">
             {errors ? `${errors} error${errors > 1 ? "s" : ""}` : warnings ? `${warnings} warning${warnings > 1 ? "s" : ""}` : "✓ No issues"}
           </button>
@@ -231,7 +239,21 @@ export function WorldEditor({ initial, version, members, judgeNames, publishedVe
       )}
 
       <div className="we-main">
-        <Library state={state} dispatch={dispatch} members={members} judgeNames={judgeNames} onPlaceAtCenter={placeAtCenter} />
+        <div className={`we-libwrap${libOpen ? " is-open" : ""}`}>
+          <Library
+            state={state}
+            dispatch={(a) => {
+              dispatch(a);
+              if (a.type === "placing" && a.placing?.via === "click") setLibOpen(false);
+            }}
+            members={members}
+            judgeNames={judgeNames}
+            onPlaceAtCenter={(p) => {
+              placeAtCenter(p);
+              setLibOpen(false);
+            }}
+          />
+        </div>
         <div className="we-stage">
           <EditorCanvas
             ref={canvas}

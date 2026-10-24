@@ -2792,7 +2792,10 @@ blockquote {
 /* =========================================================================
    World editor (we-): light tool chrome around a dark, pixel-true stage
    ========================================================================= */
-.we-root { position: fixed; inset: 0; display: grid; grid-template-rows: 56px auto 1fr; background: var(--color-canvas); color: var(--color-ink); }
+.we-root { position: fixed; inset: 0; display: grid; grid-template-rows: 56px auto minmax(0, 1fr); background: var(--color-canvas); color: var(--color-ink); }
+.we-root > .we-bar { grid-row: 1; }
+.we-root > .we-conflict { grid-row: 2; }
+.we-root > .we-main { grid-row: 3; }
 .we-boot { position: fixed; inset: 0; display: grid; place-items: center; font-family: var(--font-mono); font-size: 12px; letter-spacing: var(--tracking-mono); text-transform: uppercase; color: var(--color-muted); }
 .we-bar { display: flex; align-items: center; gap: 12px; padding: 0 12px; background: var(--color-paper); border-bottom: 1px solid var(--color-hairline); min-width: 0; }
 .we-bar__left { display: flex; align-items: center; gap: 10px; min-width: 0; flex: 0 1 260px; }
@@ -2913,18 +2916,25 @@ blockquote {
 .we-play__bar .mono { color: var(--color-muted); flex: 1; }
 .we-play__game { position: relative; min-height: 0; }
 .we-play__game > div { position: absolute; inset: 0; }
+.we-libwrap { display: contents; }
+.we-only-narrow { display: none; }
+.we-minimap { position: absolute; right: 12px; bottom: 12px; border-radius: 8px; box-shadow: 0 6px 24px rgba(0,0,0,0.45); border: 1px solid rgba(255,255,255,0.18); cursor: pointer; background: #211d2b; }
 @media (max-width: 1100px) {
   .we-main { grid-template-columns: 240px minmax(0, 1fr) 270px; }
   .we-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .we-toggle { padding: 0 7px; }
 }
 @media (max-width: 820px) {
-  .we-root { grid-template-rows: auto auto 1fr; }
+  .we-root { grid-template-rows: auto auto minmax(0, 1fr); }
   .we-bar { flex-wrap: wrap; padding: 8px; }
   .we-bar__tools { order: 3; flex-basis: 100%; justify-content: flex-start; }
   .we-main { grid-template-columns: 1fr; grid-template-rows: minmax(0, 1fr) 38vh; }
-  .we-library { display: none; }
+  .we-only-narrow { display: inline-flex; }
+  .we-libwrap { display: none; }
+  .we-libwrap.is-open { display: block; position: fixed; z-index: 30; left: 0; top: 0; bottom: 0; width: min(340px, 88vw); box-shadow: 0 0 40px rgba(0,0,0,0.35); }
+  .we-libwrap.is-open .we-library { height: 100%; border-right: 0; }
   .we-inspector { border-left: 0; border-top: 1px solid var(--color-hairline); }
+  .we-minimap { display: none !important; }
 }
 
 /* Workplace setup + hub */

@@ -50,6 +50,7 @@ type Drag =
 type Hit = { id: string; kind: "object" | "person" | "spawn"; x: number; y: number; w: number; h: number; d: number };
 
 const MIN_Z = 0.25;
+const ZOOM_STEPS = [0.25, 0.33, 0.5, 0.67, 0.75, 1, 1.25, 1.5, 2, 2.5, 3, 4];
 const MAX_Z = 4;
 const SEL = "#fecc33";
 const OK_FILL = "rgba(48,168,29,0.28)";
@@ -70,6 +71,7 @@ export const EditorCanvas = forwardRef<CanvasApi, Props>(function EditorCanvas(p
   const { state, dispatch, kit, imgs, members, judgeNames, issues, onToast, onZoom } = props;
   const wrapRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const miniRef = useRef<HTMLCanvasElement>(null);
   const view = useRef({ zoom: 1, panX: 40, panY: 40, w: 800, h: 600, dpr: 1 });
   const hover = useRef<{ sx: number; sy: number; inside: boolean }>({ sx: 0, sy: 0, inside: false });
   const drag = useRef<Drag | null>(null);
@@ -136,7 +138,12 @@ export const EditorCanvas = forwardRef<CanvasApi, Props>(function EditorCanvas(p
   }, [invalidate, onZoom]);
 
   useImperativeHandle(ref, () => ({
-    zoomBy: (f) => zoomAt(f, view.current.w / 2, view.current.h / 2),
+    // Buttons step through zoom levels that keep pixel art even (wheel/pinch stay continuous).
+    zoomBy: (f) => {
+      const z = view.current.zoom;
+      const next = f > 1 ? ZOOM_STEPS.find((s) => s > z + 0.001) : [...ZOOM_STEPS].reverse().find((s) => s < z - 0.001);
+      zoomAt((next ?? z) / z, view.current.w / 2, view.current.h / 2);
+    },
     fit,
     centerOn: (x, y) => {
       const v = view.current;
@@ -553,6 +560,8 @@ export const EditorCanvas = forwardRef<CanvasApi, Props>(function EditorCanvas(p
         }
       }
     }
+    drawMinimap(layers);
+
     // Snap-off hint.
     if (!st.snap && drag.current?.type === "move") {
       ctx.fillStyle = "rgba(22,20,29,0.85)";
@@ -561,6 +570,44 @@ export const EditorCanvas = forwardRef<CanvasApi, Props>(function EditorCanvas(p
       ctx.fillStyle = "#fecc33";
       ctx.fillText("FREE PLACEMENT · PEOPLE & WALL PIECES SNAP", 22, v.h - 24);
     }
+  }
+
+  /** Overview of the whole world with the visible area outlined; hidden when everything fits. */
+  function drawMinimap(layers: { ground: HTMLCanvasElement | null; walls: HTMLCanvasElement | null }) {
+    const mini = miniRef.current;
+    if (!mini) return;
+    const d = latest.current.state.doc;
+    const v = view.current;
+    const ww = d.width * TILE;
+    const wh = d.height * TILE;
+    const x0 = -v.panX / v.zoom;
+    const y0 = -v.panY / v.zoom;
+    const vw = v.w / v.zoom;
+    const vh = v.h / v.zoom;
+    const fits = x0 <= 0 && y0 <= 0 && x0 + vw >= ww && y0 + vh >= wh;
+    mini.style.display = fits || !layers.ground ? "none" : "block";
+    if (fits || !layers.ground) return;
+    const k = Math.min(180 / ww, 130 / wh);
+    const w = Math.round(ww * k);
+    const h = Math.round(wh * k);
+    const dpr = v.dpr;
+    if (mini.width !== Math.round(w * dpr)) {
+      mini.width = Math.round(w * dpr);
+      mini.height = Math.round(h * dpr);
+      mini.style.width = `${w}px`;
+      mini.style.height = `${h}px`;
+    }
+    const m = mini.getContext("2d")!;
+    m.setTransform(dpr, 0, 0, dpr, 0, 0);
+    m.imageSmoothingEnabled = true;
+    m.fillStyle = "#211d2b";
+    m.fillRect(0, 0, w, h);
+    m.drawImage(layers.ground, 0, 0, w, h);
+    if (layers.walls) m.drawImage(layers.walls, 0, 0, w, h);
+    m.strokeStyle = SEL;
+    m.lineWidth = 1.5;
+    m.strokeRect(Math.max(0, x0 * k) + 0.5, Math.max(0, y0 * k) + 0.5, Math.min(w, vw * k) - 1, Math.min(h, vh * k) - 1);
+    mini.dataset.k = String(k);
   }
 
   // ------------------------------------------------------------------ geometry helpers
@@ -934,6 +981,22 @@ export const EditorCanvas = forwardRef<CanvasApi, Props>(function EditorCanvas(p
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
         onContextMenu={(e) => e.preventDefault()}
+      />
+      <canvas
+        ref={miniRef}
+        className="we-minimap"
+        aria-label="Minimap: click to jump there"
+        data-testid="minimap"
+        onPointerDown={(e) => {
+          const r = e.currentTarget.getBoundingClientRect();
+          const k = Number(e.currentTarget.dataset.k || 1);
+          const v = view.current;
+          const wx = (e.clientX - r.left) / k;
+          const wy = (e.clientY - r.top) / k;
+          v.panX = v.w / 2 - wx * v.zoom;
+          v.panY = v.h / 2 - wy * v.zoom;
+          invalidate();
+        }}
       />
     </div>
   );

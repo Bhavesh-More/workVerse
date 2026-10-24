@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import { compileWorld, capMask } from "./compile.ts";
 import { carveDoor, emptyWorld, floorAt, moveRoom, paintFloor, resizeRoom, resizeWorld, deleteRoom, footprint } from "./doc.ts";
-import { PRESETS, addPresetAuto, connectRoom, generateLayout, stampPreset } from "./presets.ts";
+import { PRESETS, addPresetAuto, connectRoom, duplicateRoom, generateLayout, stampPreset } from "./presets.ts";
 import { hasErrors, validateWorld } from "./validate.ts";
 import { makeKit, type Catalog, type TilesMeta, type Atlas } from "./types.ts";
 
@@ -148,4 +148,19 @@ test("auto-layout doorways never remove preset furniture, in either row", () => 
       assert.equal(doc.objects.length, expected, `${ids.join(",")}: a doorway cleared furniture`);
     }
   }
+});
+
+test("duplicating a room copies its floor and furniture into free space, not its people or tools", () => {
+  const doc = generateLayout(kit, ["ops_lab", "meeting"]);
+  const lab = doc.rooms.find((r) => r.purpose === "engineering_workspace")!;
+  const res = duplicateRoom(doc, kit, lab.id)!;
+  assert.ok(res);
+  const copy = res.doc.rooms.find((r) => r.id === res.roomId)!;
+  assert.equal(copy.purpose, "other");
+  assert.equal(floorAt(res.doc, copy.x + 1, copy.y + 1), "carpet");
+  const inCopy = res.doc.objects.filter((o) => o.x >= copy.x && o.x < copy.x + copy.w && o.y >= copy.y - 2 && o.y < copy.y + copy.h);
+  assert.ok(inCopy.length > 10);
+  assert.ok(inCopy.every((o) => !kit.byId.get(o.asset)!.interactive), "scenario tools are one of a kind");
+  assert.equal(res.doc.people.length, doc.people.length);
+  assert.equal(hasErrors(validateWorld(res.doc, kit)), false);
 });

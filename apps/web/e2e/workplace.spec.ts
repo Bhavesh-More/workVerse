@@ -2,7 +2,8 @@ import fs from "node:fs";
 import path from "node:path";
 import { expect, test, type APIRequestContext, type Browser, type Page } from "@playwright/test";
 import { clerk, setupClerkTestingToken } from "@clerk/testing/playwright";
-import { markOwner, testUser } from "./users";
+import { companyPage } from "./helpers";
+import { testUser } from "./users";
 
 // Company workplace builder: onboarding choice, presets, participants, the world editor
 // (drag-and-drop, grid snapping, selection, inspector, undo/redo, zoom/pan, rooms, people),
@@ -14,33 +15,6 @@ const RUN = Date.now();
 async function shot(page: Page, name: string, fullPage = false) {
   fs.mkdirSync(SHOTS, { recursive: true });
   await page.screenshot({ path: path.join(SHOTS, `${name}.png`), fullPage });
-}
-
-export async function companyPage(browser: Browser, request: APIRequestContext, _email: string, name: string) {
-  const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
-  const page = await context.newPage();
-  const errors: string[] = [];
-  page.on("console", (m) => m.type() === "error" && errors.push(m.text()));
-  page.on("pageerror", (e) => errors.push(String(e)));
-  // Reused test accounts: if one turns out to own a company already, take the next.
-  for (let attempt = 0; attempt < 6; attempt++) {
-    const user = await testUser(request, { owner: true, preferEmail: _email });
-    await page.goto("/company/login");
-    await setupClerkTestingToken({ page });
-    await clerk.signIn({ page, signInParams: { strategy: "ticket", ticket: user.ticket } });
-    await page.goto("/company");
-    const setup = page.getByRole("heading", { name: /Set up your company|Assessment overview|Where will candidates work/ });
-    await setup.first().waitFor({ timeout: 60_000 });
-    if (await page.getByRole("heading", { name: /Set up your company/ }).isVisible()) {
-      await page.getByLabel("Company name").fill(name);
-      await page.getByRole("button", { name: /Create company/ }).click();
-      markOwner(user);
-      return { page, errors, email: user.email };
-    }
-    markOwner(user); // already owned a company before the pool existed
-    await page.context().clearCookies();
-  }
-  throw new Error("Could not find a test account without a company.");
 }
 
 /** Bearer token for direct API checks, taken from the page's Clerk session. */
@@ -320,7 +294,7 @@ test.describe("Workplace builder", () => {
     const z0 = (await cam(page)).z;
     await page.getByTestId("zoom-in").click();
     await expect.poll(async () => (await cam(page)).z).toBeGreaterThan(z0);
-    await expect(page.getByTestId("zoom-level")).toHaveText(`${Math.round(z0 * 125)}%`);
+    await expect(page.getByTestId("zoom-level")).toHaveText(/^(67|75|100)%$/);
     const pan0 = (await cam(page)).px;
     await page.getByTestId("tool-hand").click();
     const mid = await tilePoint(page, Math.floor(doc.width / 2), Math.floor(doc.height / 2));

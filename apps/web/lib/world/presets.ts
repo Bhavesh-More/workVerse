@@ -421,3 +421,37 @@ export function autoPlacePeople(doc: WorldDoc, kit: Kit, members: Member[]): Wor
   });
   return { ...doc, people };
 }
+
+/**
+ * Copy a room (floor, wall pieces, furniture) into free space, growing the world if needed.
+ * People aren't copied (each person is placed once) and scenario tools stay one of a kind.
+ */
+export function duplicateRoom(doc: WorldDoc, kit: Kit, roomId: string): { doc: WorldDoc; roomId: string } | null {
+  const room = doc.rooms.find((r) => r.id === roomId);
+  if (!room) return null;
+  let next = doc;
+  let spot = findFreeSpot(next, room.w, room.h);
+  if (!spot) {
+    next = next.width + room.w + 2 <= 96 ? resizeWorld(next, next.width + room.w + 2, Math.max(next.height, room.h + 5)) : resizeWorld(next, next.width, next.height + room.h + 4);
+    spot = findFreeSpot(next, room.w, room.h);
+    if (!spot) return null;
+  }
+  const dx = spot.x - room.x;
+  const dy = spot.y - room.y;
+  const rows = next.floor.map((r) => r.split(""));
+  for (let y = room.y; y < room.y + room.h; y++)
+    for (let x = room.x; x < room.x + room.w; x++) {
+      const code = doc.floor[y]?.[x];
+      if (code && code !== "." && rows[y + dy]) rows[y + dy]![x + dx] = code;
+    }
+  const inRoom = (o: PlacedObject) => {
+    const a = kit.byId.get(o.asset);
+    if (!a || a.interactive) return false;
+    const cx = o.x + Math.floor(a.w / 2);
+    const cy = a.mount === "wall" ? o.y + 2 : o.y + Math.floor(a.h / 2);
+    return cx >= room.x && cy >= room.y && cx < room.x + room.w && cy < room.y + room.h;
+  };
+  const copies = doc.objects.filter(inRoom).map((o) => ({ ...o, id: uid("obj"), x: o.x + dx, y: o.y + dy }));
+  const copy: Room = { ...room, id: uid("room"), name: `${room.name} copy`.slice(0, 60), purpose: "other", x: spot.x, y: spot.y };
+  return { doc: { ...next, floor: rows.map((r) => r.join("")), rooms: [...next.rooms, copy], objects: [...next.objects, ...copies] }, roomId: copy.id };
+}

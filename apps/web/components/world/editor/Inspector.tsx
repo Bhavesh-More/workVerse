@@ -4,7 +4,7 @@
 import { useEffect, useState, type Dispatch, type ReactNode } from "react";
 import { KIT, JUDGE_TITLES } from "../../../lib/world/kit";
 import { deleteRoom, objectRoom, resizeRoom, resizeWorld, roomContents, roomRect, setRoomFloor, stats } from "../../../lib/world/doc";
-import { autoPlacePeople, connectRoom } from "../../../lib/world/presets";
+import { autoPlacePeople, connectRoom, duplicateRoom } from "../../../lib/world/presets";
 import { MAX_H, MAX_W, MIN_H, MIN_W, PURPOSES, type Dir, type FloorKind, type Member, type Paint, type RoomPurpose } from "../../../lib/world/types";
 import { AssetThumb, CharThumb } from "../Thumbs";
 import { personLabel, sheetFor } from "./EditorCanvas";
@@ -20,7 +20,7 @@ type Props = {
   onFocus: (x: number, y: number) => void;
 };
 
-export function Inspector({ state, dispatch, members, judgeNames, onToast }: Props) {
+export function Inspector({ state, dispatch, members, judgeNames, onToast, onFocus }: Props) {
   const { doc, sel } = state;
   const apply = (res: { doc: typeof doc; sel: typeof sel } | { error: string }) => {
     if ("error" in res) onToast(res.error);
@@ -145,7 +145,7 @@ export function Inspector({ state, dispatch, members, judgeNames, onToast }: Pro
 
   if (sel.kind === "room") {
     const r = doc.rooms.find((x) => x.id === sel.id);
-    if (r) return <RoomPanel key={r.id} state={state} dispatch={dispatch} onToast={onToast} roomId={r.id} />;
+    if (r) return <RoomPanel key={r.id} state={state} dispatch={dispatch} onToast={onToast} onFocus={onFocus} roomId={r.id} />;
   }
 
   if (sel.kind === "spawn") {
@@ -160,7 +160,7 @@ export function Inspector({ state, dispatch, members, judgeNames, onToast }: Pro
   return <WorldPanel state={state} dispatch={dispatch} members={members} onToast={onToast} />;
 }
 
-function RoomPanel({ state, dispatch, onToast, roomId }: { state: EditorState; dispatch: Dispatch<Action>; onToast: (m: string) => void; roomId: string }) {
+function RoomPanel({ state, dispatch, onToast, onFocus, roomId }: { state: EditorState; dispatch: Dispatch<Action>; onToast: (m: string) => void; onFocus: (x: number, y: number) => void; roomId: string }) {
   const { doc } = state;
   const r = doc.rooms.find((x) => x.id === roomId)!;
   const [name, setName] = useState(r.name);
@@ -250,6 +250,20 @@ function RoomPanel({ state, dispatch, onToast, roomId }: { state: EditorState; d
           }}
         >
           Add doorway to nearest room
+        </button>
+        <button
+          className="btn btn--ghost btn--small"
+          data-testid="insp-duplicate-room"
+          onClick={() => {
+            const res = duplicateRoom(doc, KIT, r.id);
+            if (!res) return onToast("No space for a copy, even after growing the world.");
+            const copy = res.doc.rooms.find((x) => x.id === res.roomId)!;
+            dispatch({ type: "commit", doc: res.doc, sel: { kind: "room", id: res.roomId } });
+            onFocus(copy.x + Math.floor(copy.w / 2), copy.y + Math.floor(copy.h / 2));
+            onToast("Copy placed. Connect it with a doorway when it's where you want it.");
+          }}
+        >
+          Duplicate room
         </button>
         {confirm ? (
           <span className="we-confirm">
