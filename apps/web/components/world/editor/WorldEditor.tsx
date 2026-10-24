@@ -416,6 +416,7 @@ function PublishDialog({
           </>
         ) : (
           <>
+            {warnings.length === 0 && <div className="banner banner--info">✓ No problems found: candidates can reach everyone and every tool.</div>}
             {warnings.length > 0 && (
               <>
                 <p className="small" style={{ margin: "4px 0" }}>

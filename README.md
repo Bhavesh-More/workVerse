@@ -67,6 +67,7 @@ used only as the PostgreSQL database, and internal profile rows are keyed by a `
    psql "$DATABASE_URL" -f supabase/migrations/0002_clerk_identity.sql
    psql "$DATABASE_URL" -f supabase/migrations/0003_voice_sessions.sql
    psql "$DATABASE_URL" -f supabase/migrations/0004_company_assessments.sql
+   psql "$DATABASE_URL" -f supabase/migrations/0005_company_worlds.sql
    ```
 
    Use a plain `postgresql://` URL (drop `+asyncpg`). The files are safe to re-run. If
@@ -141,6 +142,48 @@ E2E: `pnpm --filter web exec playwright test e2e/company-assessment.spec.ts` (ne
 If the repo moves on disk, rebuild the Python env (`rm -rf apps/api/.venv && uv sync --all-groups`
 in `apps/api`): its launch scripts embed the old path and `uv run uvicorn` falls back to a global
 Python otherwise.
+
+## Virtual workplace builder
+
+Companies can keep the ready-made office or design their own (`/company/workplace`).
+
+**Journey.** After creating a company, admins choose *Build your workplace* or *Use the default
+workplace* (reversible; asked once). The custom path picks from six editable room presets (open-plan
+office, meeting room, reception, executive offices, engineering & operations lab with the incident
+tools, breakout lounge), reviews participants (5 AI judges, display-only team members, real company
+accounts — kept distinct), then opens the editor with a generated layout: rooms in two rows along a
+corridor, each with a doorway, people auto-placed on reachable tiles.
+
+**Editor** (`/company/workplace/editor`): a canvas that renders the real tiles and sprites under a
+pan/zoom camera with a grid locked to world tiles; drag from the library with live valid/invalid
+footprints (or click to place), snapping per asset type (free placement for furniture with snap off),
+select / shift-select / marquee, move by drag or arrows, inspector editing, room move + resize
+handles, rename/purpose/floor/paint, duplicate room, floor brush, wall brush, doorway tool, room tool,
+undo/redo, copy/paste, minimap, walkability overlay, live world check (errors block publishing,
+warnings don't; click to jump), autosave with version conflicts, play-test in the real engine, and a
+publish review. Publishing snapshots the draft; new candidate sessions copy the published world into
+their scenario, so later edits never change a run in progress.
+
+**How it fits together.**
+- `scripts/build_world_kit.py` exports the existing art as reusable pieces — floor patches, wall caps
+  per neighbour mask, wall faces per paint, and a catalog atlas of 73 assets with footprint / mount /
+  solid / interactive metadata (`apps/web/public/assets/game/kit/`, catalog also copied to
+  `apps/api/app/world/catalog.json`). Re-run it after changing `scripts/office_art.py`.
+- `apps/web/lib/world/`: `WorldDoc` (floor grid + rooms + placed objects + people placements +
+  spawn), pure document operations, `compileWorld` (walls derived from floors exactly like the default
+  office, collision, NPC/object slots), the canvas renderer shared by editor and game, placement rules,
+  validation with flood-fill reachability, presets and auto-layout. Unit tests: `node --test
+  lib/world/world.test.ts`.
+- People placements reference identities (`judge:<slot>`, `member:<id>`, `pet:<sprite>`); identities
+  live in AI judges / team members and are never rewritten by moving someone.
+- `apps/api/app/world` validates every save (schema, catalog asset ids, bounds, unique ids, person
+  refs) and gates publishing (spawn, wall mounts, duplicates, reachability). `/company/workplace`
+  endpoints are scoped to the caller's company; drafts carry a version and stale saves get 409.
+- `game/office.ts` renders a compiled custom world (kit floors/walls drawn once into textures at 1:1,
+  props y-sorted, team members as ambient NPCs); without one it uses the default baked map.
+
+E2E: `playwright test e2e/workplace.spec.ts e2e/workplace-visual.spec.ts`. The specs reuse existing
+`e2e*` Clerk test accounts (`e2e/users.ts`) because development instances are capped at 100 users.
 
 ## Real-time voice
 
