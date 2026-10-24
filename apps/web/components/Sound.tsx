@@ -30,11 +30,13 @@ export function SoundLayer() {
         const cue = cueFor(el);
         if (cue) play(cue);
       }
-      // Browsers only allow audio after a user gesture, so music starts on the first click.
-      if (!gestured.current) {
-        gestured.current = true;
-        if (moodRef.current) startMusic(moodRef.current);
-      }
+    };
+    // Browsers only allow audio after a user gesture, so music starts on the first press of
+    // anything — a key (walking with WASD/arrows counts) or the mouse, not just a click.
+    const onGesture = (e: Event) => {
+      if (gestured.current || (e instanceof KeyboardEvent && e.key === "Escape")) return;
+      gestured.current = true;
+      if (moodRef.current) startMusic(moodRef.current);
     };
     const onOver = (e: PointerEvent) => {
       if (e.pointerType !== "mouse") return;
@@ -44,10 +46,14 @@ export function SoundLayer() {
     };
     const onVisibility = () => suspendAudio(document.hidden);
     document.addEventListener("click", onClick, true);
+    window.addEventListener("pointerdown", onGesture, true);
+    window.addEventListener("keydown", onGesture, true);
     document.addEventListener("pointerover", onOver, { passive: true });
     document.addEventListener("visibilitychange", onVisibility);
     return () => {
       document.removeEventListener("click", onClick, true);
+      window.removeEventListener("pointerdown", onGesture, true);
+      window.removeEventListener("keydown", onGesture, true);
       document.removeEventListener("pointerover", onOver);
       document.removeEventListener("visibilitychange", onVisibility);
     };

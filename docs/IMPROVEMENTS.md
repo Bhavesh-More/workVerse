@@ -233,8 +233,12 @@ It ends with a line-up of the whole team and the incident stamped across it.
 
 - Shows **once per session**. Replay with **Meet the team** in the top bar; the **ⓘ** next to a chat name shows just that person.
 - Skip any time: **Esc**, the Skip button. **Space / Enter / click** jumps to the next card.
-- Sounds are made in code (`lib/sfx.ts`: `whoosh`, `slam`, `shimmer`, `stat`, `type`, `stamp`) — no audio files.
+- Sounds are made in code (`lib/sfx.ts`: `whoosh`, `slam`, `shimmer`, `stat`, `type`, `stamp`) — no audio files. Background music keeps playing under it.
 - If your OS has "reduce motion" on, it keeps the fades and drops the movement.
 - Portraits: `apps/web/public/assets/portraits/` (DiceBear Lorelei, CC0 — see `CREDITS.md`).
 - Preview without signing in (dev only): run the web app and open http://localhost:3000/intro-preview.
 - Code: `apps/web/components/TeamIntro.tsx`, styles at the end of `apps/web/app/globals.css` (classes start with `ti`).
+
+**Why music needs one key press first:** browsers block sound until you interact with the page
+(autoplay rule). Music now starts on your *first* key press or mouse press anywhere — walking with the
+arrow keys counts — instead of waiting for a click. If you came from the dashboard by clicking, it is already playing.

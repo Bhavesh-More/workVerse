@@ -5,7 +5,7 @@
 // this is where the motion budget is spent. Skippable at any time; reduced motion keeps fades only.
 import { AnimatePresence, animate, m, useMotionValue, useReducedMotion, useTransform } from "framer-motion";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { duckMusic, play } from "../lib/sfx";
+import { play } from "../lib/sfx";
 import type { WorldCharacter } from "../lib/types";
 
 const EASE = [0.22, 1, 0.36, 1] as const; // the codebase's --ease-out
@@ -57,11 +57,6 @@ export function TeamIntro({ characters, title, only, onDone }: Props) {
     window.addEventListener("keydown", onKey, true);
     return () => window.removeEventListener("keydown", onKey, true);
   }, [next]);
-
-  useEffect(() => {
-    duckMusic(true);
-    return () => duckMusic(false);
-  }, []);
 
   const c = cast[index];
   if (!c) return null;

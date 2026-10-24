@@ -292,7 +292,7 @@ export function startMusic(mood: Mood): void {
     soften.frequency.value = mood === "calm" ? 2200 : 3600;
     const out = ac.createGain();
     out.gain.setValueAtTime(0.0001, ac.currentTime);
-    out.gain.exponentialRampToValueAtTime(ducked ? 0.0001 : MUSIC_VOL, ac.currentTime + 1.5);
+    out.gain.exponentialRampToValueAtTime(ducked ? 0.0001 : MUSIC_VOL, ac.currentTime + 0.5);
     soften.connect(out).connect(ac.destination);
     const g = GROOVES[mood];
     const step = 60 / g.bpm / 2; // eighth notes
