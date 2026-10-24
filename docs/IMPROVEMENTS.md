@@ -193,13 +193,17 @@ Measured (India → Supabase in Sydney): one DB round trip ≈ 0.4 s, and the sc
 (ap-south-1)** cuts every DB round trip several times over. Voice reply speed also depends on the ElevenLabs
 agent's own settings (turn timeout / eagerness) in its dashboard.
 
-## 10. Voice in a noisy room: "Wait for my turn"
+## 10. Voice in a noisy room: they finish their sentence
 
 Background noise was picked up as you "interrupting", so the character kept restarting its answer.
-Now, during a voice meeting, **your mic is paused while the character speaks** and reopens the moment
-it's your turn (the status shows "speaking · your mic is paused"). Turn it off with the
-**Wait for my turn** button if you want to be able to cut in. Headphones help too: the speakers can't leak
-back into the mic. (`game/VoiceMeeting.tsx`)
+
+- **First fix (removed):** pause your mic while the character speaks. It broke voice: muting/unmuting the
+  WebRTC mic on every speaking↔listening switch raced, and the mic often stayed dead — the agent heard
+  only silence ("..." in the ElevenLabs transcript).
+- **Now:** your mic stays open; only the **Mute mic** button mutes it. The ElevenLabs agents have
+  **interruptions turned off** (no `interruption` client event), so they ignore sound while they talk and
+  listen again when they finish. Wait for them to stop before you answer. Headphones help.
+- Code: `apps/web/game/VoiceMeeting.tsx`; agent setting in `apps/api/scripts/create_voice_agents.py` (`CLIENT_EVENTS`).
 
 ## 11. Every role gets its own story (role tracks)
 

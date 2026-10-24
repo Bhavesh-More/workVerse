@@ -188,19 +188,18 @@ function VoiceSession({
   }, [conversation, sessionId, voiceSessionId, onEnd]);
 
   const connected = conversation.status === "connected";
-  // Noisy rooms make the agent think you interrupted, so by default the mic is held muted
-  // while the character speaks and reopens when it's your turn.
+  // Only the learner's own Mute button touches the mic. Toggling it on every speaking/listening
+  // flip raced the WebRTC track swap and left the mic dead; "let them finish" is the agents'
+  // server-side setting instead (interruptions off, scripts/create_voice_agents.py).
   const [userMuted, setUserMuted] = useState(false);
-  const [waitTurn, setWaitTurn] = useState(true);
-  const holding = waitTurn && phase === "speaking";
   useEffect(() => {
     if (!connected) return;
     try {
-      conversationRef.current.setMuted(userMuted || holding);
+      conversationRef.current.setMuted(userMuted);
     } catch {
       /* disconnected mid-toggle */
     }
-  }, [connected, userMuted, holding]);
+  }, [connected, userMuted]);
 
   return (
     <div
@@ -225,7 +224,7 @@ function VoiceSession({
             <span />
             <span />
           </span>
-          {holding ? "speaking · your mic is paused" : PHASE_LABEL[phase]}
+          {PHASE_LABEL[phase]}
         </span>
       </div>
 
@@ -271,16 +270,6 @@ function VoiceSession({
           onClick={() => setUserMuted((v) => !v)}
         >
           {userMuted ? "Unmute mic" : "Mute mic"}
-        </button>
-        <button
-          type="button"
-          className="btn btn--ghost btn--small"
-          data-testid="voice-wait-turn"
-          aria-pressed={waitTurn}
-          title="Mute your mic while they talk, so background noise can't cut them off"
-          onClick={() => setWaitTurn((v) => !v)}
-        >
-          {waitTurn ? "Wait for my turn: on" : "Wait for my turn: off"}
         </button>
         <button
           type="button"

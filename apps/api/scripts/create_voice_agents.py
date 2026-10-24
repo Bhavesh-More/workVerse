@@ -28,6 +28,9 @@ AGENTS = [  # (map key, slot, gender, label, first message)
 ]
 
 
+CLIENT_EVENTS = ["audio", "user_transcript", "agent_response", "agent_response_correction"]
+
+
 def prompt_for(slot: str) -> str:
     card = card_prompt(slot, f"the {slot.replace('_pm', '').replace('_', ' ')}", "in a WorkVerse workplace practice call")
     base = card or "You are a colleague in a WorkVerse workplace practice call. Be friendly and brief."
@@ -45,7 +48,8 @@ def payload(slot: str, gender: str, label: str, first: str) -> dict:
                 "prompt": {"prompt": prompt_for(slot), "llm": "deepseek-v41-flash", "temperature": 0.3, "max_tokens": 100},
             },
             "tts": {"voice_id": VOICES[voice][0], "model_id": "eleven_v4_turbo", "stability": 0.5, "similarity_boost": 0.8},
-            "conversation": {"max_duration_seconds": 600},
+            # No "interruption" event = the character finishes speaking even if the room is noisy.
+            "conversation": {"max_duration_seconds": 600, "client_events": CLIENT_EVENTS},
         },
         "platform_settings": {"auth": {"enable_auth": True}, "overrides": {"custom_llm_extra_body": True}},
     }
@@ -83,6 +87,9 @@ def main() -> None:
                 raise SystemExit(f"{key}: {r.status_code} {error_text(r)}")
             mapping[key] = r.json()["agent_id"]
             print("created", key, mapping[key])
+        # Keep existing agents in line with the current settings (free).
+        for agent_id in mapping.values():
+            http.patch(f"/v1/convai/agents/{agent_id}", json={"conversation_config": {"conversation": {"client_events": CLIENT_EVENTS}}})
     write_env_map(mapping)
     print("ELEVENLABS_AGENT_MAP updated in apps/api/.env")
 
