@@ -18,9 +18,11 @@ type Props = {
   /** Show only this colleague's card (from an info button), no finale. */
   only?: string;
   onDone: () => void;
+  /** Called as each colleague's card is shown, so they count as "met". */
+  onSeen?: (id: string) => void;
 };
 
-export function TeamIntro({ characters, title, only, onDone }: Props) {
+export function TeamIntro({ characters, title, only, onDone, onSeen }: Props) {
   const cast = only ? characters.filter((c) => c.id === only) : characters;
   const [index, setIndex] = useState(0);
   const [finale, setFinale] = useState(false);
@@ -59,6 +61,11 @@ export function TeamIntro({ characters, title, only, onDone }: Props) {
   }, [next]);
 
   const c = cast[index];
+  const seenRef = useRef(onSeen);
+  seenRef.current = onSeen;
+  useEffect(() => {
+    if (c && !finale) seenRef.current?.(c.id);
+  }, [c, finale]);
   if (!c) return null;
 
   return (

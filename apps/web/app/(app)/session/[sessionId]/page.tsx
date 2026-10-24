@@ -209,14 +209,59 @@ export default function SessionPage() {
     [actionsByObject, runAction],
   );
 
-  const openCharacter = useCallback((characterId: string) => {
-    setActiveCharacter(characterId);
-    gameRef.current?.focusCharacter(characterId);
-  }, []);
+  // Profile cards: "all" (team intro) or one colleague's id. `afterIntro` runs when it closes.
+  const [intro, setIntro] = useState<string | null>(null);
+  const afterIntro = useRef<(() => void) | null>(null);
+  const met = useRef<Set<string> | null>(null);
+  const metKey = `wv-met-${sessionId}`;
+  const metSet = useCallback(() => {
+    if (!met.current) {
+      try {
+        met.current = new Set(JSON.parse(sessionStorage.getItem(metKey) ?? "[]") as string[]);
+      } catch {
+        met.current = new Set();
+      }
+    }
+    return met.current;
+  }, [metKey]);
+  const markMet = useCallback(
+    (id: string) => {
+      const seen = metSet().add(id);
+      try {
+        sessionStorage.setItem(metKey, JSON.stringify([...seen]));
+      } catch {
+        // storage blocked: remembered for this page only
+      }
+    },
+    [metKey, metSet],
+  );
+  /** First time meeting someone: show their card, then carry on with `then`. */
+  const meetFirst = useCallback(
+    (id: string, then: () => void) => {
+      const hasProfile = characters.some((c) => c.id === id && c.profile);
+      if (!hasProfile || metSet().has(id)) return then();
+      afterIntro.current = then;
+      setIntro(id);
+    },
+    [characters, metSet],
+  );
+
+  const openCharacter = useCallback(
+    (characterId: string) => {
+      setActiveCharacter(characterId);
+      gameRef.current?.focusCharacter(characterId);
+      meetFirst(characterId, () => {});
+    },
+    [meetFirst],
+  );
 
   const startVoiceMeeting = useCallback(
     async (characterId: string) => {
       if (interactionLocked.current || voicePending.current) return;
+      if (!metSet().has(characterId) && characters.some((c) => c.id === characterId && c.profile)) {
+        meetFirst(characterId, () => void startVoiceMeetingRef.current(characterId));
+        return;
+      }
       const npc = characters.find((c) => c.id === characterId);
       if (!npc) return;
       voicePending.current = true;
@@ -260,8 +305,25 @@ export default function SessionPage() {
         voicePending.current = false;
       }
     },
-    [characters, sessionId],
+    [characters, sessionId, meetFirst, metSet],
   );
+  const startVoiceMeetingRef = useRef(startVoiceMeeting);
+  useEffect(() => {
+    startVoiceMeetingRef.current = startVoiceMeeting;
+  }, [startVoiceMeeting]);
+
+  // Q near a colleague opens their profile card (E talks).
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key.toLowerCase() !== "q" || e.repeat || !nearCharacter || intro || voice) return;
+      const el = document.activeElement;
+      if (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || (el as HTMLElement).isContentEditable)) return;
+      if (!characters.some((c) => c.id === nearCharacter && c.profile)) return;
+      setIntro(nearCharacter);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [nearCharacter, intro, voice, characters]);
 
   const endVoiceMeeting = useCallback(async () => {
     interactionLocked.current = false;
@@ -370,8 +432,7 @@ export default function SessionPage() {
     };
   }, []);
 
-  // "Meet the team" intro: once per session on first load; "all" or one colleague's id.
-  const [intro, setIntro] = useState<string | null>(null);
+  // "Meet the team" intro: once per session on first load.
   const hasProfiles = characters.some((c) => c.profile);
   useEffect(() => {
     if (!hasProfiles) return;
@@ -468,7 +529,13 @@ export default function SessionPage() {
           characters={characters}
           title={String(incident.summary ?? "")}
           only={intro === "all" ? undefined : intro}
-          onDone={() => setIntro(null)}
+          onSeen={markMet}
+          onDone={() => {
+            setIntro(null);
+            const then = afterIntro.current;
+            afterIntro.current = null;
+            then?.();
+          }}
         />
       )}
       <div className="sim-full__body">
@@ -501,6 +568,12 @@ export default function SessionPage() {
                   {nearCharacter
                     ? `to talk to ${characters.find((c) => c.id === nearCharacter)?.name ?? prompt}`
                     : `to interact with ${prompt}`}
+                  {nearCharacter && characters.some((c) => c.id === nearCharacter && c.profile) && (
+                    <>
+                      {" · "}
+                      <span className="kbd">Q</span> profile card
+                    </>
+                  )}
                 </span>
               </m.div>
             )}

@@ -232,6 +232,8 @@ up, a typed-out quote, personality, what they know, their "special move" and "we
 It ends with a line-up of the whole team and the incident stamped across it.
 
 - Shows **once per session**. Replay with **Meet the team** in the top bar; the **ⓘ** next to a chat name shows just that person.
+- **Q = profile card.** Walk up to someone: the hint says "Press E to talk · Q profile card". Press **Q** to see their card any time.
+- **First meeting:** the first time you talk to someone (E, or clicking them) whose card you haven't seen yet, their card plays first, then the call/chat starts. Cards seen in the opening intro count as "met" (remembered per session in the browser tab).
 - Skip any time: **Esc**, the Skip button. **Space / Enter / click** jumps to the next card.
 - Sounds are made in code (`lib/sfx.ts`: `whoosh`, `slam`, `shimmer`, `stat`, `type`, `stamp`) — no audio files. Background music keeps playing under it.
 - If your OS has "reduce motion" on, it keeps the fades and drops the movement.
