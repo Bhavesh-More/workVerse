@@ -107,8 +107,11 @@ function audio(): AudioContext | null {
     soften.type = "lowpass";
     soften.frequency.value = 5200;
     sfxOut = ctx.createGain();
-    sfxOut.gain.value = 2.2; // notes are written quiet; this sets overall loudness
-    sfxOut.connect(soften).connect(ctx.destination);
+    sfxOut.gain.value = 3.6; // notes are written quiet; this sets overall loudness
+    const limiter = ctx.createDynamicsCompressor(); // stops loud stacks (slam + noise) from crackling
+    limiter.threshold.value = -6;
+    limiter.ratio.value = 12;
+    sfxOut.connect(soften).connect(limiter).connect(ctx.destination);
     noiseBuf = ctx.createBuffer(1, ctx.sampleRate, ctx.sampleRate);
     const data = noiseBuf.getChannelData(0);
     for (let i = 0; i < data.length; i += 1) data[i] = Math.random() * 2 - 1;
@@ -264,7 +267,7 @@ const GROOVES: Record<Mood, Groove> = {
     ],
   },
 };
-const MUSIC_VOL = 0.05;
+const MUSIC_VOL = 0.09;
 
 let music: { mood: Mood; out: GainNode; timer: number } | null = null;
 let ducked = false;
