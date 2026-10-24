@@ -126,6 +126,14 @@ export type AssessmentDetail = {
   smtp_ready: boolean;
 };
 
+export type CompanyCandidate = Candidate & { assessment_id: string; assessment_title: string; topic_title: string };
+
+export type AllCandidates = {
+  candidates: CompanyCandidate[];
+  summary: CohortSummary;
+  skills: { id: string; name: string; description: string }[];
+};
+
 export type InviteResult = {
   sent: number;
   failed: { email: string; error: string }[];
@@ -183,6 +191,10 @@ export const companyApi = {
   candidate: (id: string, inviteId: string) => request<CandidateReport>(`/company/assessments/${id}/candidates/${inviteId}`),
   downloadPdf: (id: string) => download(`/company/assessments/${id}/report.pdf`, "assessment-report.pdf"),
   downloadCsv: (id: string) => download(`/company/assessments/${id}/report.csv`, "assessment-results.csv"),
+
+  allCandidates: () => request<AllCandidates>("/company/candidates"),
+  downloadAllCsv: () => download("/company/candidates.csv", "all-candidates.csv"),
+  downloadAllPdf: () => download("/company/candidates.pdf", "all-candidates.pdf"),
 
   invitePreview: (token: string) => request<InvitePreview>(`/invites/${token}`),
   acceptInvite: (token: string) =>

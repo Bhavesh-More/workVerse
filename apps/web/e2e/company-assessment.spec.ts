@@ -60,7 +60,11 @@ async function dismissFinding(page: Page, waitMs = 8_000) {
   } catch {
     return;
   }
-  await page.keyboard.press("Escape");
+  // A second finding can open right after the first closes; keep dismissing until none is left.
+  for (let i = 0; i < 4 && (await popup.isVisible()); i += 1) {
+    await page.keyboard.press("Escape");
+    await popup.waitFor({ state: "hidden", timeout: 4_000 }).catch(() => {});
+  }
   await expect(popup).toBeHidden({ timeout: 10_000 });
 }
 
@@ -306,6 +310,27 @@ test.describe("Company assessments", () => {
     await expect(co.getByText("Skill profile vs. group")).toBeVisible();
     await expect(co.getByRole("heading", { name: "Transcript" })).toBeVisible();
     await shot(co, "08-candidate-report");
+
+    // Company-wide candidates: everyone across assessments, filters and exports
+    await co.getByRole("link", { name: "Candidates", exact: true }).click();
+    await expect(co.getByTestId("all-total")).toHaveText("4");
+    await expect(co.getByTestId("all-completed")).toHaveText("2");
+    await expect(co.getByTestId("all-candidates-table")).toContainText(`Backend on-call ${RUN}`);
+    await co.getByLabel("Search candidates").fill("asha");
+    await expect(co.getByTestId("all-candidates-table").locator("tbody tr")).toHaveCount(1);
+    await co.getByLabel("Search candidates").fill("");
+    await co.getByLabel("Filter by status").selectOption("completed");
+    await expect(co.getByTestId("all-candidates-table").locator("tbody tr")).toHaveCount(2);
+    await shot(co, "10-all-candidates");
+    for (const [testId, ext] of [["export-all-csv", "csv"], ["export-all-pdf", "pdf"]] as const) {
+      const dl = co.waitForEvent("download", { timeout: 120_000 });
+      await co.getByTestId(testId).click();
+      const target = path.join(SHOTS, `all-candidates.${ext}`);
+      await (await dl).saveAs(target);
+      const head = fs.readFileSync(target).subarray(0, 64).toString("utf8");
+      if (ext === "csv") expect(head).toContain("Rank,Assessment,Name");
+      else expect(head.startsWith("%PDF")).toBeTruthy();
+    }
 
     // Overview reflects the round
     await co.goto("/company");

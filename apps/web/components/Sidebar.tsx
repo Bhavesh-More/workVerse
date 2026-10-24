@@ -21,6 +21,7 @@ const NAV = [
 const COMPANY_NAV = [
   { href: "/company", label: "Overview", icon: "grid" },
   { href: "/company/assessments", label: "Assessments", icon: "mail" },
+  { href: "/company/candidates", label: "Candidates", icon: "user" },
   { href: "/company/topics", label: "Topics", icon: "target" },
   { href: "/company/judges", label: "AI judges", icon: "users" },
   { href: "/company/settings", label: "Settings", icon: "sliders" },
