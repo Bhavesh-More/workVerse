@@ -89,8 +89,18 @@ class Repository:
             "career_goals",
             "preferred_stack",
             "experience_level",
+            "github_url",
+            "linkedin_url",
+            "portfolio_url",
+            "custom_situation",
         }
-        sets = {k: v for k, v in fields.items() if k in allowed and v is not None}
+        # Links and the custom situation can be cleared: "" stores NULL.
+        clearable = {"github_url", "linkedin_url", "portfolio_url", "custom_situation"}
+        sets = {
+            k: (v or None) if k in clearable else v
+            for k, v in fields.items()
+            if k in allowed and (v is not None or k in clearable)
+        }
         if sets:
             assignments = ", ".join(f"{k} = :{k}" for k in sets)
             params = {**sets, "id": user_id}
@@ -100,6 +110,37 @@ class Repository:
         return await self.get_profile(user_id)  # type: ignore[return-value]
 
     # ---- skills -----------------------------------------------------------
+    # ---- learner context ----------------------------------------------------
+    async def get_learner_context(self, user_id: str) -> dict[str, Any] | None:
+        return _row(
+            await self.session.execute(
+                text("select * from public.learner_contexts where user_id = :id"), {"id": user_id}
+            )
+        )
+
+    async def upsert_learner_context(self, user_id: str, fields: dict[str, Any]) -> dict[str, Any]:
+        """Insert or update the learner's context row; jsonb fields are passed as Python objects."""
+        allowed = {"sources", "context", "scenario_plan", "source_hash", "builder", "built_at"}
+        jsonb = {"sources", "context", "scenario_plan"}
+        sets = {k: v for k, v in fields.items() if k in allowed}
+        params = {
+            k: (json.dumps(v) if k in jsonb and v is not None else v) for k, v in sets.items()
+        }
+        values = {k: f"cast(:{k} as jsonb)" if k in jsonb else f":{k}" for k in sets}
+        cols = ", ".join(["user_id", *values])
+        vals = ", ".join([":user_id", *values.values()])
+        updates = ", ".join(f"{k} = excluded.{k}" for k in sets) or "user_id = excluded.user_id"
+        row = _row(
+            await self.session.execute(
+                text(
+                    f"insert into public.learner_contexts ({cols}) values ({vals}) "
+                    f"on conflict (user_id) do update set {updates} returning *"
+                ),
+                {**params, "user_id": user_id},
+            )
+        )
+        return row  # type: ignore[return-value]
+
     async def list_skills(self, user_id: str) -> list[dict[str, Any]]:
         return _rows(
             await self.session.execute(

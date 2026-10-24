@@ -24,6 +24,17 @@ class ProfileUpdate(BaseModel):
     experience_level: Literal[
         "beginner", "early_career", "intermediate", "experienced", "unspecified"
     ] | None = None
+    # Context sources; "" clears a link.
+    github_url: str | None = Field(default=None, max_length=300)
+    linkedin_url: str | None = Field(default=None, max_length=300)
+    portfolio_url: str | None = Field(default=None, max_length=300)
+    # A situation the learner wants to experience; shapes one personalised scenario.
+    custom_situation: str | None = Field(default=None, max_length=1000)
+
+
+class BuildContextRequest(BaseModel):
+    # Re-read every source and rebuild even when nothing changed.
+    force: bool = False
 
 
 class SkillCreate(BaseModel):
@@ -42,6 +53,8 @@ class CreateInstanceRequest(BaseModel):
     variation_request: str = Field(default="", max_length=500)
     # Incident type the scenario card showed (tracks.py variant id); unknown ids fall back to random.
     incident: str | None = Field(default=None, max_length=40)
+    # An entry of the learner's personalised scenario plan; overrides incident/difficulty.
+    spec_id: str | None = Field(default=None, max_length=40)
 
 
 class StartSessionRequest(BaseModel):

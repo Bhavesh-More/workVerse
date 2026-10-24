@@ -303,9 +303,75 @@ export type Profile = {
   career_goals: string[];
   preferred_stack: string[];
   experience_level: string | null;
+  github_url?: string | null;
+  linkedin_url?: string | null;
+  portfolio_url?: string | null;
+  /** A situation the learner wants to experience; shapes one personalised scenario. */
+  custom_situation?: string | null;
   created_at: string;
   updated_at: string;
   skills: ProfileSkill[];
+};
+
+export type DocumentKind = "cv" | "linkedin_pdf";
+export type SourceKind = DocumentKind | "github" | "linkedin" | "portfolio";
+
+export type ContextSource = {
+  kind: SourceKind;
+  ok: boolean;
+  error: string | null;
+  url?: string | null;
+  filename?: string | null;
+  fetched_at?: string | null;
+  /** Short "what we found" lines, e.g. "6 recent repositories". */
+  found: string[];
+  /** Profile links spotted inside an uploaded document. */
+  links?: Partial<Record<"github" | "linkedin" | "portfolio", string>> | null;
+};
+
+export type LearnerContext = {
+  version: string;
+  headline: string;
+  summary: string;
+  inferred_level: string;
+  tech_stack: string[];
+  strengths: string[];
+  growth_areas: string[];
+  domains: string[];
+  notable_projects: { name: string; summary: string; tech: string[]; source: string }[];
+  work_signals: string[];
+  suggested_tracks: string[];
+  sources_used: SourceKind[];
+};
+
+/** One personalised scenario; start it with createInstance({ spec_id }). */
+export type ScenarioSpec = {
+  id: string;
+  template_slug: string;
+  track: string;
+  incident: string;
+  difficulty: string;
+  kind: "major" | "custom" | "stretch";
+  title: string;
+  why: string;
+  company: string;
+  product: string;
+  story: string;
+  focus: string[];
+  track_label?: string | null;
+  library_title?: string | null;
+};
+
+export type ContextView = {
+  /** empty: never built · stale: profile or sources changed since the last build. */
+  status: "empty" | "ready" | "stale";
+  context: LearnerContext | null;
+  scenarios: ScenarioSpec[];
+  custom_situation: string | null;
+  custom_note: string;
+  sources: ContextSource[];
+  builder: string | null;
+  built_at: string | null;
 };
 
 export type ProfileSkill = {

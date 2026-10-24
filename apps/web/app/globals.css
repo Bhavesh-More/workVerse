@@ -2722,7 +2722,8 @@ blockquote {
   .px-dialogue__face { width: 64px; height: 64px; }
 }
 
-/* =========================================================================
+/* ==================================================================
+
    Company portal: charts, judge editor, invite composer, candidate table
    ========================================================================= */
 .cchart { position: relative; margin: 0; }
@@ -3320,3 +3321,41 @@ button.text-link { border: 0; background: none; padding: 0; font: inherit; color
   .nw-preview { position: static; }
 }
 .ca-tl__body .ca-due, .ca-card__meta .ca-due { white-space: normal; }
+/* ---- Learner context builder ------------------------------------------- */
+.dropzone {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  border: 1px dashed var(--color-hairline);
+  border-radius: var(--radius-button);
+  background: var(--color-canvas);
+  padding: 12px 14px;
+}
+.dropzone:focus-within {
+  border-color: var(--color-ink);
+}
+.dropzone label[aria-disabled="true"] {
+  pointer-events: none;
+  opacity: 0.6;
+}
+.field__hint--error {
+  color: var(--color-ember);
+}
+.ctx-source {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+.ctx-source .badge {
+  flex: none;
+}
+.ctx-steps li {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.ctx-steps li[data-state="pending"] {
+  opacity: 0.45;
+}

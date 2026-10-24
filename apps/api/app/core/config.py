@@ -138,6 +138,11 @@ class Settings(BaseSettings):
     voice_llm_max_history_messages: int = 24
     voice_llm_max_history_chars: int = 6000
 
+    # --- Learner context builder (scraping) ---------------------------------
+    # Optional GitHub token (no scopes needed): lifts the public API limit from 60 to 5000 req/h.
+    github_token: str = ""
+    scrape_timeout_seconds: float = 8.0
+
     # --- MinIO / S3-compatible object storage -----------------------------
     minio_endpoint: str = ""
     minio_access_key: str = ""
