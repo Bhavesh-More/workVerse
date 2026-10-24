@@ -41,7 +41,7 @@ async function signInAndEnterOffice(page: Page, request: Page["request"]): Promi
 
   await page.goto("/dashboard");
   await expect(page).toHaveURL(/\/onboarding/, { timeout: 60_000 });
-  await page.getByLabel("Target role").fill("Junior Backend Engineer");
+  await page.getByLabel("Target role").selectOption({ label: "Junior Backend Engineer" });
   await page.getByRole("button", { name: "Next", exact: true }).click();
   await page.getByRole("button", { name: "Next", exact: true }).click();
   await page.getByRole("button", { name: "Enter WorkVerse" }).click();
@@ -54,6 +54,12 @@ async function signInAndEnterOffice(page: Page, request: Page["request"]): Promi
   await page.getByRole("button", { name: "Enter the office" }).click();
   await expect(page).toHaveURL(/\/session\//, { timeout: 60_000 });
   await expect(page.getByTestId("complete")).toBeVisible({ timeout: 30_000 });
+    // First entry shows the "Meet your team" intro; skip it like a learner would.
+    const intro = page.getByRole("dialog", { name: "Meet your team" });
+    if (await intro.isVisible().catch(() => false)) {
+      await page.getByRole("button", { name: /Skip intro/i }).click();
+      await expect(intro).toBeHidden({ timeout: 15_000 });
+    }
 }
 
 test.describe("WorkVerse voice meeting", () => {
