@@ -12,7 +12,7 @@ from app.simulation.tracks import VOICES
 def main() -> None:
     with client() as http:
         mine = {v["voice_id"] for v in http.get("/v1/voices").json().get("voices", [])}
-        for key, (voice_id, label) in VOICES.items():
+        for voice_id, label in VOICES.values():
             if voice_id in mine:
                 print("have  ", label)
                 continue
