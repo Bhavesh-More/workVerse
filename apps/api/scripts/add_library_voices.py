@@ -6,7 +6,6 @@
 from __future__ import annotations
 
 from _eleven import client, error_text
-
 from app.simulation.tracks import VOICES
 
 
