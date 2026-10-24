@@ -309,6 +309,8 @@ were confused whether to answer or investigate.
 - All of them follow the same shape, so the game logic and scoring stay the same: *something shipped →
   a plain undo won't fix it → find that out → ship a forward fix → send an update.* Only the story, clues,
   colleague lines and suggested questions change.
+- The **Practice** page card already shows the incident you'll get: the card picks it, and the
+  **Start** button sends its id (`incident`) so the session matches. A refreshed page may deal a new one.
 - Add your own: append to `TRACKS["<track>"]["variants"]` at the bottom of
   `apps/api/app/simulation/tracks.py`; list only the text that changes.
   `tests/test_incident_variants.py` checks that every type builds, passes validation and that each

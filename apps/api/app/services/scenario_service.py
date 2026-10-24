@@ -17,6 +17,7 @@ from app.simulation.engine import is_action_available
 from app.simulation.templates import (
     TEMPLATE_CATALOG,
     TEMPLATE_SLUG,
+    _pick_incident,
     _portrait,
     build_production_incident,
 )
@@ -123,14 +124,18 @@ _CATALOG_EXTRAS = ("story", "you_will", "people", "skills", "report")
 
 
 def _track_copy(role: str | None) -> dict[str, Any]:
-    """Card copy re-told for the learner's role track (same flow, their world)."""
-    t = TRACKS[track_for(role or "")]
+    """Card copy re-told for the learner's role track, for a randomly picked incident type.
+
+    The card sends `incident` back when the learner starts, so the session is the one the card showed.
+    """
+    incident, t = _pick_incident(TRACKS[track_for(role or "")], random.Random())
     ctx = {"role": role or "new hire", "service": t["services"][0], "pct": 24, "minutes": 10}
     return {
         "title": t["title"],
         "summary": t["briefing"].format(**ctx),
         "story": t["briefing"].format(**ctx),
         "track": track_for(role or ""),
+        "incident": incident,
         "track_label": t["label"],
         "people": [
             {"role": c["role"], "knows": t["people_knows"][cid]}
@@ -168,8 +173,10 @@ def _build_blueprint(
     role: str,
     variation_request: str,
     profile_goals: list[str] | None,
+    incident: str | None = None,
 ) -> ScenarioBlueprint:
     return build_production_incident(
+        incident=incident,
         seed=seed,
         difficulty=difficulty,
         mode=mode,
@@ -190,6 +197,7 @@ async def create_instance(
     difficulty: str = "standard",
     learning_objectives: list[str] | None = None,
     variation_request: str = "",
+    incident: str | None = None,
 ) -> dict[str, Any]:
     template = await repo.get_template_by_slug(template_slug)
     if template is None:
@@ -211,6 +219,7 @@ async def create_instance(
         role=role,
         variation_request=variation_request,
         profile_goals=profile_goals,
+        incident=incident,
     )
 
     # The incident mechanics stay deterministic (and validated); Ollama only writes a short,
@@ -227,6 +236,7 @@ async def create_instance(
             role=role,
             variation_request=variation_request,
             profile_goals=profile_goals,
+            incident=incident,
         )
         report = validate_blueprint(blueprint)
         if not report.ok:

@@ -52,6 +52,7 @@ async def create_instance(
         mode=body.mode,
         difficulty=body.difficulty,
         learning_objectives=body.learning_objectives,
+        incident=body.incident,
         variation_request=body.variation_request,
     )
 

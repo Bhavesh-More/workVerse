@@ -162,6 +162,7 @@ export const api = {
     mode?: string;
     difficulty?: string;
     variation_request?: string;
+    incident?: string;
   }) => request<ScenarioInstance>("/scenario-instances", { method: "POST", body }),
 
   getInstance: (instanceId: string) =>

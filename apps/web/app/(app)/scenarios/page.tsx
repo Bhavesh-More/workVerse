@@ -32,11 +32,11 @@ export default function ScenariosPage() {
   const [busy, setBusy] = useState<string | null>(null);
   const error = startError ?? loadError;
 
-  async function start(slug: string) {
+  async function start(slug: string, incident?: string) {
     setBusy(slug);
     setError(null);
     try {
-      const instance = await api.createInstance({ template_slug: slug, difficulty, mode: "quick" });
+      const instance = await api.createInstance({ template_slug: slug, difficulty, mode: "quick", incident });
       router.push(`/briefing/${instance.scenario_instance_id}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not create the scenario.");
@@ -136,7 +136,7 @@ export default function ScenariosPage() {
                     </span>
                   ))}
                 </div>
-                <button className="btn" onClick={() => start(t.slug)} disabled={busy !== null} style={{ alignSelf: "flex-start" }}>
+                <button className="btn" onClick={() => start(t.slug, t.incident)} disabled={busy !== null} style={{ alignSelf: "flex-start" }}>
                   {busy === t.slug ? <span className="busy-dots">Preparing</span> : "Start practice"}
                 </button>
               </div>

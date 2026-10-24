@@ -41,3 +41,12 @@ def test_every_variant_question_unlocks_its_fact(track):
                 apply_disclosure(bp, state, cid, q["q"])
                 if q["fact"]:
                     assert q["fact"] in state.facts_known, f"{v['id']}/{cid}: {q['q']!r}"
+
+
+def test_card_incident_is_honoured_and_unknown_falls_back():
+    from app.services.scenario_service import _track_copy
+
+    card = _track_copy("Frontend Developer")
+    bp = build_production_incident(seed=5, role="Frontend Developer", incident=card["incident"])
+    assert bp.title == card["title"]
+    assert build_production_incident(seed=5, incident="nope").metadata["variation"]["incident"] in {"base", "queue_format", "key_rotation"}

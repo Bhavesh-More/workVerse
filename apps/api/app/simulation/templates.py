@@ -148,7 +148,8 @@ def _merge(base: dict[str, Any], over: dict[str, Any]) -> dict[str, Any]:
 def _pick_incident(track: dict[str, Any], rng: random.Random, pick: str | None = None) -> tuple[str, dict[str, Any]]:
     """The track's base incident or one of its variants (tracks.py), merged into a full track."""
     options = [None, *track.get("variants", [])]
-    variant = rng.choice(options) if pick is None else next(v for v in options if (v["id"] if v else "base") == pick)
+    picked = [v for v in options if (v["id"] if v else "base") == pick]
+    variant = picked[0] if picked else rng.choice(options)  # unknown/missing id -> random
     return ("base", track) if variant is None else (variant["id"], _merge(track, variant))
 
 

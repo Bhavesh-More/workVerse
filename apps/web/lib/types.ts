@@ -145,6 +145,8 @@ export type ScenarioTemplate = {
   you_will?: string[];
   track?: string;
   track_label?: string;
+  /** Incident type this card shows; sent back when starting so the session matches. */
+  incident?: string;
   people?: { role: string; knows: string }[];
   skills?: string[];
   report?: string;

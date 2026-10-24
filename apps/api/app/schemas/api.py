@@ -40,6 +40,8 @@ class CreateInstanceRequest(BaseModel):
     difficulty: Literal["introductory", "standard", "challenging"] = "standard"
     learning_objectives: list[str] = Field(default_factory=list, max_length=10)
     variation_request: str = Field(default="", max_length=500)
+    # Incident type the scenario card showed (tracks.py variant id); unknown ids fall back to random.
+    incident: str | None = Field(default=None, max_length=40)
 
 
 class StartSessionRequest(BaseModel):
