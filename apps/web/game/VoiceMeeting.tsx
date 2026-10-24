@@ -188,7 +188,19 @@ function VoiceSession({
   }, [conversation, sessionId, voiceSessionId, onEnd]);
 
   const connected = conversation.status === "connected";
-  const muted = conversation.isMuted;
+  // Noisy rooms make the agent think you interrupted, so by default the mic is held muted
+  // while the character speaks and reopens when it's your turn.
+  const [userMuted, setUserMuted] = useState(false);
+  const [waitTurn, setWaitTurn] = useState(true);
+  const holding = waitTurn && phase === "speaking";
+  useEffect(() => {
+    if (!connected) return;
+    try {
+      conversationRef.current.setMuted(userMuted || holding);
+    } catch {
+      /* disconnected mid-toggle */
+    }
+  }, [connected, userMuted, holding]);
 
   return (
     <div
@@ -213,7 +225,7 @@ function VoiceSession({
             <span />
             <span />
           </span>
-          {PHASE_LABEL[phase]}
+          {holding ? "speaking · your mic is paused" : PHASE_LABEL[phase]}
         </span>
       </div>
 
@@ -255,10 +267,20 @@ function VoiceSession({
           className="btn btn--ghost btn--small"
           data-testid="voice-mute"
           disabled={!connected}
-          aria-pressed={muted}
-          onClick={() => conversation.setMuted(!muted)}
+          aria-pressed={userMuted}
+          onClick={() => setUserMuted((v) => !v)}
         >
-          {muted ? "Unmute mic" : "Mute mic"}
+          {userMuted ? "Unmute mic" : "Mute mic"}
+        </button>
+        <button
+          type="button"
+          className="btn btn--ghost btn--small"
+          data-testid="voice-wait-turn"
+          aria-pressed={waitTurn}
+          title="Mute your mic while they talk, so background noise can't cut them off"
+          onClick={() => setWaitTurn((v) => !v)}
+        >
+          {waitTurn ? "Wait for my turn: on" : "Wait for my turn: off"}
         </button>
         <button
           type="button"
