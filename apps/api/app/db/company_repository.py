@@ -229,3 +229,53 @@ class CompanyRepository:
             "join public.companies c on c.id = a.company_id where i.session_id = :sid",
             {"sid": session_id},
         )
+
+    # ---- workplace world ----------------------------------------------------
+    async def get_world(self, company_id: str) -> dict[str, Any] | None:
+        return await self._one("select * from public.company_worlds where company_id = :cid", {"cid": company_id})
+
+    async def create_world(self, company_id: str, draft: dict[str, Any]) -> dict[str, Any]:
+        """Create the company's world row (or return the existing one untouched)."""
+        row = await self._one(
+            "insert into public.company_worlds (company_id, draft) values (:cid, cast(:d as jsonb)) "
+            "on conflict (company_id) do nothing returning *",
+            {"cid": company_id, "d": json.dumps(draft)},
+        )
+        return row or await self.get_world(company_id)  # type: ignore[return-value]
+
+    async def save_draft(self, company_id: str, draft: dict[str, Any], base_version: int) -> dict[str, Any] | None:
+        """Optimistic save: only succeeds if nobody saved since `base_version`."""
+        return await self._one(
+            "update public.company_worlds set draft = cast(:d as jsonb), draft_version = draft_version + 1 "
+            "where company_id = :cid and draft_version = :v returning draft_version, updated_at",
+            {"cid": company_id, "d": json.dumps(draft), "v": base_version},
+        )
+
+    async def publish_world(self, company_id: str, base_version: int) -> dict[str, Any] | None:
+        return await self._one(
+            "update public.company_worlds set published = draft, published_version = draft_version, published_at = now() "
+            "where company_id = :cid and draft_version = :v returning published_version, published_at",
+            {"cid": company_id, "v": base_version},
+        )
+
+    async def revert_draft(self, company_id: str) -> dict[str, Any] | None:
+        return await self._one(
+            "update public.company_worlds set draft = published, draft_version = draft_version + 1 "
+            "where company_id = :cid and published is not null returning draft_version",
+            {"cid": company_id},
+        )
+
+    async def update_workplace(self, company_id: str, fields: dict[str, Any]) -> dict[str, Any]:
+        sets, params = [], {"id": company_id}
+        if "world_mode" in fields:
+            sets.append("world_mode = :mode")
+            params["mode"] = fields["world_mode"]
+        for key in ("world_setup", "team_members"):
+            if key in fields:
+                sets.append(f"{key} = cast(:{key} as jsonb)")
+                params[key] = json.dumps(fields[key])
+        if not sets:
+            return await self.get_company(company_id)  # type: ignore[return-value]
+        return await self._one(  # type: ignore[return-value]
+            f"update public.companies set {', '.join(sets)} where id = :id returning *", params
+        )

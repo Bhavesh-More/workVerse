@@ -1,0 +1,972 @@
+{
+ "doc": {
+  "version": 1,
+  "name": "Fixture HQ",
+  "width": 47,
+  "height": 33,
+  "floor": [
+   "...............................................",
+   "...............................................",
+   "...............................................",
+   ".ssssssssssss.pppppppppppppppp.oooooooooooo....",
+   ".ssssssssssss.pppppppppppppppp.oooooooooooo....",
+   ".ssssssssssss.pppppppppppppppp.oooooooooooo....",
+   ".ssssssssssss.pppppppppppppppp.oooooooooooo....",
+   ".ssssssssssss.pppppppppppppppp.oooooooooooo....",
+   ".ssssssssssss.pppppppppppppppp.oooooooooooo....",
+   ".ssssssssssss.pppppppppppppppp.oooooooooooo....",
+   ".ssssssssssss.pppppppppppppppp.oooooooooooo....",
+   "......cc......pppppppppppppppp......cc.........",
+   "......cc......pppppppppppppppp......cc.........",
+   "......cc.............cc.............cc.........",
+   "......cc.............cc.............cc.........",
+   "......cc.............cc.............cc.........",
+   ".ccccccccccccccccccccccccccccccccccccccccccccc.",
+   ".ccccccccccccccccccccccccccccccccccccccccccccc.",
+   ".ccccccccccccccccccccccccccccccccccccccccccccc.",
+   "....cc.......cc..........cc..............cc....",
+   "....cc.......cc..........cc..............cc....",
+   "....cc.......cc..........cc..............cc....",
+   ".wwwwwwww.wwwwwwww.pppppppppppppp.kkkkkkkkkkkk.",
+   ".wwwwwwww.wwwwwwww.pppppppppppppp.kkkkkkkkkkkk.",
+   ".wwwwwwww.wwwwwwww.pppppppppppppp.kkkkkkkkkkkk.",
+   ".wwwwwwww.wwwwwwww.pppppppppppppp.kkkkkkkkkkkk.",
+   ".wwwwwwww.wwwwwwww.pppppppppppppp.kkkkkkkkkkkk.",
+   ".wwwwwwww.wwwwwwww.pppppppppppppp.kkkkkkkkkkkk.",
+   ".wwwwwwww.wwwwwwww.pppppppppppppp.kkkkkkkkkkkk.",
+   ".wwwwwwww.wwwwwwww.pppppppppppppp.kkkkkkkkkkkk.",
+   ".wwwwwwww.wwwwwwww.pppppppppppppp.kkkkkkkkkkkk.",
+   "...................pppppppppppppp..............",
+   "..............................................."
+  ],
+  "rooms": [
+   {
+    "id": "room_924ebd80",
+    "name": "Corridor",
+    "purpose": "corridor_main",
+    "x": 1,
+    "y": 16,
+    "w": 45,
+    "h": 3,
+    "paint": "corridor",
+    "floor": "concrete"
+   },
+   {
+    "id": "room_d276038d",
+    "name": "Reception & lobby",
+    "purpose": "reception",
+    "x": 1,
+    "y": 3,
+    "w": 12,
+    "h": 8,
+    "paint": "reception",
+    "floor": "stone"
+   },
+   {
+    "id": "room_4b228e26",
+    "name": "Engineering & operations lab",
+    "purpose": "engineering_workspace",
+    "x": 14,
+    "y": 3,
+    "w": 16,
+    "h": 10,
+    "paint": "engineering",
+    "floor": "carpet"
+   },
+   {
+    "id": "room_0f4d6243",
+    "name": "Meeting & conference room",
+    "purpose": "meeting_room",
+    "x": 31,
+    "y": 3,
+    "w": 12,
+    "h": 8,
+    "paint": "meeting",
+    "floor": "oak"
+   },
+   {
+    "id": "room_a2fe61ad",
+    "name": "Executive & private offices",
+    "purpose": "manager_office",
+    "x": 1,
+    "y": 22,
+    "w": 17,
+    "h": 9,
+    "paint": "manager",
+    "floor": "walnut"
+   },
+   {
+    "id": "room_fb73f875",
+    "name": "Open-plan office",
+    "purpose": "other",
+    "x": 19,
+    "y": 22,
+    "w": 14,
+    "h": 10,
+    "paint": "engineering",
+    "floor": "carpet"
+   },
+   {
+    "id": "room_eb863d37",
+    "name": "Breakout & collaboration lounge",
+    "purpose": "break_area",
+    "x": 34,
+    "y": 22,
+    "w": 12,
+    "h": 9,
+    "paint": "break",
+    "floor": "checker"
+   }
+  ],
+  "objects": [
+   {
+    "id": "obj_9102b913",
+    "asset": "plant_tall",
+    "x": 1,
+    "y": 16
+   },
+   {
+    "id": "obj_2daad711",
+    "asset": "plant_tall_b",
+    "x": 45,
+    "y": 16
+   },
+   {
+    "id": "obj_f9a02627",
+    "asset": "window_2",
+    "x": 1,
+    "y": 1
+   },
+   {
+    "id": "obj_78e4bfcb",
+    "asset": "logo_sign",
+    "x": 5,
+    "y": 1
+   },
+   {
+    "id": "obj_ebb3b80e",
+    "asset": "window_2",
+    "x": 9,
+    "y": 1
+   },
+   {
+    "id": "obj_b43f3118",
+    "asset": "clock",
+    "x": 12,
+    "y": 1
+   },
+   {
+    "id": "obj_e009ed82",
+    "asset": "coat_rack",
+    "x": 1,
+    "y": 3
+   },
+   {
+    "id": "obj_fa4ee253",
+    "asset": "plant_snake",
+    "x": 11,
+    "y": 3
+   },
+   {
+    "id": "obj_d3160961",
+    "asset": "plant_tall",
+    "x": 12,
+    "y": 3
+   },
+   {
+    "id": "obj_bdd3f42b",
+    "asset": "obj_reception_desk",
+    "x": 5,
+    "y": 6
+   },
+   {
+    "id": "obj_66a69a64",
+    "asset": "water_cooler",
+    "x": 1,
+    "y": 7
+   },
+   {
+    "id": "obj_4e38822a",
+    "asset": "armchair_coral",
+    "x": 9,
+    "y": 9
+   },
+   {
+    "id": "obj_8ddb74de",
+    "asset": "round_table",
+    "x": 10,
+    "y": 9
+   },
+   {
+    "id": "obj_1508b0c0",
+    "asset": "armchair_navy",
+    "x": 11,
+    "y": 9
+   },
+   {
+    "id": "obj_fa3b150b",
+    "asset": "trash",
+    "x": 1,
+    "y": 10
+   },
+   {
+    "id": "obj_5db118ff",
+    "asset": "plant_small",
+    "x": 12,
+    "y": 10
+   },
+   {
+    "id": "obj_ae1e6529",
+    "asset": "obj_incident_dashboard",
+    "x": 15,
+    "y": 1
+   },
+   {
+    "id": "obj_a2df72b4",
+    "asset": "obj_migration_notes",
+    "x": 20,
+    "y": 1
+   },
+   {
+    "id": "obj_31a56e2c",
+    "asset": "window_2",
+    "x": 23,
+    "y": 1
+   },
+   {
+    "id": "obj_e9001b83",
+    "asset": "clock",
+    "x": 26,
+    "y": 1
+   },
+   {
+    "id": "obj_f3dcf417",
+    "asset": "obj_log_viewer",
+    "x": 15,
+    "y": 4
+   },
+   {
+    "id": "obj_9229d8a9",
+    "asset": "obj_metrics_panel",
+    "x": 18,
+    "y": 4
+   },
+   {
+    "id": "obj_0b0af5c6",
+    "asset": "obj_deploy_console",
+    "x": 21,
+    "y": 4
+   },
+   {
+    "id": "obj_1ad6ee7c",
+    "asset": "plant_tall_b",
+    "x": 29,
+    "y": 3
+   },
+   {
+    "id": "obj_e2358173",
+    "asset": "obj_runbook",
+    "x": 27,
+    "y": 5
+   },
+   {
+    "id": "obj_bf2fd911",
+    "asset": "chair_s",
+    "x": 16,
+    "y": 8
+   },
+   {
+    "id": "obj_9d18055b",
+    "asset": "chair_s",
+    "x": 18,
+    "y": 8
+   },
+   {
+    "id": "obj_228cd150",
+    "asset": "desk_n",
+    "x": 16,
+    "y": 9
+   },
+   {
+    "id": "obj_e860d310",
+    "asset": "desk_n2",
+    "x": 18,
+    "y": 9
+   },
+   {
+    "id": "obj_9e5efe42",
+    "asset": "desk_s_code",
+    "x": 16,
+    "y": 10
+   },
+   {
+    "id": "obj_1f8a9d41",
+    "asset": "desk_s_logs",
+    "x": 18,
+    "y": 10
+   },
+   {
+    "id": "obj_d556af79",
+    "asset": "chair_n",
+    "x": 16,
+    "y": 11
+   },
+   {
+    "id": "obj_3b56d0ba",
+    "asset": "chair_n",
+    "x": 18,
+    "y": 11
+   },
+   {
+    "id": "obj_f5a3dcaf",
+    "asset": "desk_s_code",
+    "x": 22,
+    "y": 9
+   },
+   {
+    "id": "obj_dbf3b4ad",
+    "asset": "desk_s_logs",
+    "x": 24,
+    "y": 9
+   },
+   {
+    "id": "obj_9e07df70",
+    "asset": "chair_n",
+    "x": 22,
+    "y": 10
+   },
+   {
+    "id": "obj_7d3d889d",
+    "asset": "chair_n",
+    "x": 24,
+    "y": 10
+   },
+   {
+    "id": "obj_a901d42b",
+    "asset": "printer",
+    "x": 29,
+    "y": 8
+   },
+   {
+    "id": "obj_00ac4121",
+    "asset": "plant_tall",
+    "x": 14,
+    "y": 12
+   },
+   {
+    "id": "obj_c4b174c7",
+    "asset": "server_rack",
+    "x": 25,
+    "y": 12
+   },
+   {
+    "id": "obj_78db37cc",
+    "asset": "server_rack_b",
+    "x": 26,
+    "y": 12
+   },
+   {
+    "id": "obj_74216fd0",
+    "asset": "server_rack",
+    "x": 27,
+    "y": 12
+   },
+   {
+    "id": "obj_70669b38",
+    "asset": "cabinet",
+    "x": 28,
+    "y": 12
+   },
+   {
+    "id": "obj_735031b0",
+    "asset": "art_hills",
+    "x": 32,
+    "y": 1
+   },
+   {
+    "id": "obj_ba859b76",
+    "asset": "presentation",
+    "x": 35,
+    "y": 1
+   },
+   {
+    "id": "obj_86ed95cc",
+    "asset": "window_2",
+    "x": 40,
+    "y": 1
+   },
+   {
+    "id": "obj_df57b625",
+    "asset": "plant_tall",
+    "x": 31,
+    "y": 3
+   },
+   {
+    "id": "obj_930bd7ca",
+    "asset": "plant_tall_b",
+    "x": 42,
+    "y": 3
+   },
+   {
+    "id": "obj_4fafc080",
+    "asset": "meeting_table_6",
+    "x": 34,
+    "y": 6
+   },
+   {
+    "id": "obj_38d73179",
+    "asset": "chair_s_teal",
+    "x": 35,
+    "y": 5
+   },
+   {
+    "id": "obj_fed393ae",
+    "asset": "chair_s_teal",
+    "x": 37,
+    "y": 5
+   },
+   {
+    "id": "obj_37d1c41a",
+    "asset": "chair_s_teal",
+    "x": 39,
+    "y": 5
+   },
+   {
+    "id": "obj_01d32886",
+    "asset": "chair_n_teal",
+    "x": 34,
+    "y": 8
+   },
+   {
+    "id": "obj_b5829f2a",
+    "asset": "chair_n_teal",
+    "x": 36,
+    "y": 8
+   },
+   {
+    "id": "obj_d16ecfbb",
+    "asset": "chair_n_teal",
+    "x": 38,
+    "y": 8
+   },
+   {
+    "id": "obj_96c9529b",
+    "asset": "chair_e",
+    "x": 33,
+    "y": 6
+   },
+   {
+    "id": "obj_47a0fdeb",
+    "asset": "chair_w",
+    "x": 40,
+    "y": 6
+   },
+   {
+    "id": "obj_5d5bee62",
+    "asset": "plant_small",
+    "x": 31,
+    "y": 10
+   },
+   {
+    "id": "obj_a913c585",
+    "asset": "cabinet",
+    "x": 42,
+    "y": 10
+   },
+   {
+    "id": "obj_dd8234bc",
+    "asset": "window_2",
+    "x": 2,
+    "y": 20
+   },
+   {
+    "id": "obj_1133a808",
+    "asset": "art_city",
+    "x": 6,
+    "y": 20
+   },
+   {
+    "id": "obj_8be9ae93",
+    "asset": "window_2",
+    "x": 11,
+    "y": 20
+   },
+   {
+    "id": "obj_30f559a1",
+    "asset": "art_hills",
+    "x": 15,
+    "y": 20
+   },
+   {
+    "id": "obj_46219f1d",
+    "asset": "bookshelf",
+    "x": 1,
+    "y": 22
+   },
+   {
+    "id": "obj_c5d7d2c8",
+    "asset": "plant_tall",
+    "x": 8,
+    "y": 22
+   },
+   {
+    "id": "obj_ee39038a",
+    "asset": "exec_desk",
+    "x": 3,
+    "y": 25
+   },
+   {
+    "id": "obj_d3298998",
+    "asset": "chair_s",
+    "x": 3,
+    "y": 24
+   },
+   {
+    "id": "obj_e71761c9",
+    "asset": "armchair_mustard_n",
+    "x": 3,
+    "y": 27
+   },
+   {
+    "id": "obj_c1567cbd",
+    "asset": "armchair_navy_n",
+    "x": 5,
+    "y": 27
+   },
+   {
+    "id": "obj_d7743a1a",
+    "asset": "cabinet",
+    "x": 1,
+    "y": 30
+   },
+   {
+    "id": "obj_8a6b2aca",
+    "asset": "plant_snake",
+    "x": 8,
+    "y": 30
+   },
+   {
+    "id": "obj_167cdb1a",
+    "asset": "plant_tall_b",
+    "x": 10,
+    "y": 22
+   },
+   {
+    "id": "obj_3cb014ea",
+    "asset": "bookshelf_b",
+    "x": 16,
+    "y": 22
+   },
+   {
+    "id": "obj_ccfc1645",
+    "asset": "exec_desk",
+    "x": 12,
+    "y": 25
+   },
+   {
+    "id": "obj_55304ace",
+    "asset": "chair_s",
+    "x": 12,
+    "y": 24
+   },
+   {
+    "id": "obj_c28ccbc9",
+    "asset": "armchair_navy_n",
+    "x": 12,
+    "y": 27
+   },
+   {
+    "id": "obj_03295865",
+    "asset": "armchair_mustard_n",
+    "x": 14,
+    "y": 27
+   },
+   {
+    "id": "obj_09a2ae48",
+    "asset": "cabinet_teal",
+    "x": 17,
+    "y": 30
+   },
+   {
+    "id": "obj_7ab03be9",
+    "asset": "plant_small",
+    "x": 10,
+    "y": 30
+   },
+   {
+    "id": "obj_735b8d37",
+    "asset": "window_2",
+    "x": 20,
+    "y": 20
+   },
+   {
+    "id": "obj_6663b13c",
+    "asset": "window_2",
+    "x": 27,
+    "y": 20
+   },
+   {
+    "id": "obj_e464e3da",
+    "asset": "clock",
+    "x": 29,
+    "y": 20
+   },
+   {
+    "id": "obj_d6978eab",
+    "asset": "bulletin",
+    "x": 30,
+    "y": 20
+   },
+   {
+    "id": "obj_5276e6aa",
+    "asset": "plant_tall",
+    "x": 19,
+    "y": 22
+   },
+   {
+    "id": "obj_95c0120b",
+    "asset": "bookshelf",
+    "x": 22,
+    "y": 22
+   },
+   {
+    "id": "obj_116127e1",
+    "asset": "bookshelf_b",
+    "x": 27,
+    "y": 22
+   },
+   {
+    "id": "obj_d21774cd",
+    "asset": "plant_tall_b",
+    "x": 32,
+    "y": 22
+   },
+   {
+    "id": "obj_0a2636e1",
+    "asset": "chair_s",
+    "x": 21,
+    "y": 25
+   },
+   {
+    "id": "obj_6b1e5146",
+    "asset": "chair_s",
+    "x": 23,
+    "y": 25
+   },
+   {
+    "id": "obj_258d0a12",
+    "asset": "desk_n",
+    "x": 21,
+    "y": 26
+   },
+   {
+    "id": "obj_9ba17287",
+    "asset": "desk_n2",
+    "x": 23,
+    "y": 26
+   },
+   {
+    "id": "obj_3e04db7f",
+    "asset": "desk_s_code",
+    "x": 21,
+    "y": 27
+   },
+   {
+    "id": "obj_9c1797c2",
+    "asset": "desk_s_logs",
+    "x": 23,
+    "y": 27
+   },
+   {
+    "id": "obj_2fae828c",
+    "asset": "chair_n",
+    "x": 21,
+    "y": 28
+   },
+   {
+    "id": "obj_cce0e407",
+    "asset": "chair_n",
+    "x": 23,
+    "y": 28
+   },
+   {
+    "id": "obj_10c49bae",
+    "asset": "chair_s",
+    "x": 27,
+    "y": 25
+   },
+   {
+    "id": "obj_90f3ea42",
+    "asset": "chair_s",
+    "x": 29,
+    "y": 25
+   },
+   {
+    "id": "obj_68265dd2",
+    "asset": "desk_n",
+    "x": 27,
+    "y": 26
+   },
+   {
+    "id": "obj_ce6ef364",
+    "asset": "desk_n2",
+    "x": 29,
+    "y": 26
+   },
+   {
+    "id": "obj_31b85f1b",
+    "asset": "desk_s_code",
+    "x": 27,
+    "y": 27
+   },
+   {
+    "id": "obj_bd6a7bde",
+    "asset": "desk_s_logs",
+    "x": 29,
+    "y": 27
+   },
+   {
+    "id": "obj_80f5a96d",
+    "asset": "chair_n",
+    "x": 27,
+    "y": 28
+   },
+   {
+    "id": "obj_aa28bbd8",
+    "asset": "chair_n",
+    "x": 29,
+    "y": 28
+   },
+   {
+    "id": "obj_7486097e",
+    "asset": "printer",
+    "x": 32,
+    "y": 26
+   },
+   {
+    "id": "obj_95a5bffc",
+    "asset": "cabinet",
+    "x": 32,
+    "y": 27
+   },
+   {
+    "id": "obj_4cf7e704",
+    "asset": "plant_tall",
+    "x": 19,
+    "y": 31
+   },
+   {
+    "id": "obj_429e515d",
+    "asset": "trash",
+    "x": 25,
+    "y": 31
+   },
+   {
+    "id": "obj_03d99ce9",
+    "asset": "plant_small",
+    "x": 32,
+    "y": 31
+   },
+   {
+    "id": "obj_c57a40b4",
+    "asset": "upper_cabinets",
+    "x": 35,
+    "y": 20
+   },
+   {
+    "id": "obj_b79f1bca",
+    "asset": "art_sunset",
+    "x": 38,
+    "y": 20
+   },
+   {
+    "id": "obj_522f1fb2",
+    "asset": "window_2",
+    "x": 44,
+    "y": 20
+   },
+   {
+    "id": "obj_c6f87483",
+    "asset": "fridge",
+    "x": 34,
+    "y": 22
+   },
+   {
+    "id": "obj_eb4bff5f",
+    "asset": "counter_sink",
+    "x": 35,
+    "y": 22
+   },
+   {
+    "id": "obj_c8e61024",
+    "asset": "counter",
+    "x": 36,
+    "y": 22
+   },
+   {
+    "id": "obj_e2e7157e",
+    "asset": "counter_fruit",
+    "x": 37,
+    "y": 22
+   },
+   {
+    "id": "obj_6319812b",
+    "asset": "obj_coffee_machine",
+    "x": 39,
+    "y": 22
+   },
+   {
+    "id": "obj_f1719d5e",
+    "asset": "water_cooler",
+    "x": 44,
+    "y": 22
+   },
+   {
+    "id": "obj_332638ff",
+    "asset": "vending",
+    "x": 45,
+    "y": 22
+   },
+   {
+    "id": "obj_39d83583",
+    "asset": "stool",
+    "x": 36,
+    "y": 26
+   },
+   {
+    "id": "obj_8cb3a96f",
+    "asset": "round_table",
+    "x": 37,
+    "y": 26
+   },
+   {
+    "id": "obj_ab6072b1",
+    "asset": "stool_teal",
+    "x": 38,
+    "y": 26
+   },
+   {
+    "id": "obj_a93908ce",
+    "asset": "stool",
+    "x": 41,
+    "y": 26
+   },
+   {
+    "id": "obj_a908cc6b",
+    "asset": "round_table",
+    "x": 42,
+    "y": 26
+   },
+   {
+    "id": "obj_140a722e",
+    "asset": "stool_teal",
+    "x": 43,
+    "y": 26
+   },
+   {
+    "id": "obj_d7ca874f",
+    "asset": "armchair_coral",
+    "x": 36,
+    "y": 29
+   },
+   {
+    "id": "obj_77fa340f",
+    "asset": "low_table3",
+    "x": 37,
+    "y": 29
+   },
+   {
+    "id": "obj_58741509",
+    "asset": "armchair_mustard",
+    "x": 40,
+    "y": 29
+   },
+   {
+    "id": "obj_8f21068d",
+    "asset": "beanbag_teal",
+    "x": 43,
+    "y": 29
+   },
+   {
+    "id": "obj_1de74c9b",
+    "asset": "cat_bed",
+    "x": 44,
+    "y": 30
+   },
+   {
+    "id": "obj_effc6e07",
+    "asset": "plant_tall",
+    "x": 34,
+    "y": 30
+   },
+   {
+    "id": "obj_20f0f0d5",
+    "asset": "plant_tall_b",
+    "x": 45,
+    "y": 30
+   },
+   {
+    "id": "obj_3e11f6d5",
+    "asset": "trash",
+    "x": 34,
+    "y": 26
+   }
+  ],
+  "people": [
+   {
+    "id": "person_9f640ed1",
+    "ref": "judge:manager",
+    "x": 10,
+    "y": 26,
+    "face": "down"
+   },
+   {
+    "id": "person_abd23b31",
+    "ref": "judge:teammate",
+    "x": 22,
+    "y": 8,
+    "face": "down"
+   },
+   {
+    "id": "person_f0e6d03c",
+    "ref": "judge:qa",
+    "x": 23,
+    "y": 17,
+    "face": "down"
+   },
+   {
+    "id": "person_83e7ca8d",
+    "ref": "judge:client_pm",
+    "x": 37,
+    "y": 8,
+    "face": "down"
+   },
+   {
+    "id": "person_72612e26",
+    "ref": "judge:coworker",
+    "x": 40,
+    "y": 26,
+    "face": "down"
+   },
+   {
+    "id": "person_bd099864",
+    "ref": "member:m_ana",
+    "x": 6,
+    "y": 7,
+    "face": "down"
+   }
+  ],
+  "spawn": {
+   "x": 7,
+   "y": 10
+  }
+ },
+ "members": [
+  {
+   "id": "m_ana",
+   "name": "Ana Ruiz",
+   "title": "Designer",
+   "look": "f2"
+  }
+ ]
+}

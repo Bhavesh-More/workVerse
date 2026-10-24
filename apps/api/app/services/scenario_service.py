@@ -120,6 +120,8 @@ def world_view(blueprint: ScenarioBlueprint, state: SimulationState) -> dict[str
             for o in blueprint.objects
         ],
         "actions": actions,
+        # A company-built office (WorldDoc + team members) or None for the default office.
+        "map": blueprint.metadata.get("world"),
     }
 
 
@@ -208,6 +210,7 @@ async def create_instance(
     incident: str | None = None,
     topic: dict[str, Any] | None = None,
     company: dict[str, Any] | None = None,
+    world: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """`topic` + `company` turn this into a company assessment: the topic picks the track and
     incident, and its judges' names and personalities are written into the blueprint."""
@@ -246,6 +249,9 @@ async def create_instance(
         generator_model = None
     else:
         generator_model = ai.model_name if await personalize(ai, blueprint, profile) else None
+    if world:
+        # The company's published workplace, frozen into this run: later edits don't move it.
+        blueprint.metadata["world"] = world
 
     report = validate_blueprint(blueprint)
     if not report.ok:

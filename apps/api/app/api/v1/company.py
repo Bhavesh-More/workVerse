@@ -550,8 +550,16 @@ async def accept_invite(principal: CurrentUser, crepo: CRepo, repo: Repo, ai: AI
     if company is None or topic is None:
         raise NotFoundError("This assessment is no longer available.")
     profile = await repo.get_profile(principal.user_id)
+    from app.api.v1.workplace import published_world_for
+
     instance = await scenario_service.create_instance(
-        repo=repo, ai=ai, user_id=principal.user_id, profile=profile, topic=topic, company=company
+        repo=repo,
+        ai=ai,
+        user_id=principal.user_id,
+        profile=profile,
+        topic=topic,
+        company=company,
+        world=await published_world_for(crepo, company),
     )
     session = await session_service.start_session(
         repo=repo, user_id=principal.user_id, scenario_instance_id=instance["scenario_instance_id"], mode="quick"
