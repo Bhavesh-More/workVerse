@@ -328,6 +328,47 @@ export default function SessionPage() {
     [session, sessionId, router],
   );
 
+  // Silence coaching: if the learner hasn't typed 8s after opening a chat or getting a reply,
+  // surface what they could say. Any typing or a new message resets the timer.
+  const [idleHint, setIdleHint] = useState(false);
+  useEffect(() => {
+    if (!activeCharacter || chatInput || sending) return;
+    const t = window.setTimeout(() => {
+      setIdleHint(true);
+      play("pop");
+    }, 8000);
+    return () => {
+      window.clearTimeout(t);
+      setIdleHint(false);
+    };
+  }, [activeCharacter, chatInput, sending, messages.length]);
+
+  // Stuck detector: 20s with no key/pointer input and no chat open → show the next step.
+  const [stuck, setStuck] = useState(false);
+  const lastInput = useRef(0);
+  const stuckShown = useRef(false);
+  useEffect(() => {
+    lastInput.current = Date.now();
+    const bump = () => {
+      lastInput.current = Date.now();
+      stuckShown.current = false;
+      setStuck(false);
+    };
+    const tick = window.setInterval(() => {
+      if (stuckShown.current || Date.now() - lastInput.current < 20000) return;
+      stuckShown.current = true;
+      setStuck(true);
+      play("pop");
+    }, 2000);
+    window.addEventListener("keydown", bump);
+    window.addEventListener("pointerdown", bump);
+    return () => {
+      window.clearInterval(tick);
+      window.removeEventListener("keydown", bump);
+      window.removeEventListener("pointerdown", bump);
+    };
+  }, []);
+
   if (!session && !error) return <SimSkeleton />;
   if (!session) {
     return (
@@ -672,6 +713,34 @@ export default function SessionPage() {
             )}
           </AnimatePresence>
 
+          <AnimatePresence>
+            {stuck && !activeCharacter && !voice && nextStep && (
+              <m.div
+                key="stuck"
+                className="stuck-card"
+                role="status"
+                initial={{ opacity: 0, y: 24, scale: 0.92 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: 16, scale: 0.96 }}
+                transition={{ type: "spring", stiffness: 360, damping: 24 }}
+              >
+                <span className="eyebrow">Stuck? Next step</span>
+                <strong>{nextStep.title}</strong>
+                <span className="small">{nextStep.body}</span>
+                <div className="row" style={{ gap: 8 }}>
+                  {nextStep.character && (
+                    <button className="btn btn--small" onClick={() => openCharacter(nextStep.character!)}>
+                      Talk to them
+                    </button>
+                  )}
+                  <button className="btn btn--ghost btn--small" onClick={() => setGuideOn(true)}>
+                    Show guide
+                  </button>
+                </div>
+              </m.div>
+            )}
+          </AnimatePresence>
+
           <button className={`btn guide-toggle${guideOn ? " btn--ghost" : ""}`} style={guideOn ? { background: "var(--color-paper)" } : undefined} onClick={() => setGuideOn((v) => !v)}>
             {guideOn ? "Hide guide" : "Need help? Show guide"}
           </button>
@@ -833,7 +902,40 @@ export default function SessionPage() {
                     </>
                   )}
                 </div>
-                {suggestions.length > 0 && (
+                <AnimatePresence>
+                  {idleHint && suggestions.length > 0 && (
+                    <m.div
+                      key="coach"
+                      className="coach-nudge"
+                      role="status"
+                      initial={{ opacity: 0, y: 14, scale: 0.94, filter: "blur(4px)" }}
+                      animate={{ opacity: 1, y: 0, scale: 1, filter: "blur(0px)" }}
+                      exit={{ opacity: 0, y: 8, scale: 0.97 }}
+                      transition={{ type: "spring", stiffness: 380, damping: 26 }}
+                    >
+                      <span className="coach-nudge__spark" aria-hidden="true" />
+                      <strong>{activeName} is waiting for you.</strong>
+                      <span className="xsmall">Not sure what to say? Tap one:</span>
+                      <div className="chip-row">
+                        {suggestions.slice(0, 2).map((q, i) => (
+                          <m.button
+                            key={q}
+                            className="chip chip--glow"
+                            data-sfx="none"
+                            disabled={sending}
+                            initial={{ opacity: 0, x: -10 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            transition={{ delay: 0.12 + i * 0.08 }}
+                            onClick={() => sendMessage(q)}
+                          >
+                            {q}
+                          </m.button>
+                        ))}
+                      </div>
+                    </m.div>
+                  )}
+                </AnimatePresence>
+                {suggestions.length > 0 && !idleHint && (
                   <div className="stack stack--sm" aria-label="Suggested questions">
                     <span className="xsmall muted">Try asking — short questions get real answers:</span>
                     <div className="chip-row">

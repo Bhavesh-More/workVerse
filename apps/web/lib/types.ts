@@ -13,6 +13,17 @@ export type WorldAction = {
   locked_reason: string | null;
 };
 
+export type CharacterProfile = {
+  years: number;
+  personality: string;
+  traits: string[];
+  power: string;
+  weakness: string;
+  stats: Record<string, number>;
+  portrait: string;
+  knows: string;
+};
+
 export type WorldCharacter = {
   id: string;
   name: string;
@@ -20,6 +31,8 @@ export type WorldCharacter = {
   sprite: string;
   location_id: string;
   greeting: string;
+  profile?: CharacterProfile | null;
+  questions?: { q: string; fact: string | null }[];
 };
 
 export type WorldObject = {
@@ -100,7 +113,7 @@ export type Prebrief = {
   competency_goals: string[];
   controls: string[];
   incident?: Record<string, unknown>;
-  people?: { id: string; name: string; role: string; location: string; knows_about: boolean }[];
+  people?: { id: string; name: string; role: string; location: string; knows_about: boolean; knows?: string | null; profile?: CharacterProfile | null }[];
   assessed?: { id: string; name: string; description: string; great: string }[];
   tips?: string[];
 };
@@ -127,6 +140,8 @@ export type ScenarioTemplate = {
   difficulty_options: string[];
   story?: string;
   you_will?: string[];
+  track?: string;
+  track_label?: string;
   people?: { role: string; knows: string }[];
   skills?: string[];
   report?: string;

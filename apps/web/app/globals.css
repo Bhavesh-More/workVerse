@@ -1820,3 +1820,60 @@ blockquote {
   .card { break-inside: avoid; box-shadow: none !important; }
   .transcript { max-height: none; overflow: visible; }
 }
+
+/* ---- Silence coaching ------------------------------------------------------------------ */
+.coach-nudge {
+  position: relative;
+  display: grid;
+  gap: 6px;
+  padding: 12px 14px 12px 40px;
+  border-radius: var(--radius-card);
+  background: var(--color-ink);
+  color: var(--color-paper);
+  box-shadow: 0 0 0 2px var(--color-ember), 0 10px 30px -12px rgba(255, 132, 0, 0.6);
+  animation: coach-breathe 2.4s var(--ease-out) infinite;
+}
+.coach-nudge .chip {
+  background: var(--color-paper);
+  color: var(--color-ink);
+}
+.coach-nudge__spark {
+  position: absolute;
+  left: 14px;
+  top: 14px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--color-highlight-yellow);
+  box-shadow: 0 0 0 0 rgba(254, 204, 51, 0.7);
+  animation: spark-ping 1.6s ease-out infinite;
+}
+.chip--glow {
+  border-color: var(--color-ember);
+  box-shadow: 0 0 0 0 rgba(255, 132, 0, 0.5);
+  animation: spark-ping 2s ease-out infinite;
+}
+@keyframes coach-breathe {
+  50% { box-shadow: 0 0 0 2px var(--color-ember), 0 14px 38px -10px rgba(255, 132, 0, 0.8); }
+}
+@keyframes spark-ping {
+  70% { box-shadow: 0 0 0 10px rgba(254, 204, 51, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(254, 204, 51, 0); }
+}
+.stuck-card {
+  position: absolute;
+  right: 16px;
+  bottom: 70px;
+  z-index: 6;
+  display: grid;
+  gap: 6px;
+  max-width: 320px;
+  padding: 14px 16px;
+  border-radius: var(--radius-card);
+  background: var(--color-paper);
+  border: 2px solid var(--color-ink);
+  box-shadow: 6px 6px 0 var(--color-ink);
+}
+@media (prefers-reduced-motion: reduce) {
+  .coach-nudge, .coach-nudge__spark, .chip--glow { animation: none; }
+}

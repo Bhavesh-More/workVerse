@@ -170,6 +170,14 @@ test("suggestedQuestions puts questions for unknown facts first", () => {
   assert.deepEqual(suggestedQuestions(s, "nobody"), []);
 });
 
+test("suggestedQuestions prefers the scenario's role-specific questions", () => {
+  const s = {
+    facts_known: [],
+    world: { characters: [{ id: "teammate", questions: [{ q: "Did an upstream table change?", fact: "f_migration_ran" }] }] },
+  } as unknown as SessionView;
+  assert.deepEqual(suggestedQuestions(s, "teammate"), ["Did an upstream table change?"]);
+});
+
 test("wordCount counts words not whitespace", () => {
   assert.equal(wordCount("  Did it   ship? "), 3);
   assert.equal(wordCount(""), 0);
