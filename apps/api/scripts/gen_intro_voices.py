@@ -18,6 +18,21 @@ from app.simulation.tracks import TRACKS, VOICES, voice_for
 OUT = Path(__file__).resolve().parents[3] / "apps/web/public/assets/voices"
 MODEL = "eleven_flash_v2_5"  # cheapest/fastest; ~0.5 credit per character
 
+# The free plan can't use library voices through the TTS API (agents still can), so intro lines use the
+# closest built-in voice. ponytail: drop this map once the account can use library voices via the API.
+STANDINS: dict[str, tuple[str, str]] = {
+    "hope": ("EXAVITQu4vr4xnSDxMaL", "Sarah - Mature, Reassuring, Confident"),
+    "brayden": ("TX3LPaxmHKxFdv7VOQHJ", "Liam - Energetic, Social Media Creator"),
+    "tony": ("cjVigY5qzO86Huf0OWal", "Eric - Smooth, Trustworthy"),
+    "sia": ("hpp4J3VqNfWAUOO0d1Us", "Bella - Professional, Bright, Warm"),
+    "siren": ("cgSgspJ2msm6clMCkdW9", "Jessica - Playful, Bright, Warm"),
+    "jeremy": ("iP95p4xoKVk53GoZ742B", "Chris - Charming, Down-to-Earth"),
+}
+
+
+def tts_voice(cast: str) -> tuple[str, str]:
+    return STANDINS.get(cast) or VOICES[cast]
+
 
 def clips() -> list[tuple[str, str, str]]:
     seen: dict[str, tuple[str, str, str]] = {}
@@ -35,7 +50,7 @@ def main() -> None:
     todo = [c for c in clips() if not (OUT / f"{c[0]}.mp3").exists() and (only is None or c[2] == only)]
     chars = sum(len(text) for _, text, _ in todo)
     for slug, text, voice in todo:
-        print(f"{slug:18} {VOICES[voice][1]:48} {text}")
+        print(f"{slug:18} {tts_voice(voice)[1]:48} {text}")
     print(f"\n{len(todo)} clips, {chars} characters (~{chars // 2}-{chars} credits with {MODEL}).")
     if dry or not todo:
         return
@@ -45,7 +60,7 @@ def main() -> None:
     with client() as http:
         for slug, text, voice in todo:
             r = http.post(
-                f"/v1/text-to-speech/{VOICES[voice][0]}",
+                f"/v1/text-to-speech/{tts_voice(voice)[0]}",
                 params={"output_format": "mp3_22050_32"},
                 json={"text": text, "model_id": MODEL, "voice_settings": {"stability": 0.5, "similarity_boost": 0.8}},
             )

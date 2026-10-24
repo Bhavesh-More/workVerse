@@ -555,7 +555,6 @@ _MALE_FIRST_NAMES = {
 }
 
 VOICES: dict[str, tuple[str, str]] = {  # name -> (voice_id, label)
-    "arabella": ("ocFEgn1SP9oWO9QrLDgb", "Arabella - Calm & Mature"),
     "brayden": ("wToR447ojQ91QCc7UqnX", "Brayden - Ambitious Office Manager"),
     "hope": ("WAhoMTNdLdMoq1j3wf3I", "Hope - Smooth, Engaging and Kind"),
     "tony": ("q1OMOTZNtqpS50TIQtu4", "Tony Smyles - The Voice of Trust"),
@@ -565,10 +564,10 @@ VOICES: dict[str, tuple[str, str]] = {  # name -> (voice_id, label)
 }
 
 CASTING: dict[str, dict[str, str]] = {  # slot -> gender -> voice name
-    "manager": {"female": "arabella", "male": "tony"},
+    "manager": {"female": "hope", "male": "tony"},  # Arabella needs a paid ElevenLabs plan
     "teammate": {"male": "brayden", "female": "sia"},
-    "client_pm": {"female": "hope", "male": "tony"},
-    "qa": {"female": "sia", "male": "jeremy"},
+    "client_pm": {"female": "sia", "male": "tony"},
+    "qa": {"female": "siren", "male": "jeremy"},
     "coworker": {"female": "siren", "male": "jeremy"},
 }
 

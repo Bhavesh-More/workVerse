@@ -3,7 +3,7 @@ from app.simulation.tracks import CASTING, TRACKS, VOICES, gender_of, voice_for
 
 
 def test_every_name_has_a_voice_matching_their_gender() -> None:
-    female = {"arabella", "hope", "sia", "siren"}
+    female = {"hope", "sia", "siren"}
     for t in TRACKS.values():
         for slot, names in t["names"].items():
             for name in names:

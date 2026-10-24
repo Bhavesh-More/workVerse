@@ -255,6 +255,9 @@ arrow keys counts — instead of waiting for a click. If you came from the dashb
   Clips live in `apps/web/public/assets/voices/`; make them with
   `cd apps/api && uv run python scripts/gen_intro_voices.py --dry-run` (free preview) then without `--dry-run` (uses credits).
   "Sound off" mutes them too.
+  On the free ElevenLabs plan the TTS API can't use library voices, so these lines use the closest built-in
+  voice (Hope→Sarah, Brayden→Liam, Tony→Eric, Sia→Bella, Siren→Jessica, Jeremy→Chris; `STANDINS` in the script).
+  Voice *calls* still use the real cast voices. Manager is Hope (Arabella needs a paid plan).
 - **Voice calls:** one ElevenLabs agent per slot and gender, created by `scripts/create_voice_agents.py` (`--dry-run` first).
   It writes `ELEVENLABS_AGENT_MAP` into `apps/api/.env`, e.g. `{"manager":"agent_…","client_pm:male":"agent_…"}`.
   Lookup order: `client_pm:male` → `client_pm` → `ELEVENLABS_AGENT_ID`.
