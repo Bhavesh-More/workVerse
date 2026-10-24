@@ -121,6 +121,23 @@ def _rubric() -> Rubric:
     )
 
 
+# The company each session happens at; every one sells something, so "checkout" and "sign-ups" fit all tracks.
+COMPANIES = [
+    ("Basketly", "a grocery delivery app"),
+    ("TripNest", "a travel booking site"),
+    ("Seatwave", "a concert ticketing platform"),
+    ("Threadline", "an online fashion store"),
+    ("FitPass", "a gym membership app"),
+    ("Pawprint", "a pet supplies shop"),
+    ("Bookmark", "an online bookstore"),
+    ("MealDrop", "a meal-kit subscription"),
+    ("GearHub", "an outdoor gear marketplace"),
+    ("Studyo", "an online course platform"),
+    ("Plantly", "a houseplant delivery service"),
+    ("RideShare Go", "a bike and scooter rental app"),
+]
+
+
 def _fmt(text: str, ctx: dict[str, Any]) -> str:
     return text.format(**ctx)
 
@@ -300,6 +317,7 @@ def build_production_incident(
     deploy_minutes = rng.choice([6, 9, 12, 15])
     pct = rng.choice([18, 24, 31, 42])
     names = {cid: rng.choice(options) for cid, options in t["names"].items()}
+    company, product = rng.choice(COMPANIES)
     ctx = {"role": role, "service": service, "pct": pct, "minutes": deploy_minutes}
 
     difficulty_minutes = {"introductory": 8, "standard": 10, "challenging": 15}[difficulty]  # type: ignore[index]
@@ -316,7 +334,9 @@ def build_production_incident(
         family_slug=TEMPLATE_SLUG,
         version=1,
         title=t["title"],
-        briefing=_fmt(t["briefing"], ctx) + " You can walk the office, talk to people, and open the tools.",
+        briefing=f"You work at {company}, {product}. "
+        + _fmt(t["briefing"], ctx)
+        + " You can walk the office, talk to people, and open the tools.",
         role=role,
         difficulty=difficulty,  # type: ignore[arg-type]
         mode=mode,  # type: ignore[arg-type]
@@ -399,6 +419,8 @@ def build_production_incident(
             },
             "say_next_time": {k: {"to": to, "say": say} for k, (to, say) in say_next.items()},
             "tip_risk": t["tip_risk"],
+            # Public story flavour; scenario_service may replace "story" with an Ollama-written one.
+            "setting": {"company": company, "product": product, "story": ""},
             "variation": {
                 "seed": seed,
                 "service": service,

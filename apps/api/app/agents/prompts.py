@@ -80,6 +80,13 @@ def build_character_messages(
     return _with_context(blueprint, state, character, system, recent_messages, user_message, newly_revealed_fact_ids)
 
 
+def _setting_line(blueprint: ScenarioBlueprint) -> list[str]:
+    s = blueprint.metadata.get("setting") or {}
+    if not s.get("company"):
+        return []
+    return [f"- You work at {s['company']}, {s['product']}. {s.get('story', '')}".rstrip()]
+
+
 def _with_context(
     blueprint: ScenarioBlueprint,
     state: SimulationState,
@@ -99,6 +106,7 @@ def _with_context(
         )
         + f"; severity {state.incident.get('severity', 'unknown')}.",
         f"- Talk like a real {character.role}: use that job's everyday words.",
+        *_setting_line(blueprint),
         f"- Current phase: {state.phase}.",
     ]
     active_objectives = [

@@ -280,3 +280,16 @@ were confused whether to answer or investigate.
 - Suggestions now say **"Ask Olivia:"** so it's clear they are questions *you* send.
 - Right-hand sections (**What you know**, **Stakeholder update**, **Chat**) collapse — click the title.
 - Chat always scrolls to the newest message; the chat box can no longer be squeezed to a sliver.
+
+## 16. A different story every session
+
+**Before:** every session happened at the same unnamed company.
+**Now:** each new session picks a random company (12 options: grocery app, ticketing site, gym app…;
+`COMPANIES` in `apps/api/app/simulation/templates.py`). Then Ollama rewrites it to fit **your profile**
+(role, experience, career goals): e.g. a gaming fan gets a game store during a holiday sale.
+
+- Only the *story* changes; the incident, clues and scoring stay the same and tested.
+- Safety: Ollama never sees the hidden cause. A story mentioning anything cause-like ("database",
+  "rollback", "test"…) or numbers is thrown away. If Ollama is slow (8 s) or off, the random company is used.
+- Colleagues know the company too, so chat and voice stay consistent.
+- Code: `personalize()` in `apps/api/app/services/scenario_service.py`; test `tests/test_personalize.py`.
