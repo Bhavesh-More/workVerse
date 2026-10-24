@@ -21,6 +21,7 @@ import {
 } from "../../../../lib/practice";
 import { duckMusic, play } from "../../../../lib/sfx";
 import { SoundToggles } from "../../../../components/Sound";
+import { ToolPopup, type ToolView } from "../../../../components/ToolPopup";
 import { TeamIntro } from "../../../../components/TeamIntro";
 
 // Browser-only SDK; never evaluated during SSR.
@@ -152,6 +153,9 @@ export default function SessionPage() {
 
   const actionsByObject = useMemo(() => groupActionsByObject(actions), [actions]);
 
+  const [toolView, setToolView] = useState<ToolView | null>(null);
+  const closeTool = useCallback(() => setToolView(null), []);
+
   const runAction = useCallback(
     async (action: WorldAction, payload?: Record<string, unknown>) => {
       if (!session) return;
@@ -168,7 +172,11 @@ export default function SessionPage() {
         setSession(res.session);
         setMessages((await api.transcript(sessionId)).items);
         const newly = res.state_delta?.newly_discovered_fact_ids as string[] | undefined;
-        if (newly?.length) {
+        if (res.tool && action.action_type === "inspect") {
+          // Inspecting a tool opens it: the findings show inside a pixel window styled like the tool.
+          setToolView({ ...res.tool, findings: res.findings ?? [], service: String(res.session.incident?.service ?? "") || undefined });
+          if (newly?.length) play("discover");
+        } else if (newly?.length) {
           const labels = newly.map((id) => res.session.facts_known.find((f) => f.id === id)?.label ?? id);
           setNotice(`New information: ${labels.join(" · ")}`);
           play("discover");
@@ -561,6 +569,7 @@ export default function SessionPage() {
         </div>
       </div>
 
+      {toolView && <ToolPopup tool={toolView} onClose={closeTool} />}
       {intro && (
         <TeamIntro
           characters={characters}

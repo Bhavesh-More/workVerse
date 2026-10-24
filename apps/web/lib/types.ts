@@ -180,6 +180,9 @@ export type ActionResponse = {
   state_delta: Record<string, unknown>;
   events: { id: string; type: string }[];
   session: SessionView;
+  /** Facts this tool shows (only ones the learner knows), for the findings popup. */
+  findings?: { id: string; label: string; detail: string; new: boolean }[];
+  tool?: { id: string; label: string } | null;
 };
 
 export type TranscriptMessage = {

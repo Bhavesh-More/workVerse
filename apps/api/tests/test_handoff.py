@@ -22,3 +22,39 @@ def test_manager_is_done_once_impact_and_deadline_known_and_hands_on():
     hint = next_step_hint(bp, state, "manager")
     assert hint and "manager" not in hint.lower()
     assert f"tell them to {hint}." in _prompt(bp, state, manager)
+
+
+def test_inspecting_a_tool_returns_its_findings(monkeypatch):
+    import asyncio
+
+    from app.services import session_service
+
+    bp = build_production_incident(seed=11, incident="base")
+    state = build_initial_state(bp, "v1")
+
+    class Repo:
+        session = None
+
+        async def find_event_by_idempotency(self, *_):
+            return None
+
+        async def insert_event(self, **_):
+            return {"id": "e"}
+
+        async def save_session_state(self, **kw):
+            return {"id": "s", "status": "active", "state_version": kw["new_version"]}
+
+    async def fake_load(*_a, **_k):
+        return {"id": "s", "status": "active", "state_version": state.state_version}, bp, state
+
+    async def no_events(*_a, **_k):
+        return []
+
+    monkeypatch.setattr(session_service, "_load", fake_load)
+    monkeypatch.setattr(session_service, "_persist_pending_events", no_events)
+    res = asyncio.run(session_service.apply_world_action(
+        repo=Repo(), user_id="u", session_id="s", client_action_id="c",
+        expected_state_version=state.state_version, action_id="a_inspect_logs",
+    ))
+    assert res["tool"]["id"] == "log_viewer"
+    assert [f["id"] for f in res["findings"]] == ["f_error_logs"] and res["findings"][0]["new"]

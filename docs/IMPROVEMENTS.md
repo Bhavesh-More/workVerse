@@ -364,3 +364,12 @@ ELEVENLABS_ACCOUNT=2 uv run --project .. python add_library_voices.py   # adds t
 ELEVENLABS_ACCOUNT=2 uv run --project .. python create_voice_agents.py  # creates the 8 agents, writes ELEVENLABS_AGENT_MAP_2
 ```
 Code: `mint_for_npc()` in `apps/api/app/agents/elevenlabs_cloud.py`; tests in `tests/test_voice_quota.py`.
+
+## 21. Tools pop up and show what you found
+
+Inspecting a tool (walk up + E, or click the action) now opens a **pixel-art window** in the office colours,
+styled like the tool: **logs** open as a terminal with the error lines typing in; **metrics / dashboard**
+show a pixel chart plus alerts; the **deploy console** shows release stages; the **runbook / notes**
+open as a document. It lists only facts you now know (re-opening a tool shows them again; new ones are
+marked NEW). Close with **Got it**, Esc or Enter.
+Code: `apps/web/components/ToolPopup.tsx`; the server adds `findings` + `tool` to action responses.

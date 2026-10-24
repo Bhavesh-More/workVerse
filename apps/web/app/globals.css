@@ -2414,3 +2414,115 @@ blockquote {
   box-shadow: 4px 4px 0 var(--color-highlight-yellow);
 }
 .handoff strong { font-size: 14px; }
+
+/* ---- Tool findings popup: pixel-art window in the office palette ---- */
+.px-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  background: rgba(20, 20, 20, 0.55);
+}
+.px-window {
+  width: min(640px, 100%);
+  max-height: min(560px, 90svh);
+  display: flex;
+  flex-direction: column;
+  background: var(--color-paper);
+  color: var(--color-ink);
+  font-size: 21px;
+  line-height: 1.15;
+  /* Stepped pixel border + hard drop shadow, no anti-aliased corners. */
+  box-shadow:
+    0 -4px 0 0 var(--color-ink), 0 4px 0 0 var(--color-ink), -4px 0 0 0 var(--color-ink), 4px 0 0 0 var(--color-ink),
+    8px 12px 0 0 var(--color-ember);
+}
+.px-titlebar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  background: var(--color-highlight-yellow);
+  border-bottom: 4px solid var(--color-ink);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.px-titlebar__dots { display: flex; gap: 6px; }
+.px-titlebar__dots i { width: 10px; height: 10px; background: var(--color-ink); }
+.px-titlebar__dots i:first-child { background: var(--color-ember); }
+.px-titlebar__name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.px-body { flex: 1; min-height: 0; overflow: auto; }
+.px-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border-top: 4px solid var(--color-ink);
+  font-size: 18px;
+}
+.px-btn {
+  padding: 10px 14px;
+  font-size: 10px;
+  text-transform: uppercase;
+  background: var(--color-ink);
+  color: var(--color-paper);
+  border: 0;
+  cursor: pointer;
+  box-shadow: 4px 4px 0 0 var(--color-ember);
+  transition: transform 0.1s ease-out, box-shadow 0.1s ease-out;
+}
+.px-btn:active { transform: translate(4px, 4px); box-shadow: 0 0 0 0 var(--color-ember); }
+.px-dim { opacity: 0.6; }
+
+/* Terminal (logs) */
+.px-window--terminal .px-body { background: #0d0d0d; }
+.px-terminal { padding: 14px; color: #e8e8e8; min-height: 220px; }
+.px-line { white-space: pre-wrap; word-break: break-word; opacity: 0; animation: px-type 0.01s steps(1) forwards; }
+.px-cmd { color: var(--color-highlight-yellow); }
+.px-err { color: #ff6b5a; }
+.px-ok { color: #7ee787; margin-bottom: 8px; }
+.px-cursor { color: var(--color-highlight-yellow); opacity: 0; animation: px-type 0.01s steps(1) forwards, px-blink 1s steps(1) infinite; }
+@keyframes px-type { to { opacity: 1; } }
+@keyframes px-blink { 50% { visibility: hidden; } }
+
+/* Charts (metrics, dashboard) */
+.px-chart, .px-pipeline, .px-doc { padding: 14px; display: grid; gap: 14px; }
+.px-bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+  height: 100px;
+  padding: 8px;
+  background: #f4f1e8;
+  background-image: linear-gradient(rgba(20, 20, 20, 0.08) 2px, transparent 2px);
+  background-size: 100% 20px;
+  border: 4px solid var(--color-ink);
+}
+.px-bars span { flex: 1; background: var(--color-ink); transform-origin: bottom; animation: px-grow 0.4s steps(4) both; }
+.px-bars span.is-hot { background: var(--color-ember); }
+@keyframes px-grow { from { transform: scaleY(0); } }
+
+/* Pipeline (deploy console) */
+.px-stages { display: flex; flex-wrap: wrap; gap: 8px; }
+.px-stage { padding: 6px 10px; border: 4px solid var(--color-ink); opacity: 0; animation: px-type 0.01s steps(1) forwards; }
+.px-stage--ok { background: #d9f2d9; }
+.px-stage--bad { background: #ffd2cc; }
+
+/* Findings list (shared) */
+.px-findings { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.px-findings li { display: grid; gap: 2px; padding: 8px 10px; background: #fff8dc; border-left: 6px solid var(--color-ember); opacity: 0; animation: px-type 0.01s steps(1) forwards; }
+.px-findings em { font-style: normal; color: var(--color-paper); background: var(--color-ember); padding: 0 4px; margin-left: 6px; }
+.px-doc { background: #fbf8ef; background-image: linear-gradient(rgba(20, 20, 20, 0.06) 1px, transparent 1px); background-size: 100% 24px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .px-line, .px-cursor, .px-stage, .px-findings li { animation: none; opacity: 1; }
+  .px-bars span { animation: none; }
+}
+@media (max-width: 520px) {
+  .px-window { font-size: 18px; }
+  .px-footer { flex-direction: column; align-items: stretch; }
+}
