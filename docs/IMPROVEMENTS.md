@@ -140,3 +140,8 @@ Ranked by judge impact ÷ effort:
 **Fix:** `apps/web/middleware.ts`. Every request already passes through Clerk's middleware. For the public
 routes it now asks Clerk "is there a signed-in user?" and, if yes, redirects to `/dashboard`.
 Signed-out visitors see exactly what they saw before.
+
+Also renamed the deprecated Clerk env vars `NEXT_PUBLIC_CLERK_AFTER_SIGN_IN_URL` / `…AFTER_SIGN_UP_URL` to
+`NEXT_PUBLIC_CLERK_SIGN_IN_FALLBACK_REDIRECT_URL` / `…SIGN_UP_FALLBACK_REDIRECT_URL` in `.env.example`
+(removes the "afterSignInUrl is deprecated" console warning). **Rename them in your own `apps/web/.env` too**,
+then restart `pnpm dev`.
