@@ -24,6 +24,8 @@ type Props = {
   contextGrant: string | null;
   dynamicVariables?: Record<string, string>;
   onEnd: () => void;
+  /** Skip the talk: get what they know and the next step straight away. */
+  onSkip?: () => void;
   /** Called when a voice turn taught the learner something (the server returns the new session). */
   onSession?: (session: SessionView) => void;
   /** Shown once this colleague has told the learner everything: where to go next. */
@@ -58,6 +60,7 @@ function VoiceSession({
   contextGrant,
   dynamicVariables,
   onEnd,
+  onSkip,
   onSession,
   handoff,
 }: Props) {
@@ -322,6 +325,11 @@ function VoiceSession({
       )}
 
       <div className="voice-meeting__controls">
+        {onSkip && (
+          <button type="button" className="btn btn--ghost btn--small" data-testid="voice-skip" onClick={onSkip}>
+            Skip ▶ what they know
+          </button>
+        )}
         <button
           type="button"
           className="btn btn--ghost btn--small"

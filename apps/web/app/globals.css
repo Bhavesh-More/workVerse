@@ -2477,6 +2477,20 @@ blockquote {
 }
 .px-btn:active { transform: translate(4px, 4px); box-shadow: 0 0 0 0 var(--color-ember); }
 .px-dim { opacity: 0.6; }
+.px-btn--ghost { background: var(--color-paper); color: var(--color-ink); box-shadow: 4px 4px 0 0 var(--color-ink); }
+.px-footer__btns { display: flex; gap: 10px; flex-shrink: 0; }
+/* "Next ▶" route under a colleague's dialogue */
+.px-next {
+  padding: 10px 14px;
+  border-top: 4px solid var(--color-ink);
+  background: var(--color-highlight-yellow);
+  font-size: 20px;
+  line-height: 1.2;
+}
+.px-next span { font-size: 10px; margin-right: 6px; }
+@media (max-width: 520px) {
+  .px-footer { flex-wrap: wrap; }
+}
 
 /* Terminal (logs) */
 .px-window--terminal .px-body { background: #0d0d0d; }

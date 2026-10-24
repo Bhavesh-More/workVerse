@@ -341,7 +341,7 @@ export default function SessionPage() {
     const fresh = known.filter((f) => !before.has(f.id) && !toolFactIds.current.has(f.id));
     const who = characters.find((c) => c.id === talkingTo);
     if (!fresh.length || !who) return;
-    setToolView({ id: "dialogue", label: who.name, portrait: who.profile?.portrait, findings: fresh.map((f) => ({ ...f, new: true })) });
+    setToolView({ id: "dialogue", label: who.name, portrait: who.profile?.portrait, from: who.id, findings: fresh.map((f) => ({ ...f, new: true })) });
     // eslint-disable-next-line react-hooks/exhaustive-deps -- runs per session update; speaker read at that moment
   }, [session]);
 
@@ -421,6 +421,56 @@ export default function SessionPage() {
     setVoice(null);
     await load();
   }, [load]);
+
+  // Hang up the current call properly (server record too), e.g. when a popup's "Next" is chosen.
+  const hangUp = useCallback(async () => {
+    if (!voice) return;
+    api.endVoiceSession(sessionId, voice.voiceSessionId, "user_ended").catch(() => {});
+    await endVoiceMeeting();
+  }, [voice, sessionId, endVoiceMeeting]);
+
+  // Where to go after a colleague has told you something: always shown with the "told you" box.
+  const routeFrom = (from?: string): ToolView["next"] => {
+    const nav = session?.navigation;
+    const leave = () => {
+      setHandoff(null);
+      void hangUp();
+    };
+    const call = voice ? "End call · " : "";
+    if (!nav) return { text: "Everything's covered: send your status update and complete the shift.", label: `${call}OK`, onGo: leave };
+    const step = nav.action_label ?? nav.objective_label;
+    if (nav.target_type === "character" && nav.target_id !== from) {
+      const c = characters.find((x) => x.id === nav.target_id);
+      return {
+        text: `${step}: talk to ${c?.name ?? "them"}${c ? `, the ${c.role}` : ""}.`,
+        label: `${call}Talk to ${c?.name.split(" ")[0] ?? "them"}`,
+        onGo: () => {
+          leave();
+          openCharacter(nav.target_id!);
+        },
+      };
+    }
+    if (nav.target_type === "character") return { text: `${step}: keep talking to them.`, label: "Keep going", onGo: () => {} };
+    const where = session.world.locations.find((l) => l.id === nav.location_id)?.name;
+    return { text: `${step}${where ? ` in the ${where}` : ""}. Follow the arrow in the office.`, label: `${call}Go there`, onGo: leave };
+  };
+
+  // "Skip to what they know": the colleague hands it all over, then the box shows it with the next step.
+  const skipTo = useCallback(
+    async (characterId: string) => {
+      try {
+        const res = await api.skipCharacter(sessionId, characterId);
+        setSession(res.session);
+        if (!res.revealed.length) {
+          const who = characters.find((c) => c.id === characterId);
+          if (who) setToolView({ id: "dialogue", label: who.name, portrait: who.profile?.portrait, from: who.id, findings: [] });
+        }
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Could not skip.");
+      }
+    },
+    [sessionId, characters],
+  );
 
   const sendMessage = useCallback(async (override?: string) => {
     const text = (override ?? chatInput).trim();
@@ -620,7 +670,7 @@ export default function SessionPage() {
         </div>
       </div>
 
-      {toolView && <ToolPopup tool={toolView} onClose={closeTool} />}
+      {toolView && <ToolPopup tool={toolView.id === "dialogue" ? { ...toolView, next: routeFrom(toolView.from) } : toolView} onClose={closeTool} />}
       {shiftDone && (
         <ShiftComplete
           characters={characters}
@@ -744,6 +794,7 @@ export default function SessionPage() {
               contextGrant={voice.contextGrant}
               dynamicVariables={voice.dynamicVariables}
               onEnd={endVoiceMeeting}
+              onSkip={() => void skipTo(voice.npc.id)}
               onSession={setSession}
               handoff={
                 handoff && handoff.from === voice.npc.id
@@ -1100,6 +1151,11 @@ export default function SessionPage() {
                   </button>
                 ))}
               </div>
+            {activeChar && (
+              <button className="btn btn--ghost btn--small" data-testid="chat-skip" style={{ alignSelf: "flex-start" }} onClick={() => void skipTo(activeChar.id)}>
+                Skip ▶ what {activeChar.name.split(" ")[0]} knows + next step
+              </button>
+            )}
             {activeProfile && activeChar && (
               <div className="who-card">
                 {/* eslint-disable-next-line @next/next/no-img-element -- local SVG */}

@@ -209,6 +209,10 @@ export const api = {
       body,
     }),
 
+  /** Skip the conversation: the colleague hands over what they may share now (logged as skipped). */
+  skipCharacter: (sessionId: string, characterId: string) =>
+    request<{ revealed: string[]; session: SessionView }>(`/sessions/${sessionId}/characters/${characterId}/skip`, { method: "POST" }),
+
   getEvaluation: (sessionId: string) =>
     request<Evaluation>(`/sessions/${sessionId}/evaluation`),
 

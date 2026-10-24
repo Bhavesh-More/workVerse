@@ -390,3 +390,29 @@ async def _evaluation_view(repo: Repository, evaluation_row: dict[str, Any], blu
     from app.evaluation.evaluator import evaluation_view
 
     return await evaluation_view(repo, evaluation_row, blueprint)
+
+
+async def skip_character(*, repo: Repository, user_id: str, session_id: str, character_id: str) -> dict[str, Any]:
+    """"Skip to what they know": the colleague hands over every fact they may share right now, without
+    the conversation. Logged with via="skipped" so the debrief can tell asked from skipped."""
+    from app.simulation.engine import disclosable_now, reveal_facts
+
+    row, blueprint, state = await _load(repo, user_id, session_id, for_update=True)
+    if row["status"] != "active":
+        raise ConflictError("This session is not active.", code="session_not_active")
+    if blueprint.character(character_id) is None:
+        raise NotFoundError("Character not found.")
+    newly, events = reveal_facts(
+        blueprint, state, character_id, disclosable_now(blueprint, state, character_id), via="skipped"
+    )
+    if newly:
+        await _persist_pending_events(repo, session_id, state, events)
+        row = await repo.save_session_state(
+            session_id=session_id,
+            expected_version=int(row["state_version"]),
+            new_version=state.state_version,
+            state=state.model_dump(),
+        )
+        if row is None:
+            raise ConflictError("The session changed; try again.", code="session_version_conflict")
+    return {"revealed": newly, "session": session_view(row, blueprint, state)}

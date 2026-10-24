@@ -241,7 +241,7 @@ def disclosable_now(blueprint: ScenarioBlueprint, state: SimulationState, charac
 
 
 def reveal_facts(
-    blueprint: ScenarioBlueprint, state: SimulationState, character_id: str, facts: list[str]
+    blueprint: ScenarioBlueprint, state: SimulationState, character_id: str, facts: list[str], via: str = "conversation"
 ) -> tuple[list[str], list[PendingEvent]]:
     """Record that ``character_id`` told the learner these facts (fact events + objective updates)."""
     events: list[PendingEvent] = []
@@ -255,7 +255,7 @@ def reveal_facts(
                     event_type="fact_discovered",
                     actor_type="character",
                     actor_id=character_id,
-                    payload={"fact_id": fact_id, "via": "conversation"},
+                    payload={"fact_id": fact_id, "via": via},
                 )
             )
         # A character aware of a fact retains it.

@@ -8,7 +8,17 @@ const pixelTitle = Press_Start_2P({ weight: "400", subsets: ["latin"], display: 
 const pixelBody = VT323({ weight: "400", subsets: ["latin"], display: "swap" });
 
 export type Finding = { id: string; label: string; detail: string; new?: boolean };
-export type ToolView = { id: string; label: string; findings: Finding[]; service?: string; portrait?: string };
+export type ToolView = {
+  id: string;
+  label: string;
+  findings: Finding[];
+  service?: string;
+  portrait?: string;
+  /** Dialogue only: who told you (character id). */
+  from?: string;
+  /** Where to go next, shown in the footer with a button that takes you there. */
+  next?: { text: string; label: string; onGo: () => void };
+};
 
 // Which "screen" each workplace tool opens as. Unknown tools fall back to a plain document.
 type Kind = "terminal" | "chart" | "pipeline" | "document" | "dialogue";
@@ -63,11 +73,31 @@ export function ToolPopup({ tool, onClose }: { tool: ToolView; onClose: () => vo
           {kind === "document" && <Document tool={tool} />}
           {kind === "dialogue" && <Dialogue tool={tool} />}
         </div>
+        {tool.next && (
+          <div className="px-next" data-testid="popup-next">
+            <span className={pixelTitle.className}>Next ▶</span> {tool.next.text}
+          </div>
+        )}
         <div className="px-footer">
           <span>{tool.findings.some((f) => f.new) ? "★ New finding added to “What you know”" : "Nothing new since last time"}</span>
-          <button className={`px-btn ${pixelTitle.className}`} onClick={onClose} autoFocus>
-            Got it
-          </button>
+          <span className="px-footer__btns">
+            {tool.next && (
+              <button className={`px-btn px-btn--ghost ${pixelTitle.className}`} onClick={onClose}>
+                Stay
+              </button>
+            )}
+            <button
+              className={`px-btn ${pixelTitle.className}`}
+              data-testid="popup-go"
+              onClick={() => {
+                onClose();
+                tool.next?.onGo();
+              }}
+              autoFocus
+            >
+              {tool.next ? tool.next.label : "Got it"}
+            </button>
+          </span>
         </div>
       </m.div>
     </div>
@@ -146,7 +176,11 @@ function Dialogue({ tool }: { tool: ToolView }) {
       {tool.portrait && <img className="px-dialogue__face" src={tool.portrait} alt="" draggable={false} />}
       <div className="px-dialogue__speech">
         <span className="px-dialogue__name">{tool.label.split(" ")[0]} told you</span>
-        <Findings findings={tool.findings} prefix="»" />
+        {tool.findings.length ? (
+          <Findings findings={tool.findings} prefix="»" />
+        ) : (
+          <p className="px-dim">They&apos;ve already told you everything they know.</p>
+        )}
       </div>
     </div>
   );

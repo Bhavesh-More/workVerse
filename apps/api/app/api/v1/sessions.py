@@ -53,6 +53,13 @@ async def submit_action(
     )
 
 
+@router.post("/sessions/{session_id}/characters/{character_id}/skip")
+async def skip_character(principal: CurrentUser, repo: Repo, session_id: str, character_id: str) -> dict:
+    return await session_service.skip_character(
+        repo=repo, user_id=principal.user_id, session_id=session_id, character_id=character_id
+    )
+
+
 @router.post("/sessions/{session_id}/turns")
 async def submit_turn(
     principal: CurrentUser, repo: Repo, ai: AIDep, session_id: str, body: TurnRequest = Body(...)

@@ -117,3 +117,34 @@ def test_vague_reply_does_not_count_for_a_fact_with_numbers():
     assert not says_specifics(detail, "Impact is that checkout is failing for customers right now.")
     assert says_specifics(detail, "Roughly 24 percent of checkouts fail.")
     assert says_specifics("The release went out this morning.", "We shipped a release this morning.")
+
+
+def test_skip_hands_over_what_the_colleague_may_share(monkeypatch):
+    import asyncio
+
+    from app.services import session_service
+
+    bp = build_production_incident(seed=11, incident="base")
+    state = build_initial_state(bp, "v1")
+    logged = []
+
+    class Repo:
+        async def save_session_state(self, **kw):
+            return {"id": "s", "status": "active", "state_version": kw["new_version"]}
+
+    async def fake_load(*_a, **_k):
+        return {"id": "s", "status": "active", "state_version": state.state_version}, bp, state
+
+    async def log_events(_repo, _sid, _state, events, **_k):
+        logged.extend(events)
+        return []
+
+    monkeypatch.setattr(session_service, "_load", fake_load)
+    monkeypatch.setattr(session_service, "_persist_pending_events", log_events)
+    monkeypatch.setattr(session_service, "session_view", lambda *_a: {"ok": True})
+    res = asyncio.run(session_service.skip_character(repo=Repo(), user_id="u", session_id="s", character_id="manager"))
+    assert set(res["revealed"]) == {"f_business_impact", "f_reporting_deadline"}
+    assert all(e.payload.get("via") == "skipped" for e in logged if e.event_type == "fact_discovered")
+    assert character_done(bp, state, next(c for c in bp.characters if c.id == "manager"))
+    # Nothing left to hand over: no change, still answers.
+    assert asyncio.run(session_service.skip_character(repo=Repo(), user_id="u", session_id="s", character_id="manager"))["revealed"] == []

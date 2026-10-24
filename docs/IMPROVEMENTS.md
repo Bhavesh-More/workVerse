@@ -476,3 +476,15 @@ longer unlocks the 24% fact, its popup, or "has told you what they know". (`says
   `uv run python scripts/create_voice_agents.py` (and `ELEVENLABS_ACCOUNT=2 …`). Settings only, no credits.
 - **Arrow keys / space no longer scroll the page** while walking in the office (still work normally while typing
   in a field). `apps/web/game/office.ts`.
+
+## 30. Every "told you" box shows the next step; Skip button
+
+- **The dialogue box always routes you.** Under what the colleague told you there's now a yellow
+  **Next ▶** line (e.g. "Inspect application logs in the Engineering workspace. Follow the arrow."
+  or "Talk to Arjun, the teammate") and a button that does it: **Talk to Arjun** opens their chat,
+  **Go there** closes the box so you follow the arrow. In a voice call the button is **End call · …**
+  and hangs up first. **Stay** keeps you where you are.
+- **Skip ▶ what they know.** In the chat panel and in a voice call there's a skip button: the colleague
+  hands over everything they can share right now, the box shows it, and the Next line points you on.
+  Skips are logged as `via: "skipped"` (not "asked"), so the debrief can tell the difference.
+  API: `POST /v1/sessions/{id}/characters/{character_id}/skip`.
