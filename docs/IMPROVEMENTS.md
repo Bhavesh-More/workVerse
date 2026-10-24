@@ -318,3 +318,11 @@ were confused whether to answer or investigate.
   `apps/api/app/simulation/tracks.py`; list only the text that changes.
   `tests/test_incident_variants.py` checks that every type builds, passes validation and that each
   suggested question unlocks its clue.
+
+## 18. Faces match names and voices
+
+**Problem:** portraits were picked only by name, so some women had beards and some men had long hair,
+while the voice followed the name, e.g. a bearded "Aiko" speaking with a woman's voice.
+**Fix:** all 60 portraits were regenerated so the hairstyle and beard follow the same gender the voices use
+(`gender_of()` in `apps/api/app/simulation/tracks.py`). Men get short hairstyles (sometimes a beard); women
+get longer styles and no beard. To regenerate, see `apps/web/scripts/gen_portraits.mjs`.
