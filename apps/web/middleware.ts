@@ -6,7 +6,7 @@ const isPublicRoute = createRouteMatcher([
   "/login(.*)",
   "/signup(.*)",
   // Dev-only animation preview; the page itself 404s in production.
-  ...(process.env.NODE_ENV === "production" ? [] : ["/intro-preview", "/tool-preview"]),
+  ...(process.env.NODE_ENV === "production" ? [] : ["/intro-preview", "/tool-preview", "/office-preview"]),
 ]);
 
 export default clerkMiddleware(async (auth, req) => {
@@ -21,8 +21,9 @@ export default clerkMiddleware(async (auth, req) => {
 
 export const config = {
   matcher: [
-    // Skip Next internals and static files unless they are API/trpc routes.
-    "/((?!_next|[^?]*\\.(?:html?|css|js(?!on)|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest)).*)",
+    // Skip Next internals, public/assets (game data such as map/atlas JSON) and static files
+    // unless they are API/trpc routes. Assets must never be auth-gated or redirected.
+    "/((?!_next|assets/|[^?]*\\.(?:html?|css|js(?!on)|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest)).*)",
     "/(api|trpc)(.*)",
   ],
 };
