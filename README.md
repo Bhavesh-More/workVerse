@@ -17,7 +17,11 @@ This repository is a pnpm + Turborepo monorepo containing:
 - `supabase/` — SQL schema and migrations.
 - `infra/` — local MinIO compose file (optional).
 - `assets/` — the supplied art packs (Neko Office, PixelSerial RPG characters) and license.
-- `scripts/build_office_map.py` — deterministic generator for the office map layers.
+- `scripts/build_office_map.py` — deterministic generator for the office: baked floor/wall layers,
+  the prop atlas and `map.json` (collision, props, NPC/object slots). Art lives in
+  `scripts/office_art.py` (one palette, 16px tiles, exported at 2x so the engine never scales).
+- `scripts/build_characters.py` — recolours the PixelSerial bases into the gender-matched cast
+  (`player`, `m1`–`m5`, `f1`–`f5`) and packs the Neko cats as ambient pets.
 
 ## Architecture in one paragraph
 
