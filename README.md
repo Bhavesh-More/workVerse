@@ -66,6 +66,7 @@ used only as the PostgreSQL database, and internal profile rows are keyed by a `
    psql "$DATABASE_URL" -f supabase/migrations/0001_init.sql
    psql "$DATABASE_URL" -f supabase/migrations/0002_clerk_identity.sql
    psql "$DATABASE_URL" -f supabase/migrations/0003_voice_sessions.sql
+   psql "$DATABASE_URL" -f supabase/migrations/0004_company_assessments.sql
    ```
 
    Use a plain `postgresql://` URL (drop `+asyncpg`). The files are safe to re-run. If
@@ -112,6 +113,32 @@ The backend calls `https://ollama.com/v1` with a server-side Bearer token. The b
 validated at startup against an allow-list; `http://localhost:11434` and other local
 endpoints are rejected by configuration, and no code path falls back to local inference.
 Multiple keys in `OLLAMA_API_KEYS` rotate automatically when one is rate limited.
+
+## Company assessments
+
+Companies sign in at `/company/login` and run hiring rounds on top of the same simulation:
+
+- **Topics** — a title and description (or **Fill with sample**), plus optional role track, problem
+  and difficulty. The description becomes the candidate's brief.
+- **AI judges** — the five colleagues. Set company-wide defaults under *AI judges* and override them
+  per topic: tone, how demanding (1–5), what they probe for, opening line. Names are picked from the
+  existing cast so portraits and voices match. Settings are written into the scenario blueprint and
+  shape both chat and voice replies; judges a company hasn't touched behave exactly as before.
+- **Assessments & invites** — pick a topic, then invite candidates by typing, pasting a list or
+  uploading a CSV (`email` column, optional `name` or first/last name). Invites are emailed through
+  the company's SMTP server (Settings, with a test button) or the fallback `SMTP_*` settings.
+- **Candidates** open `/invite/<token>`, sign up or log in, and play. Their debrief notes that the
+  report is shared with the company.
+- **Results** — pipeline, recommendation bands, score distribution, skill averages, ranking, a
+  per-candidate report (skills vs group, evidence quotes, transcript), and **PDF** (written for HR:
+  summary, shortlist, charts, one page per candidate, glossary) and **CSV** exports.
+
+E2E: `pnpm --filter web exec playwright test e2e/company-assessment.spec.ts` (needs mailpit on
+127.0.0.1:1025/8025 in addition to web, api, database and Ollama).
+
+If the repo moves on disk, rebuild the Python env (`rm -rf apps/api/.venv && uv sync --all-groups`
+in `apps/api`): its launch scripts embed the old path and `uv run uvicorn` falls back to a global
+Python otherwise.
 
 ## Real-time voice
 
