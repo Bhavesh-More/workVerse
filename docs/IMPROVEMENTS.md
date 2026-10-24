@@ -437,3 +437,19 @@ has their role card, not the scenario facts. The facts reach them through the **
 (`/v1/voice/llm-bridge`), which needs a public URL to this API (e.g. ngrok) set as each agent's
 Custom LLM. Until that's connected, ask the voice colleague, then check the logs/tools, or use text
 chat for exact numbers.
+
+## 27. Shift complete: stats slideshow with victory music
+
+The end card is now a short slideshow in the intro's style:
+1. **SHIFT COMPLETE** slams in with a trumpet fanfare and timpani hit, then shrinks into a header.
+2. One stat at a time, each slides in with a slash wipe and a trumpet call, stays about 3.6 seconds, then moves on:
+   - **Mission cleared**: ring chart of objectives done, with the list ticking in.
+   - **Clues found**: big count-up plus each fact stamped in as a tag.
+   - **Who you talked to**: skewed bars per colleague (portrait + how many times you spoke to them, typed or voice).
+   - **Time on shift**: minutes:seconds count-up.
+3. **Finale**: team cards fan in, fanfare again, **INCIDENT RESOLVED** stamp.
+
+Music switches to a new bright "victory" march (C major) for the whole card. **Next →** / Enter / → skips
+to the next slide; Esc or **See your debrief →** leaves at any time. Dots under the chart show where you are.
+Sounds and music are synthesized in `apps/web/lib/sfx.ts` (cues `fanfare`, `trumpet`; mood `victory`), no audio files.
+Preview: `http://localhost:3000/intro-preview?end=1`.

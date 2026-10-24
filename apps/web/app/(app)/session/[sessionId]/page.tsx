@@ -44,6 +44,20 @@ function statusBadge(status: string) {
   return "badge";
 }
 
+/** Numbers for the end-of-shift slideshow, from what the page already has. */
+function shiftStats(session: SessionView, messages: TranscriptMessage[]) {
+  const talks = new Map<string, number>();
+  for (const msg of messages) {
+    if (msg.speaker_type === "learner" && msg.character_id) talks.set(msg.character_id, (talks.get(msg.character_id) ?? 0) + 1);
+  }
+  const first = messages.find((msg) => msg.created_at)?.created_at;
+  return {
+    facts: session.facts_known,
+    talks: [...talks].map(([id, count]) => ({ id, count })),
+    seconds: first ? Math.max(0, Math.round((Date.now() - Date.parse(first)) / 1000)) : 0,
+  };
+}
+
 export default function SessionPage() {
   const params = useParams<{ sessionId: string }>();
   const sessionId = params.sessionId;
@@ -610,6 +624,7 @@ export default function SessionPage() {
           characters={characters}
           objectives={session.objectives}
           title={String(incident.summary ?? "")}
+          stats={shiftStats(session, messages)}
           onDone={() => router.push(`/session/${sessionId}/debrief`)}
         />
       )}

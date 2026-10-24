@@ -88,6 +88,29 @@ const SOUNDS = {
     { f: 659, at: 0.12, len: 0.5, wave: "square", vol: 0.03 },
     { f: 784, at: 0.12, len: 0.5, wave: "square", vol: 0.03 },
   ],
+  // Victory: trumpet fanfare (detuned saw + square = brassy), timpani on the big note.
+  fanfare: [
+    { f: 392, at: 0.0, len: 0.1, wave: "sawtooth", vol: 0.05 },
+    { f: 393.6, at: 0.0, len: 0.1, wave: "square", vol: 0.03 },
+    { f: 392, at: 0.13, len: 0.1, wave: "sawtooth", vol: 0.05 },
+    { f: 393.6, at: 0.13, len: 0.1, wave: "square", vol: 0.03 },
+    { f: 392, at: 0.26, len: 0.1, wave: "sawtooth", vol: 0.05 },
+    { f: 393.6, at: 0.26, len: 0.1, wave: "square", vol: 0.03 },
+    { f: 523.3, at: 0.42, len: 0.7, wave: "sawtooth", vol: 0.06 },
+    { f: 525.4, at: 0.42, len: 0.7, wave: "square", vol: 0.036 },
+    { f: 659.3, at: 0.42, len: 0.7, wave: "sawtooth", vol: 0.04 },
+    { f: 661.9, at: 0.42, len: 0.7, wave: "square", vol: 0.024 },
+    { f: 784, at: 0.42, len: 0.7, wave: "sawtooth", vol: 0.035 },
+    { f: 787.1, at: 0.42, len: 0.7, wave: "square", vol: 0.021 },
+    { f: 110, to: 40, at: 0.42, len: 0.4, wave: "sine", vol: 0.3 },
+  ],
+  // Short trumpet call for each stat slide.
+  trumpet: [
+    { f: 523.3, at: 0, len: 0.08, wave: "sawtooth", vol: 0.05 },
+    { f: 525.4, at: 0, len: 0.08, wave: "square", vol: 0.03 },
+    { f: 784, at: 0.1, len: 0.22, wave: "sawtooth", vol: 0.05 },
+    { f: 787.1, at: 0.1, len: 0.22, wave: "square", vol: 0.03 },
+  ],
 } satisfies Record<string, Note[]>;
 
 export type Cue = keyof typeof SOUNDS;
@@ -223,7 +246,7 @@ export function cueFor(el: Element): Cue | null {
 // ---- Background music ----------------------------------------------------------------------
 // A chiptune loop scheduled a little ahead of time: pad + arpeggio + bass + drums, 8 steps a bar.
 // "calm" (lo-fi, menus and reports) and "focus" (driving minor groove with a lead, during incidents).
-export type Mood = "calm" | "focus" | "intro";
+export type Mood = "calm" | "focus" | "intro" | "victory";
 
 type Groove = {
   bpm: number;
@@ -288,6 +311,25 @@ const GROOVES: Record<Mood, Groove> = {
     leadAlways: true,
     vol: 0.2,
   },
+  // Shift complete: bright C major I-IV-V-I march, brassy saw arpeggio, triumphant lead every pass.
+  victory: {
+    bpm: 128,
+    chords: [[C4, E4, G4], [F3, A3, C4], [G3, B3, D4], [C4, E4, G4]],
+    arp: [0, 1, 2, 1, 0, 1, 2, 2],
+    arpWave: "sawtooth",
+    bass: [0, 2, 4, 6],
+    kick: [0, 4],
+    snare: [2, 6],
+    hat: [0, 1, 2, 3, 4, 5, 6, 7],
+    lead: [
+      [G4 * 2, 0, G4 * 2, 0, C5 * 2, 0, 0, 0],
+      [A4 * 2, 0, C5 * 2, 0, A4 * 2, 0, F4 * 2, 0],
+      [G4 * 2, 0, B3 * 4, 0, D5 * 2, 0, B3 * 4, 0],
+      [C5 * 2, 0, 0, 0, G4 * 2, 0, C5 * 2, 0],
+    ],
+    leadAlways: true,
+    vol: 0.18,
+  },
 };
 const MUSIC_VOL = 0.09;
 
@@ -330,7 +372,7 @@ function playLoop(mood: Mood): void {
     if (!ac) return;
     const soften = ac.createBiquadFilter();
     soften.type = "lowpass";
-    soften.frequency.value = mood === "calm" ? 2200 : mood === "intro" ? 5200 : 3600;
+    soften.frequency.value = mood === "calm" ? 2200 : mood === "intro" || mood === "victory" ? 5200 : 3600;
     const g = GROOVES[mood];
     const vol = g.vol ?? MUSIC_VOL;
     const out = ac.createGain();

@@ -12,6 +12,16 @@ const END_OBJECTIVES = ["Establish the impact", "Investigate evidence", "Identif
   (label, i) => ({ id: `o${i}`, label, status: "completed", required: true }),
 );
 
+const END_STATS = {
+  facts: ["Checkout errors after the release", "Migration ran at 14:02", "Schema change is not backward compatible", "Revenue at risk", "Status update due 16:00"].map((label, i) => ({ id: `f${i}`, label })),
+  talks: [
+    { id: "manager", count: 6 },
+    { id: "teammate", count: 9 },
+    { id: "qa", count: 3 },
+  ],
+  seconds: 754,
+};
+
 export default function IntroPreview() {
   const [key, setKey] = useState(0);
   const [end, setEnd] = useState(false);
@@ -24,7 +34,7 @@ export default function IntroPreview() {
       </button>
       {/* ?end=1 previews the "Shift complete" end card instead. */}
       {end ? (
-        <ShiftComplete key={key} characters={mock.characters as WorldCharacter[]} title={mock.title} objectives={END_OBJECTIVES} onDone={() => {}} />
+        <ShiftComplete key={key} characters={mock.characters as WorldCharacter[]} title={mock.title} objectives={END_OBJECTIVES} stats={END_STATS} onDone={() => {}} />
       ) : (
         <TeamIntro key={key} characters={mock.characters as WorldCharacter[]} title={mock.title} onDone={() => {}} />
       )}

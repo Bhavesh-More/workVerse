@@ -2583,6 +2583,81 @@ blockquote {
   border: 2px solid var(--color-paper);
 }
 .sc__team { transform: scale(0.82); margin: -14px 0; }
+/* Stats slideshow: the title shrinks into a header while one chart at a time slides through. */
+.sc__title { transition: font-size 0.35s cubic-bezier(0.23, 1, 0.32, 1); }
+.sc__title.is-small { font-size: clamp(26px, 4vw, 48px); }
+.sc-slide, .sc-finale { display: grid; justify-items: center; gap: 14px; min-height: 340px; align-content: center; }
+.sc-slide__kicker {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--color-paper);
+  opacity: 0.75;
+}
+.sc-slide__title {
+  margin: 0;
+  padding: 4px 18px;
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: clamp(30px, 5vw, 64px);
+  line-height: 1;
+  background: var(--color-ember);
+  color: var(--color-ink);
+  box-shadow: 6px 6px 0 var(--color-ink);
+}
+.sc-slide__note { font-family: var(--font-mono); font-size: 13px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--color-paper); }
+.sc-chart { color: var(--color-paper); }
+.sc-ring { display: flex; align-items: center; gap: 28px; flex-wrap: wrap; justify-content: center; position: relative; }
+.sc-ring svg { transform: rotate(-90deg); }
+.sc-ring__track { fill: none; stroke: rgba(255, 255, 255, 0.14); stroke-width: 16; }
+.sc-ring__fill { fill: none; stroke: var(--color-highlight-yellow); stroke-width: 16; }
+.sc-ring__center {
+  position: absolute;
+  left: 0;
+  width: 180px;
+  height: 180px;
+  display: grid;
+  place-content: center;
+  text-align: center;
+  font-family: var(--font-mono);
+  text-transform: uppercase;
+  font-size: 12px;
+}
+.sc-ring__center strong, .sc-big {
+  font-family: var(--font-display);
+  font-weight: 500;
+  color: var(--color-highlight-yellow);
+  text-shadow: 4px 4px 0 var(--color-ember);
+  line-height: 1;
+}
+.sc-ring__center strong { font-size: 64px; }
+.sc-big { font-size: clamp(72px, 12vw, 150px); }
+.sc-clues { display: grid; justify-items: center; gap: 14px; }
+.sc-tags { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; max-width: 640px; }
+.sc-tags li {
+  padding: 6px 12px;
+  background: var(--color-paper);
+  color: var(--color-ink);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  box-shadow: 3px 3px 0 var(--color-ember);
+}
+.sc-talks { width: min(520px, 90vw); max-width: none; gap: 12px; }
+.sc-talks li { grid-template-columns: 120px 1fr 36px; }
+.sc-talks__who { display: flex; align-items: center; gap: 8px; }
+.sc-talks__who img { width: 30px; height: 30px; border-radius: 50%; background: var(--color-highlight-yellow); }
+.sc-dots { display: flex; gap: 6px; }
+.sc-dots i { width: 22px; height: 4px; background: rgba(255, 255, 255, 0.2); transform: skewX(-20deg); transition: background-color 0.2s ease; }
+.sc-dots i.is-past { background: var(--color-ember); }
+.sc-dots i.is-on { background: var(--color-highlight-yellow); }
+@media (max-width: 520px) {
+  .sc-ring { flex-direction: column; }
+  .sc-ring__center { left: 50%; top: 0; transform: translateX(-50%); }
+  .sc-talks li { grid-template-columns: 90px 1fr 30px; }
+}
 @media (max-width: 760px) {
   .sc__team { display: none; }
   .sc__objectives { font-size: 12px; }
