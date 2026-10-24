@@ -396,14 +396,14 @@ def _slug(s: str) -> str:
     return re.sub(r"[^a-z0-9]+", "-", s.lower()).strip("-")[:60] or "assessment"
 
 
-@router.get("/company/assessments/{assessment_id}/report.csv")
-async def report_csv(principal: CurrentUser, crepo: CRepo, assessment_id: str) -> Response:
-    _, a, rows, _ = await _assessment_bundle(principal, crepo, assessment_id)
+def _csv_response(rows: list[dict[str, Any]], filename: str, *, with_assessment: bool = False) -> Response:
+    """Results as CSV, best score first; `with_assessment` adds which round each row came from."""
     buf = io.StringIO()
     w = csv.writer(buf)
     skill_names = [n for n, _ in analytics.SKILLS.values()]
     w.writerow(
-        ["Rank", "Name", "Email", "Status", "Overall score (0-100)", "Band", "Suggested next step", *[f"{n} (0-100)" for n in skill_names],
+        ["Rank", *(["Assessment"] if with_assessment else []), "Name", "Email", "Status", "Overall score (0-100)", "Band", "Suggested next step",
+         *[f"{n} (0-100)" for n in skill_names],
          "Strengths", "Areas to probe", "Summary", "Minutes", "Messages", "Questions %", "Avg words per message", "Key checks done", "Invited at", "Completed at"]
     )
     ordered = sorted(rows, key=lambda r: (r["score"] is None, -(r["score"] or 0)))
@@ -412,6 +412,7 @@ async def report_csv(principal: CurrentUser, crepo: CRepo, assessment_id: str) -
         w.writerow(
             [
                 i if r["score"] is not None else "",
+                *([r["assessment_title"]] if with_assessment else []),
                 r["name"],
                 r["email"],
                 r["status_label"],
@@ -433,9 +434,62 @@ async def report_csv(principal: CurrentUser, crepo: CRepo, assessment_id: str) -
         )
     # BOM so Excel opens UTF-8 names correctly.
     return Response(
-        content="﻿" + buf.getvalue(),
+        content="\ufeff" + buf.getvalue(),
         media_type="text/csv; charset=utf-8",
-        headers={"Content-Disposition": f'attachment; filename="{_slug(a["title"])}-results.csv"'},
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@router.get("/company/assessments/{assessment_id}/report.csv")
+async def report_csv(principal: CurrentUser, crepo: CRepo, assessment_id: str) -> Response:
+    _, a, rows, _ = await _assessment_bundle(principal, crepo, assessment_id)
+    return _csv_response(rows, f"{_slug(a['title'])}-results.csv")
+
+
+async def _all_candidates(principal: Any, crepo: CompanyRepository) -> tuple[dict, list[dict[str, Any]]]:
+    """Everyone invited to any of the company's assessments, tagged with the assessment."""
+    company = await _company(principal, crepo)
+    rows: list[dict[str, Any]] = []
+    for a in await crepo.list_assessments(str(company["id"])):
+        aid = str(a["id"])
+        for r in analytics.candidates(await crepo.list_invites(aid), await crepo.invite_item_scores(aid)):
+            rows.append({**r, "assessment_id": aid, "assessment_title": a["title"], "topic_title": a["topic_title"]})
+    return company, rows
+
+
+@router.get("/company/candidates")
+async def all_candidates(principal: CurrentUser, crepo: CRepo) -> dict:
+    _, rows = await _all_candidates(principal, crepo)
+    return {
+        "candidates": rows,
+        "summary": analytics.summary(rows),
+        "skills": [{"id": k, "name": n, "description": d} for k, (n, d) in analytics.SKILLS.items()],
+    }
+
+
+@router.get("/company/candidates.csv")
+async def all_candidates_csv(principal: CurrentUser, crepo: CRepo) -> Response:
+    company, rows = await _all_candidates(principal, crepo)
+    return _csv_response(rows, f"{_slug(company['name'])}-all-candidates.csv", with_assessment=True)
+
+
+@router.get("/company/candidates.pdf")
+async def all_candidates_pdf(principal: CurrentUser, crepo: CRepo) -> Response:
+    import asyncio
+
+    company, rows = await _all_candidates(principal, crepo)
+    rounds = len({r["assessment_id"] for r in rows})
+    pdf = await asyncio.to_thread(
+        build_pdf,
+        company=company["name"],
+        assessment={"title": "All candidates", "topic_title": f"{rounds} assessment{'s' if rounds != 1 else ''}"},
+        rows=rows,
+        sm=analytics.summary(rows),
+    )
+    return Response(
+        content=pdf,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{_slug(company["name"])}-all-candidates.pdf"'},
     )
 
 

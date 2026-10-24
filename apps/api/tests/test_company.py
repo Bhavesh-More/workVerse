@@ -104,3 +104,14 @@ def test_pdf_builds():
     rows = analytics.candidates(_invites(), _items())
     pdf = build_pdf(company="Acme", assessment={"title": "Round 1", "topic_title": "On-call"}, rows=rows, sm=analytics.summary(rows))
     assert pdf[:4] == b"%PDF" and len(pdf) > 10_000
+
+
+def test_csv_ranks_and_tags_assessment():
+    from app.api.v1.company import _csv_response
+
+    rows = [{**r, "assessment_title": "Round 1"} for r in analytics.candidates(_invites(), _items())]
+    body = _csv_response(rows, "x.csv", with_assessment=True).body.decode("utf-8").lstrip("﻿").splitlines()
+    assert body[0].startswith("Rank,Assessment,Name,Email")
+    assert body[1].startswith("1,Round 1,a,a@x.com,Completed,85")
+    assert body[2].startswith("2,Round 1,b,b@x.com")
+    assert len(body) == 5

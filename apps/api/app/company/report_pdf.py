@@ -284,7 +284,8 @@ def build_pdf(*, company: str, assessment: dict[str, Any], rows: list[dict[str, 
         data.append(
             [
                 Paragraph(str(i) if r["score"] is not None else "", S["cell"]),
-                Paragraph(f"<b>{_esc(r['name'])}</b><br/><font size=6.5 color='{MUTED}'>{_esc(r['email'])}</font>", S["cell"]),
+                Paragraph(f"<b>{_esc(r['name'])}</b><br/><font size=6.5 color='{MUTED}'>{_esc(r['email'])}</font>"
+                          + (f"<br/><font size=6.5>{_esc(r['assessment_title'])}</font>" if r.get("assessment_title") else ""), S["cell"]),
                 Paragraph(_esc(r["status_label"]), S["cell"]),
                 Paragraph(f"<b>{r['score']:g}</b>" if r["score"] is not None else "—", S["cell"]),
                 Paragraph(_band_pill((r["band"] or {}).get("label")), S["cell"]),
@@ -304,7 +305,7 @@ def build_pdf(*, company: str, assessment: dict[str, Any], rows: list[dict[str, 
         b = r["band"] or {}
         header = Table(
             [[
-                [Paragraph("CANDIDATE", S["eyebrow"]), Paragraph(_esc(r["name"]), S["h1"]), Paragraph(_esc(r["email"]), S["muted"])],
+                [Paragraph("CANDIDATE", S["eyebrow"]), Paragraph(_esc(r["name"]), S["h1"]), Paragraph(_esc(r["email"]) + (f" · {_esc(r['assessment_title'])}" if r.get("assessment_title") else ""), S["muted"])],
                 [Paragraph("OVERALL", S["kpil"]), Paragraph(f"{r['score']:g}<font size=11 color='{MUTED}'> /100</font>" if r["score"] is not None else "—", S["kpi"]), Paragraph(_band_pill(b.get("label")), S["body"])],
             ]],
             colWidths=[CONTENT_W - 48 * mm, 48 * mm],
