@@ -48,6 +48,7 @@ def _company_view(c: dict[str, Any]) -> dict[str, Any]:
         "name": c["name"],
         "smtp": mailer.public_smtp(c.get("smtp")),
         "judge_defaults": c.get("judge_defaults") or {},
+        "world_mode": c.get("world_mode"),
         "created_at": c["created_at"].isoformat(),
     }
 

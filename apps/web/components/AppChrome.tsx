@@ -15,7 +15,8 @@ export function AppChrome({ children }: { children: ReactNode }) {
     pathname.startsWith("/company/login") ||
     pathname.startsWith("/company/signup") ||
     pathname.startsWith("/invite");
-  const isSimulation = pathname.startsWith("/session/") && !pathname.endsWith("/debrief");
+  const isSimulation =
+    (pathname.startsWith("/session/") && !pathname.endsWith("/debrief")) || pathname.startsWith("/company/workplace/editor");
 
   return (
     <>

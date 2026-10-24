@@ -22,6 +22,7 @@ const COMPANY_NAV = [
   { href: "/company", label: "Overview", icon: "grid" },
   { href: "/company/assessments", label: "Assessments", icon: "mail" },
   { href: "/company/candidates", label: "Candidates", icon: "user" },
+  { href: "/company/workplace", label: "Workplace", icon: "map" },
   { href: "/company/topics", label: "Topics", icon: "target" },
   { href: "/company/judges", label: "AI judges", icon: "users" },
   { href: "/company/settings", label: "Settings", icon: "sliders" },
@@ -64,6 +65,13 @@ function Icon({ name }: { name: string }) {
       <svg {...common} aria-hidden="true">
         <circle cx="12" cy="12" r="9" />
         <path d="M12 7v5l3 2" />
+      </svg>
+    );
+  if (name === "map")
+    return (
+      <svg {...common} aria-hidden="true">
+        <rect x="3" y="3" width="18" height="18" rx="2" />
+        <path d="M3 10h8V3M11 10v11M11 15h10" />
       </svg>
     );
   if (name === "mail")

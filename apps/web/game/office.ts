@@ -6,6 +6,9 @@ import {
   type RouteTarget,
 } from "./navigation";
 import { buildNavGrid, findPath, nearestWalkable, smoothPath, toWorldPoints, type NavGrid } from "./pathfinding";
+import { drawGround, drawWalls } from "../lib/world/render";
+import { KIT } from "../lib/world/kit";
+import type { CompiledWorld } from "../lib/world/types";
 
 // World units: art is authored on a 16px grid and exported at 2x by scripts/build_*.py, so one
 // tile is 32 world px and every image is drawn 1:1 (no sprite is ever scaled in the engine).
@@ -45,6 +48,8 @@ export type OfficeOptions = {
   onNavigationStatus?: (status: NavigationStatus) => void;
   onReady: () => void;
   isLocked?: () => boolean;
+  /** A company-built office. Without it the default office (baked map) is used. */
+  map?: CompiledWorld | null;
 };
 
 type ObjectSlot = {
@@ -171,10 +176,16 @@ export function createOfficeGame(parent: HTMLElement, options: OfficeOptions): P
     }
 
     preload() {
-      this.load.image("ground", "/assets/game/map/ground.png");
-      this.load.image("walls", "/assets/game/map/walls.png");
-      this.load.atlas("props", "/assets/game/map/props.png", "/assets/game/map/props.json");
-      this.load.json("mapmeta", "/assets/game/map/map.json");
+      if (options.map) {
+        // Custom world: floors and walls are assembled from the kit at create time.
+        this.load.image("kit_tiles", "/assets/game/kit/tiles.png");
+        this.load.atlas("props", "/assets/game/kit/props.png", "/assets/game/kit/props.json");
+      } else {
+        this.load.image("ground", "/assets/game/map/ground.png");
+        this.load.image("walls", "/assets/game/map/walls.png");
+        this.load.atlas("props", "/assets/game/map/props.png", "/assets/game/map/props.json");
+        this.load.json("mapmeta", "/assets/game/map/map.json");
+      }
       for (const key of [CAST.player, ...CAST.male, ...CAST.female]) {
         this.load.spritesheet(key, `/assets/game/chars/${key}.png`, {
           frameWidth: CHAR_FRAME,
@@ -190,8 +201,8 @@ export function createOfficeGame(parent: HTMLElement, options: OfficeOptions): P
     }
 
     create() {
-      this.meta = this.cache.json.get("mapmeta") as MapMeta;
-      if (!this.meta?.collision || !this.textures.exists("props")) {
+      this.meta = options.map ? (options.map as unknown as MapMeta) : (this.cache.json.get("mapmeta") as MapMeta);
+      if (!this.meta?.collision || !this.textures.exists("props") || (options.map && !this.textures.exists("kit_tiles"))) {
         // A failed asset load (e.g. an HTML page served instead of JSON) must not crash the scene.
         console.error("Office map assets failed to load (map.json / props atlas).");
         return;
@@ -199,8 +210,11 @@ export function createOfficeGame(parent: HTMLElement, options: OfficeOptions): P
       const worldW = this.meta.width * TILE;
       const worldH = this.meta.height * TILE;
 
-      this.add.image(0, 0, "ground").setOrigin(0, 0).setDepth(DEPTH_GROUND);
-      this.add.image(0, 0, "walls").setOrigin(0, 0).setDepth(DEPTH_WALLS);
+      if (options.map) this.buildCustomLayers(options.map);
+      else {
+        this.add.image(0, 0, "ground").setOrigin(0, 0).setDepth(DEPTH_GROUND);
+        this.add.image(0, 0, "walls").setOrigin(0, 0).setDepth(DEPTH_WALLS);
+      }
       // Free-standing furniture is y-sorted with characters by its base line.
       for (const p of this.meta.props) {
         this.add.image(p.x, p.y, "props", p.f).setOrigin(0, 0).setDepth(p.d);
@@ -213,6 +227,7 @@ export function createOfficeGame(parent: HTMLElement, options: OfficeOptions): P
       this.buildInteractables();
       this.buildPlayer();
       this.buildPets();
+      if (options.map) this.buildMembers(options.map);
 
       this.navGrid = buildNavGrid(this.meta.collision);
       this.nav = new NavigationOverlay(this, this.navGrid, TILE, (status) =>
@@ -265,6 +280,42 @@ export function createOfficeGame(parent: HTMLElement, options: OfficeOptions): P
         (window as unknown as { __officeScene?: Phaser.Scene }).__officeScene = this;
       }
       options.onReady();
+    }
+
+    /** Custom world: draw floors and walls from the kit once into two textures (1:1 pixels),
+     * plus the wall-mounted pieces that aren't interactive objects. */
+    private buildCustomLayers(map: CompiledWorld) {
+      const src = this.textures.get("kit_tiles").getSourceImage() as HTMLImageElement;
+      for (const [key, depth, paint] of [
+        ["custom_ground", DEPTH_GROUND, drawGround],
+        ["custom_walls", DEPTH_WALLS, drawWalls],
+      ] as const) {
+        if (this.textures.exists(key)) this.textures.remove(key);
+        const tex = this.textures.createCanvas(key, map.width * TILE, map.height * TILE)!;
+        const ctx = tex.getContext();
+        ctx.imageSmoothingEnabled = false;
+        paint(ctx, map, src, KIT.tiles);
+        tex.refresh();
+        this.add.image(0, 0, key).setOrigin(0, 0).setDepth(depth);
+      }
+      const interactiveFrames = new Set(Object.values(map.object_slots).map((s) => s.frame));
+      for (const m of map.mounted) {
+        if (interactiveFrames.has(m.f)) continue;
+        this.add.image(m.x, m.y, "props", m.f).setOrigin(0, 0).setDepth(DEPTH_WALLS + 1);
+      }
+    }
+
+    /** Team members the company placed: ambient colleagues with a name tag (not interactive). */
+    private buildMembers(map: CompiledWorld) {
+      for (const m of map.members) {
+        const tex = this.textures.exists(m.look) ? m.look : CAST.male[0]!;
+        const x = m.x * TILE + TILE / 2;
+        const y = m.y * TILE + TILE - 2;
+        const sprite = this.add.sprite(x, y, tex, 0).setOrigin(0.5, 1).setDepth(y);
+        sprite.anims.play({ key: `${tex}-idle-${m.face}`, startFrame: hash(m.id) % 4 }, true);
+        this.colliders.add(this.add.rectangle(x, y - 5, 20, 10, 0, 0));
+        this.nameTag(x, y - 44, m.title ? `${m.name} · ${m.title}` : m.name);
+      }
     }
 
     /** Largest half-step zoom that still shows a comfortable slice of the office. */

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, type FormEvent, type ReactNode } from "react";
+import { useRouter } from "next/navigation";
 import { FormError } from "./AuthShell";
 import { companyApi, type Company } from "../lib/company";
 import { useApi } from "../lib/useApi";
@@ -8,6 +9,7 @@ import { useApi } from "../lib/useApi";
 /** Renders children once the signed-in user has a company; otherwise the one-field setup form. */
 export function CompanyGate({ children }: { children: (company: Company, refresh: (c: Company) => void) => ReactNode }) {
   const { data, error, setData } = useApi("/company", companyApi.get);
+  const router = useRouter();
   const [name, setName] = useState("");
   const [busy, setBusy] = useState(false);
   const [formError, setFormError] = useState<string | null>(null);
@@ -27,6 +29,8 @@ export function CompanyGate({ children }: { children: (company: Company, refresh
     setFormError(null);
     try {
       setData(await companyApi.create(name.trim()));
+      // New company: next comes choosing its virtual workplace.
+      router.push("/company/workplace/setup");
     } catch (err) {
       setFormError(err instanceof Error ? err.message : "Could not create the company.");
       setBusy(false);
