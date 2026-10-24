@@ -223,7 +223,7 @@ export function WorldEditor({ initial, version, members, judgeNames, publishedVe
       </header>
 
       {save.status === "conflict" && (
-        <div className="we-conflict" role="alert">
+        <div className="we-conflict" role="alert" data-testid="conflict-banner">
           <span>{save.error} Your changes here aren&apos;t saved.</span>
           <button className="btn btn--small" onClick={reloadLatest}>Load latest</button>
           <button className="btn btn--ghost btn--small" onClick={overwrite}>Keep mine (overwrite)</button>
