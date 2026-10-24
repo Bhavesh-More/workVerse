@@ -8,6 +8,21 @@ import { RoomImage } from "../../../components/Snap";
 import { FormError } from "../../../components/AuthShell";
 import { api } from "../../../lib/api";
 import { useApi } from "../../../lib/useApi";
+import type { ScenarioSpec } from "../../../lib/types";
+import { builtLabel } from "../../../components/ContextBuilder";
+
+const SPEC_KIND: Record<ScenarioSpec["kind"], string> = {
+  major: "Core to your role",
+  custom: "Your situation",
+  stretch: "Stretch",
+};
+const FOCUS_LABEL: Record<string, string> = {
+  diagnosis: "Diagnosis",
+  risk_decision: "Risk-aware decisions",
+  communication: "Communication",
+  ownership: "Ownership",
+  adaptation: "Adaptation",
+};
 
 const container = { hidden: {}, show: { transition: { staggerChildren: 0.07 } } };
 const item = {
@@ -25,6 +40,7 @@ export default function ScenariosPage() {
   const router = useRouter();
   const { data: templateList, error: loadError, setData: setTemplateList } = useApi("/scenario-templates", api.listTemplates);
   const { data: sessionList } = useApi("/sessions", api.listSessions);
+  const { data: ctx, setData: setCtx } = useApi("/me/context", api.getContext);
   const templates = templateList?.items ?? (loadError ? [] : null);
   const sessions = sessionList?.items ?? [];
   const [difficulty, setDifficulty] = useState("standard");
@@ -59,6 +75,30 @@ export default function ScenariosPage() {
       router.push(`/briefing/${instance.scenario_instance_id}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not create the scenario.");
+      setBusy(null);
+    }
+  }
+
+  async function startSpec(spec: ScenarioSpec) {
+    setBusy(spec.id);
+    setError(null);
+    try {
+      const instance = await api.createInstance({ template_slug: spec.template_slug, spec_id: spec.id, mode: "quick" });
+      router.push(`/briefing/${instance.scenario_instance_id}`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not create the scenario.");
+      setBusy(null);
+    }
+  }
+
+  async function refreshPlan() {
+    setBusy("plan");
+    setError(null);
+    try {
+      setCtx(await api.buildContext());
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not update your scenarios.");
+    } finally {
       setBusy(null);
     }
   }
@@ -107,6 +147,72 @@ export default function ScenariosPage() {
           </div>
         )}
 
+        {ctx && (
+          <m.section variants={item} style={{ marginBottom: 48 }} aria-labelledby="made-for-you">
+            <div className="row between" style={{ marginBottom: 12, alignItems: "flex-end" }}>
+              <div>
+                <h2 id="made-for-you" className="section-title">
+                  Made for you
+                </h2>
+                <p className="xsmall muted" style={{ marginTop: 6 }}>
+                  {ctx.status === "empty"
+                    ? "Add your CV, GitHub or LinkedIn and we'll build scenarios around your background."
+                    : ctx.context?.headline
+                      ? `Built for: ${ctx.context.headline}. ${builtLabel(ctx)}`
+                      : builtLabel(ctx)}
+                </p>
+              </div>
+              {ctx.status === "empty" ? (
+                <Link className="btn btn--small" href="/profile">
+                  Build my context
+                </Link>
+              ) : (
+                ctx.status === "stale" && (
+                  <button className="btn btn--small" onClick={refreshPlan} disabled={busy !== null}>
+                    {busy === "plan" ? <span className="busy-dots">Updating</span> : "Update my scenarios"}
+                  </button>
+                )
+              )}
+            </div>
+            <div className="grid-2">
+              {ctx.scenarios.map((s) => (
+                <article key={s.id} className="card card--lift stack stack--sm" data-testid="personal-scenario">
+                  <div className="row between" style={{ alignItems: "flex-start", gap: 8 }}>
+                    <span className={s.kind === "custom" ? "badge badge--active" : s.kind === "stretch" ? "badge badge--warn" : "badge"}>
+                      {SPEC_KIND[s.kind]}
+                    </span>
+                    <span className="badge">{s.difficulty}</span>
+                  </div>
+                  <h3 className="section-title">{s.title}</h3>
+                  <p className="xsmall muted">
+                    {s.track_label} at <strong>{s.company}</strong>, {s.product}
+                  </p>
+                  {s.story && <p className="small">{s.story}</p>}
+                  {s.why && <p className="small muted">{s.why}</p>}
+                  {s.kind === "custom" && ctx.custom_note && <p className="xsmall muted">{ctx.custom_note}</p>}
+                  <div className="chip-row">
+                    {s.focus.map((f) => (
+                      <span key={f} className="badge">
+                        {FOCUS_LABEL[f] ?? f}
+                      </span>
+                    ))}
+                  </div>
+                  <div>
+                    <button className="btn" onClick={() => startSpec(s)} disabled={busy !== null}>
+                      {busy === s.id ? <span className="busy-dots">Preparing</span> : "Start"}
+                    </button>
+                  </div>
+                </article>
+              ))}
+            </div>
+          </m.section>
+        )}
+
+        {ctx && ctx.scenarios.length > 0 && (
+          <h2 className="section-title" style={{ marginBottom: 12 }}>
+            Scenario library
+          </h2>
+        )}
         <div className="grid-2">
           {templates === null &&
             [0, 1].map((i) => <div key={i} className="skeleton" style={{ height: 380 }} aria-hidden="true" />)}

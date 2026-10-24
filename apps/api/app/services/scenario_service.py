@@ -11,6 +11,7 @@ from app.agents.ollama_cloud import OllamaCloudClient
 from app.agents.role_cards import NEEDS_FROM_LEARNER
 from app.core.errors import NotFoundError, ValidationAppError
 from app.db.repository import Repository
+from app.schemas.context import ScenarioSpec
 from app.schemas.runtime import SimulationState
 from app.schemas.scenario import ActionDefinition, ScenarioBlueprint
 from app.simulation.engine import is_action_available
@@ -174,9 +175,11 @@ def _build_blueprint(
     variation_request: str,
     profile_goals: list[str] | None,
     incident: str | None = None,
+    track: str | None = None,
 ) -> ScenarioBlueprint:
     return build_production_incident(
         incident=incident,
+        track=track,
         seed=seed,
         difficulty=difficulty,
         mode=mode,
@@ -198,7 +201,24 @@ async def create_instance(
     learning_objectives: list[str] | None = None,
     variation_request: str = "",
     incident: str | None = None,
+    spec: ScenarioSpec | None = None,
 ) -> dict[str, Any]:
+    """Generate and store a validated scenario version.
+
+    With a ``spec`` (one entry of the learner's personalised plan) the spec decides the track,
+    incident, difficulty, focus skills and story; otherwise they come from the request.
+    """
+    track: str | None = None
+    if spec is not None:
+        template_slug, incident, difficulty, track = (
+            spec.template_slug,
+            spec.incident,
+            spec.difficulty,
+            spec.track,
+        )
+        learning_objectives = list(spec.focus)
+        if spec.kind == "custom":
+            variation_request = variation_request or spec.why
     template = await repo.get_template_by_slug(template_slug)
     if template is None:
         await ensure_seed_templates(repo)
@@ -220,11 +240,18 @@ async def create_instance(
         variation_request=variation_request,
         profile_goals=profile_goals,
         incident=incident,
+        track=track,
     )
 
     # The incident mechanics stay deterministic (and validated); Ollama only writes a short,
     # profile-aware story around them, and the session starts without it if it's slow or off.
-    generator_model = ai.model_name if await personalize(ai, blueprint, profile) else None
+    # A plan spec already carries a story written from the learner's context, so it is reused.
+    if spec is not None:
+        apply_setting(blueprint, spec.company, spec.product, spec.story)
+        blueprint.metadata["spec"] = spec.model_dump()
+        generator_model = None
+    else:
+        generator_model = ai.model_name if await personalize(ai, blueprint, profile) else None
 
     report = validate_blueprint(blueprint)
     if not report.ok:
@@ -237,7 +264,10 @@ async def create_instance(
             variation_request=variation_request,
             profile_goals=profile_goals,
             incident=incident,
+            track=track,
         )
+        if spec is not None:
+            apply_setting(blueprint, spec.company, spec.product, spec.story)
         report = validate_blueprint(blueprint)
         if not report.ok:
             raise ValidationAppError(
@@ -249,6 +279,7 @@ async def create_instance(
         "target_role": role,
         "career_goals": profile_goals,
         "experience_level": (profile or {}).get("experience_level"),
+        "scenario_spec_id": spec.id if spec is not None else None,
     }
     version_number = await repo.next_version_number(str(template["id"]))
     row = await repo.insert_scenario_version(
@@ -262,7 +293,7 @@ async def create_instance(
         rubric_snapshot=rubric_snapshot,
         profile_snapshot=profile_snapshot,
         validation_report=report.__dict__,
-        generator_provider="ollama" if generator_model else "deterministic",
+        generator_provider="context-plan" if spec is not None else "ollama" if generator_model else "deterministic",
         generator_model=generator_model,
         prompt_version=PROMPT_VERSION,
         validator_version=VALIDATOR_VERSION,
@@ -350,15 +381,22 @@ async def personalize(
     )
     if not story or any(w in story.lower() for w in _SPOILERS) or any(ch.isdigit() for ch in story):
         return False
+    apply_setting(blueprint, company, product, story)
+    return True
+
+
+def apply_setting(blueprint: ScenarioBlueprint, company: str, product: str, story: str) -> None:
+    """Re-tell the briefing's opening as this company and (optional) story."""
+    setting = blueprint.metadata["setting"]
     old = f"You work at {setting['company']}, {setting['product']}. "
     setting.update(
         company=company or setting["company"], product=product or setting["product"], story=story
     )
     blueprint.briefing = (
-        f"You work at {setting['company']}, {setting['product']}. {story} "
+        f"You work at {setting['company']}, {setting['product']}. "
+        + (f"{story} " if story else "")
         + blueprint.briefing.removeprefix(old)
     )
-    return True
 
 
 def _empty_state(blueprint: ScenarioBlueprint, version_id: str) -> SimulationState:

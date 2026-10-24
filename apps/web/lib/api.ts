@@ -1,6 +1,9 @@
 import type {
   ActionResponse,
   CompetencyTrend,
+  ContextSource,
+  ContextView,
+  DocumentKind,
   Evaluation,
   Profile,
   ProgressResponse,
@@ -47,15 +50,17 @@ type RequestOptions = {
 };
 
 async function request<T>(path: string, opts: RequestOptions = {}): Promise<T> {
+  // FormData (file uploads) goes as multipart; the browser sets its Content-Type boundary.
+  const isForm = typeof FormData !== "undefined" && opts.body instanceof FormData;
   const doFetch = async (): Promise<Response> => {
     const headers: Record<string, string> = {};
-    if (opts.body !== undefined) headers["Content-Type"] = "application/json";
+    if (opts.body !== undefined && !isForm) headers["Content-Type"] = "application/json";
     const token = tokenGetter ? await tokenGetter() : null;
     if (token) headers["Authorization"] = `Bearer ${token}`;
     return fetch(`${API_BASE}${path}`, {
       method: opts.method ?? "GET",
       headers,
-      body: opts.body !== undefined ? JSON.stringify(opts.body) : undefined,
+      body: opts.body === undefined ? undefined : isForm ? (opts.body as FormData) : JSON.stringify(opts.body),
       signal: opts.signal,
       cache: "no-store",
     });
@@ -155,6 +160,25 @@ export const api = {
 
   deleteSkill: (skillId: string) => request<void>(`/me/skills/${skillId}`, { method: "DELETE" }),
 
+  getContext: () => request<ContextView>("/me/context"),
+
+  /** Upload a CV or LinkedIn PDF; only its extracted text is kept. */
+  uploadDocument: (kind: DocumentKind, file: File) => {
+    const form = new FormData();
+    form.append("file", file);
+    return request<{ source: ContextSource }>(`/me/documents/${kind}`, { method: "POST", body: form });
+  },
+
+  removeDocument: (kind: DocumentKind) => request<void>(`/me/documents/${kind}`, { method: "DELETE" }),
+
+  /** Read the profile's GitHub / LinkedIn / website links (only new or changed ones unless forced). */
+  refreshSources: (force = false) =>
+    request<ContextView>("/me/sources/refresh", { method: "POST", body: { force } }),
+
+  /** Rebuild the learner context and personalised scenarios if anything changed (or forced). */
+  buildContext: (force = false) =>
+    request<ContextView>("/me/context/build", { method: "POST", body: { force } }),
+
   listTemplates: () => request<{ items: ScenarioTemplate[] }>("/scenario-templates"),
 
   createInstance: (body: {
@@ -163,6 +187,7 @@ export const api = {
     difficulty?: string;
     variation_request?: string;
     incident?: string;
+    spec_id?: string;
   }) => request<ScenarioInstance>("/scenario-instances", { method: "POST", body }),
 
   getInstance: (instanceId: string) =>

@@ -7,8 +7,9 @@ import { FormError } from "../../../components/AuthShell";
 import { api, peek, revalidate } from "../../../lib/api";
 import { useAuth } from "../../../lib/auth";
 import { LEVELS, splitList } from "../../../lib/practice";
-import type { Profile } from "../../../lib/types";
+import type { ContextSource, ContextView, DocumentKind, Profile } from "../../../lib/types";
 import { RoleSelect } from "../../../components/RoleSelect";
+import { builtLabel, ContextSummary, DocumentUpload, SourceStatus } from "../../../components/ContextBuilder";
 
 export default function ProfilePage() {
   const { user } = useAuth();
@@ -23,6 +24,37 @@ export default function ProfilePage() {
   // Comma-separated fields are edited as raw text and parsed on save, so typing ", " works.
   const [goalsText, setGoalsText] = useState(cached?.career_goals.join(", ") ?? "");
   const [stackText, setStackText] = useState(cached?.preferred_stack.join(", ") ?? "");
+  const [ctx, setCtx] = useState<ContextView | null>(null);
+  const [ctxBusy, setCtxBusy] = useState(false);
+  const [ctxError, setCtxError] = useState<string | null>(null);
+
+  useEffect(() => {
+    api.getContext().then(setCtx).catch(() => {});
+  }, []);
+
+  // Any profile, link or document change can alter the context: rebuild it (a no-op server-side
+  // when nothing it depends on changed). force re-reads every link even if unchanged.
+  async function rebuild(force = false) {
+    setCtxBusy(true);
+    setCtxError(null);
+    try {
+      setCtx(await api.buildContext(force));
+    } catch (err) {
+      setCtxError(err instanceof Error ? err.message : "Could not rebuild your context.");
+    } finally {
+      setCtxBusy(false);
+    }
+  }
+
+  // Skills feed the context too; flag it rather than spend a model call per chip.
+  function markStale() {
+    setCtx((v) => (v && v.status === "ready" ? { ...v, status: "stale" } : v));
+  }
+
+  function onDocument(kind: DocumentKind, source: ContextSource | null) {
+    setCtx((v) => v && { ...v, sources: [...v.sources.filter((s) => s.kind !== kind), ...(source ? [source] : [])] });
+    void rebuild();
+  }
 
   useEffect(() => {
     if (cached) return;
@@ -74,11 +106,16 @@ export default function ProfilePage() {
         preferred_stack: splitList(stackText),
         education_summary: profile.education_summary,
         experience_summary: profile.experience_summary,
+        github_url: profile.github_url?.trim() || null,
+        linkedin_url: profile.linkedin_url?.trim() || null,
+        portfolio_url: profile.portfolio_url?.trim() || null,
+        custom_situation: profile.custom_situation?.trim() || null,
       });
       setProfile(updated);
       setGoalsText(updated.career_goals.join(", "));
       setStackText(updated.preferred_stack.join(", "));
       setSaved(true);
+      void rebuild();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not save.");
     } finally {
@@ -94,6 +131,7 @@ export default function ProfilePage() {
     try {
       await api.addSkill({ name: skill });
       setNewSkill("");
+      markStale();
       const me = await api.getMe();
       setProfile((p) => (p ? { ...p, skills: me.skills } : me));
     } catch (err) {
@@ -108,6 +146,7 @@ export default function ProfilePage() {
     setProfile({ ...profile, skills: before.filter((s) => s.id !== id) }); // optimistic
     try {
       await api.deleteSkill(id);
+      markStale();
     } catch (err) {
       setProfile((p) => (p ? { ...p, skills: before } : p));
       setSkillError(err instanceof Error ? err.message : "Could not remove that skill.");
@@ -173,6 +212,23 @@ export default function ProfilePage() {
               <label htmlFor="ex">Projects &amp; experience</label>
               <textarea id="ex" className="textarea" value={profile.experience_summary ?? ""} onChange={(e) => setProfile({ ...profile, experience_summary: e.target.value })} />
             </div>
+            <div className="field">
+              <label htmlFor="gh">GitHub</label>
+              <input id="gh" className="input" value={profile.github_url ?? ""} onChange={(e) => setProfile({ ...profile, github_url: e.target.value })} placeholder="github.com/your-username" />
+            </div>
+            <div className="field">
+              <label htmlFor="li">LinkedIn</label>
+              <input id="li" className="input" value={profile.linkedin_url ?? ""} onChange={(e) => setProfile({ ...profile, linkedin_url: e.target.value })} placeholder="linkedin.com/in/your-name" />
+            </div>
+            <div className="field">
+              <label htmlFor="pf">Portfolio or website</label>
+              <input id="pf" className="input" value={profile.portfolio_url ?? ""} onChange={(e) => setProfile({ ...profile, portfolio_url: e.target.value })} placeholder="https://you.dev" />
+            </div>
+            <div className="field">
+              <label htmlFor="sit">A situation you want to experience</label>
+              <textarea id="sit" className="textarea" maxLength={1000} value={profile.custom_situation ?? ""} onChange={(e) => setProfile({ ...profile, custom_situation: e.target.value })} placeholder="Explaining a delay to an anxious client…" />
+              <span className="field__hint">Adds one personalised scenario built around this moment.</span>
+            </div>
             <div className="row">
               <button className="btn" type="submit" disabled={busy}>
                 {busy ? <span className="busy-dots">Saving</span> : "Save profile"}
@@ -194,6 +250,36 @@ export default function ProfilePage() {
             </div>
           </form>
 
+          <div className="stack">
+          <div className="card stack">
+            <div className="row between" style={{ alignItems: "flex-start" }}>
+              <div>
+                <h2 className="section-title">Learner context</h2>
+                <p className="xsmall muted" style={{ marginTop: 6 }} aria-live="polite">
+                  {ctxBusy ? <span className="busy-dots">Rebuilding from your profile and sources</span> : ctx ? builtLabel(ctx) : "Loading…"}
+                </p>
+              </div>
+              <button type="button" className="btn btn--ghost btn--small" onClick={() => rebuild(true)} disabled={ctxBusy} title="Re-read every source and rebuild">
+                Rebuild
+              </button>
+            </div>
+            <FormError message={ctxError} />
+            {ctx?.context && <ContextSummary view={ctx} />}
+            <DocumentUpload kind="cv" label="CV / résumé" hint="PDF, Word or text, up to 5 MB." source={ctx?.sources.find((s) => s.kind === "cv")} onChange={(s) => onDocument("cv", s)} />
+            <DocumentUpload kind="linkedin_pdf" label="LinkedIn PDF" hint="LinkedIn profile → More → Save to PDF." source={ctx?.sources.find((s) => s.kind === "linkedin_pdf")} onChange={(s) => onDocument("linkedin_pdf", s)} />
+            {ctx && ctx.sources.some((s) => !["cv", "linkedin_pdf"].includes(s.kind)) && (
+              <ul className="list-reset stack stack--sm" aria-label="Linked sources">
+                {ctx.sources
+                  .filter((s) => !["cv", "linkedin_pdf"].includes(s.kind))
+                  .map((s) => (
+                    <SourceStatus key={s.kind} source={s} />
+                  ))}
+              </ul>
+            )}
+            {ctx && ctx.scenarios.length > 0 && (
+              <p className="xsmall muted">{ctx.scenarios.length} personalised scenarios on your Practice page.</p>
+            )}
+          </div>
           <div className="card stack">
             <div>
               <h2 className="section-title">Self-reported skills</h2>
@@ -233,6 +319,7 @@ export default function ProfilePage() {
                 </button>
               </div>
             </form>
+          </div>
           </div>
         </div>
       </m.div>
