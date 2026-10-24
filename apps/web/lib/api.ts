@@ -61,9 +61,23 @@ async function request<T>(path: string, opts: RequestOptions = {}): Promise<T> {
     });
   };
 
-  let res: Response;
+  // On a flaky connection, retry requests that are safe to repeat: reads, and writes carrying a
+  // client_*_id the server dedupes on (turns, actions, voice start).
+  const retryable =
+    (opts.method ?? "GET") === "GET" ||
+    (typeof opts.body === "object" && opts.body !== null && Object.keys(opts.body).some((k) => /^client_\w+_id$/.test(k)));
+  let res: Response | undefined;
+  for (let attempt = 0; !res; attempt += 1) {
+    try {
+      res = await doFetch();
+    } catch {
+      if (opts.signal?.aborted || !retryable || attempt >= 2) {
+        throw new ApiError(0, "network_error", "Could not reach the WorkVerse API. Check your connection and try again.");
+      }
+      await new Promise((r) => setTimeout(r, 700 * (attempt + 1)));
+    }
+  }
   try {
-    res = await doFetch();
     // A freshly signed-in Clerk session may not expose a token for a brief moment; retry.
     for (let attempt = 0; attempt < 3 && res.status === 401; attempt += 1) {
       await new Promise((r) => setTimeout(r, 400));

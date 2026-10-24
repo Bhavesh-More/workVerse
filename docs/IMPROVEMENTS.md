@@ -145,3 +145,33 @@ Also renamed the deprecated Clerk env vars `NEXT_PUBLIC_CLERK_AFTER_SIGN_IN_URL`
 `NEXT_PUBLIC_CLERK_SIGN_IN_FALLBACK_REDIRECT_URL` / `…SIGN_UP_FALLBACK_REDIRECT_URL` in `.env.example`
 (removes the "afterSignInUrl is deprecated" console warning). **Rename them in your own `apps/web/.env` too**,
 then restart `pnpm dev`.
+
+---
+
+## 8. Game sounds + background music
+
+- **Every click has a sound** (`components/Sound.tsx` → `SoundLayer`, mounted once in `app/layout.tsx`):
+  buttons *click*, ghost/secondary buttons *soft tick*, links *nav chime*, toggles/tabs *pop*.
+  A control can override with `data-sfx="nav"` or opt out with `data-sfx="none"` (used on Send,
+  which already plays its own sound).
+- **Background music**, synthesized live (no audio files): a calm loop on menus/reports and a tenser
+  "focus" loop inside the incident. Starts on your first click (browsers block autoplay), pauses when the
+  tab is hidden, and fades out during a voice meeting.
+- **Sound on/off** and **Music on/off** buttons: sidebar footer and the session top bar (remembered).
+- Tune it in `lib/sfx.ts` (`NOTES` for clicks, `MOODS` for music, `MUSIC_VOL` for loudness).
+
+## 9. Snappier on slow internet
+
+Measured (India → Supabase in Sydney): one DB round trip ≈ 0.4 s, and the scenario blueprint row took
+**3–9 s to download on every request**.
+
+| Fix | Effect |
+|---|---|
+| Scenario versions are cached in the API process (`get_scenario_version`, they never change) | Removes the 3–9 s fetch from every chat turn, action, voice turn and page load after the first |
+| Chat reply is appended from the response instead of refetching the whole transcript | One request per message instead of two |
+| Pressing **E** shows "Calling …" instantly and asks for the mic *while* the server mints the token | Feels instant; mic stream no longer left open |
+| Reads and idempotent writes (turns, actions, voice start) retry twice on network drops | A blip no longer shows an error |
+
+**Biggest remaining lever:** the database is in Sydney. Moving the Supabase project to **Mumbai
+(ap-south-1)** cuts every DB round trip several times over. Voice reply speed also depends on the ElevenLabs
+agent's own settings (turn timeout / eagerness) in its dashboard.

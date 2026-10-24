@@ -19,7 +19,8 @@ import {
   suggestedQuestions,
   wordCount,
 } from "../../../../lib/practice";
-import { isMuted, play, setMuted } from "../../../../lib/sfx";
+import { duckMusic, play } from "../../../../lib/sfx";
+import { SoundToggles } from "../../../../components/Sound";
 
 // Browser-only SDK; never evaluated during SSR.
 const VoiceMeeting = dynamic(
@@ -69,8 +70,11 @@ export default function SessionPage() {
   const [navStatus, setNavStatus] = useState<NavigationStatus>("idle");
   const [pendingText, setPendingText] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
-  const [muted, setMutedState] = useState(false);
-  useEffect(() => setMutedState(isMuted()), []);
+  // Fade the background music out while a live voice meeting is running.
+  useEffect(() => {
+    duckMusic(Boolean(voice));
+    return () => duckMusic(false);
+  }, [voice]);
   const completedIds = useRef<Set<string> | null>(null);
   const interactionLocked = useRef(false);
   const voicePending = useRef(false);
@@ -216,17 +220,22 @@ export default function SessionPage() {
       if (!npc) return;
       voicePending.current = true;
       setVoiceError(null);
-      setNotice(null);
+      setNotice(`Calling ${npc.name}…`); // instant feedback; the token round trip can take a while
+      play("nav");
       try {
         if (!navigator.mediaDevices?.getUserMedia) {
           throw new Error("Microphone access is not available in this browser.");
         }
-        // Explain-then-request: this runs inside the E-key user gesture.
-        await navigator.mediaDevices.getUserMedia({ audio: true });
-        const res = await api.startVoiceSession(sessionId, {
-          npc_id: characterId,
-          client_request_id: crypto.randomUUID(),
-        });
+        // Mic permission (inside the E-key gesture) and the server token run in parallel.
+        const [stream, res] = await Promise.all([
+          navigator.mediaDevices.getUserMedia({ audio: true }),
+          api.startVoiceSession(sessionId, {
+            npc_id: characterId,
+            client_request_id: crypto.randomUUID(),
+          }),
+        ]);
+        stream.getTracks().forEach((t) => t.stop()); // permission check only; the SDK opens its own
+        setNotice(null);
         interactionLocked.current = true;
         setVoice({
           npc: res.npc,
@@ -235,6 +244,7 @@ export default function SessionPage() {
           contextGrant: res.context_grant,
         });
       } catch (e) {
+        setNotice(null);
         const denied = e instanceof DOMException && e.name === "NotAllowedError";
         setVoiceError(
           denied
@@ -274,7 +284,18 @@ export default function SessionPage() {
         message: text,
       });
       setSession(res.session);
-      setMessages((await api.transcript(sessionId)).items);
+      // The reply is in the response; append locally instead of refetching the transcript.
+      const at = new Date().toISOString();
+      const base = { session_id: sessionId, character_id: res.character_id, modality: "text", status: "final", created_at: at };
+      setMessages((prev) =>
+        prev.some((m) => m.id === res.assistant_message_id)
+          ? prev
+          : [
+              ...prev,
+              { ...base, id: `local-${res.turn_id}`, sequence_number: prev.length + 1, speaker_type: "learner", content: text },
+              { ...base, id: res.assistant_message_id, sequence_number: prev.length + 2, speaker_type: "character", content: res.message },
+            ],
+      );
       play(res.newly_discovered_facts.length ? "discover" : "receive");
     } catch (e) {
       play("error");
@@ -360,17 +381,7 @@ export default function SessionPage() {
           </div>
         </div>
         <div className="row" style={{ gap: 8 }}>
-          <button
-            className="btn btn--ghost btn--small"
-            aria-pressed={!muted}
-            onClick={() => {
-              setMuted(!muted);
-              setMutedState(!muted);
-            }}
-            title={muted ? "Turn sound effects on" : "Mute sound effects"}
-          >
-            {muted ? "Sound off" : "Sound on"}
-          </button>
+          <SoundToggles />
           <span className={statusBadge(session.status)}>
             <span className={`dot${live ? " dot--live" : " dot--idle"}`} aria-hidden="true" />
             {session.status}
@@ -832,6 +843,7 @@ export default function SessionPage() {
                           className="chip"
                           data-testid="suggested-question"
                           disabled={sending}
+                          data-sfx="none"
                           onClick={() => sendMessage(q)}
                         >
                           {q}
@@ -858,7 +870,7 @@ export default function SessionPage() {
                       }
                     }}
                   />
-                  <button className="btn" data-testid="chat-send" onClick={() => sendMessage()} disabled={sending || !chatInput.trim()}>
+                  <button className="btn" data-sfx="none" data-testid="chat-send" onClick={() => sendMessage()} disabled={sending || !chatInput.trim()}>
                     Send
                   </button>
                 </div>
