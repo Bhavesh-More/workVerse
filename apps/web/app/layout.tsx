@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { JetBrains_Mono, Schibsted_Grotesk } from "next/font/google";
 import "./globals.css";
 import { MotionProvider } from "../components/MotionProvider";
+import { SoundLayer } from "../components/Sound";
 
 const jetbrains = JetBrains_Mono({
   subsets: ["latin"],
@@ -32,6 +33,7 @@ export default function RootLayout({
   return (
     <html lang="en" className={`${jetbrains.variable} ${schibsted.variable}`}>
       <body>
+        <SoundLayer />
         <MotionProvider>{children}</MotionProvider>
       </body>
     </html>

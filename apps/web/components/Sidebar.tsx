@@ -8,6 +8,7 @@ import { useAuth } from "../lib/auth";
 import { clearCache } from "../lib/api";
 import { prefetchRoute } from "../lib/useApi";
 import { Avatar } from "./Avatar";
+import { SoundToggles } from "./Sound";
 
 const NAV = [
   { href: "/dashboard", label: "Dashboard", icon: "grid" },
@@ -188,6 +189,7 @@ export function Sidebar() {
       </nav>
 
       <div className="sidebar__foot">
+        {!collapsed && <SoundToggles />}
         <Link href="/profile" className="sidebar__user" title={name}>
           <span className="sidebar__avatar">
             <Avatar imageUrl={user?.imageUrl} name={name} size={collapsed ? 34 : 38} />
