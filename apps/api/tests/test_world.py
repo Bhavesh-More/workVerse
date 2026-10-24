@@ -8,9 +8,8 @@ import json
 from pathlib import Path
 
 import pytest
-from pydantic import ValidationError
-
 from app import world as W
+from pydantic import ValidationError
 
 FIXTURE = json.loads((Path(__file__).parent / "fixtures" / "world_all_presets.json").read_text())
 MEMBERS = [W.Member.model_validate(m) for m in FIXTURE["members"]]
