@@ -22,10 +22,22 @@ function openGrid(width: number, height: number, blocked: Tile[] = []): NavGrid 
   return buildNavGrid(collision);
 }
 
-function loadRealMap(): NavGrid {
+type RealMap = {
+  width: number;
+  height: number;
+  spawn: Tile;
+  npc_slots: Record<string, Tile>;
+  object_slots: Record<string, { ax: number; ay: number }>;
+  collision: number[][];
+};
+
+function readRealMap(): RealMap {
   const raw = readFileSync(new URL("../public/assets/game/map/map.json", import.meta.url), "utf8");
-  const map = JSON.parse(raw) as { collision: number[][] };
-  return buildNavGrid(map.collision);
+  return JSON.parse(raw) as RealMap;
+}
+
+function loadRealMap(): NavGrid {
+  return buildNavGrid(readRealMap().collision);
 }
 
 function pathStaysWalkable(grid: NavGrid, path: Tile[]): boolean {
@@ -119,29 +131,28 @@ test("handles edge-of-map coordinates", () => {
   assert.equal(findPath(grid, { x: -3, y: -3 }, [{ x: 99, y: 99 }]), null);
 });
 
-test("works over the real office map within bounded time", () => {
+test("every colleague and object in the real office is reachable from spawn, quickly", () => {
+  const map = readRealMap();
   const grid = loadRealMap();
-  assert.equal(grid.width, 64);
-  assert.equal(grid.height, 44);
+  assert.equal(grid.width, map.width);
+  assert.equal(grid.height, map.height);
+  assert.ok(isWalkable(grid, map.spawn.x, map.spawn.y), "spawn must be walkable");
 
-  const spawn = { x: 8, y: 6 };
-  const targets: Tile[] = [
-    { x: 55, y: 6 },
-    { x: 9, y: 24 },
-    { x: 9, y: 18 },
-    { x: 25, y: 18 },
-    { x: 17, y: 18 },
+  const targets: [string, { x: number; y: number }][] = [
+    ...Object.entries(map.npc_slots).map(
+      ([id, t]) => [id, { x: t.x * TILE + 16, y: t.y * TILE + 16 }] as [string, { x: number; y: number }],
+    ),
+    ...Object.entries(map.object_slots).map(
+      ([id, o]) => [id, { x: o.ax, y: o.ay }] as [string, { x: number; y: number }],
+    ),
   ];
+  assert.ok(targets.length >= 15);
   const startedAt = Date.now();
-  for (const anchor of targets) {
-    const goals = goalTilesAround(
-      grid,
-      { x: anchor.x * TILE + 16, y: anchor.y * TILE + 16 },
-      TILE,
-      64,
-    );
-    const path = findPath(grid, spawn, goals);
-    assert.ok(path, `route to ${anchor.x},${anchor.y} should exist`);
+  for (const [id, anchor] of targets) {
+    const goals = goalTilesAround(grid, anchor, TILE, 64);
+    assert.ok(goals.length > 0, `${id} needs walkable floor within reach`);
+    const path = findPath(grid, map.spawn, goals);
+    assert.ok(path, `route to ${id} should exist`);
     const smoothed = smoothPath(grid, path!);
     assert.ok(pathStaysWalkable(grid, smoothed));
     const points = toWorldPoints(smoothed, TILE);

@@ -72,7 +72,7 @@ export const PhaserGame = forwardRef<PhaserGameHandle, Props>(function PhaserGam
       if (disposed) return;
       gameRef.current = createOfficeGame(parent, {
         world: callbacks.current.world,
-        playerTexture: callbacks.current.playerTexture ?? "blonde_man",
+        playerTexture: callbacks.current.playerTexture ?? "player",
         onPrompt: (label) => callbacks.current.onPrompt(label),
         onNearCharacter: (id) => callbacks.current.onNearCharacter(id),
         onInteractCharacter: (id) => callbacks.current.onInteractCharacter(id),

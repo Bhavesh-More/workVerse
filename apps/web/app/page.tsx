@@ -143,7 +143,7 @@ export default function HomePage() {
         <div className="rise" style={{ ["--d" as string]: "480ms" }}>
           <figure className="snap">
             <div className="snap__img" style={{ display: "grid", placeItems: "center", aspectRatio: "1", background: "var(--color-canvas)" }}>
-              <Sprite name="blonde_man" size={84} label="Your character" />
+              <Sprite name="player" size={84} label="Your character" />
             </div>
             <figcaption>
               <span>You</span>
@@ -165,7 +165,7 @@ export default function HomePage() {
         <div className="rise" style={{ ["--d" as string]: "620ms" }}>
           <figure className="snap">
             <div className="snap__img" style={{ display: "grid", placeItems: "center", aspectRatio: "1", background: "var(--color-canvas)" }}>
-              <Sprite name="blue_haired_woman" size={84} label="An AI teammate" />
+              <Sprite name="f1" size={84} label="An AI teammate" />
             </div>
             <figcaption>
               <span>Teammate</span>

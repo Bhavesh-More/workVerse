@@ -1,17 +1,37 @@
 import * as Phaser from "phaser";
-import type { NavigationTarget, WorldView } from "../lib/types";
+import type { NavigationTarget, WorldCharacter, WorldView } from "../lib/types";
 import {
   NavigationOverlay,
   type NavigationStatus,
   type RouteTarget,
 } from "./navigation";
-import { buildNavGrid, type NavGrid } from "./pathfinding";
+import { buildNavGrid, findPath, nearestWalkable, smoothPath, toWorldPoints, type NavGrid } from "./pathfinding";
 
+// World units: art is authored on a 16px grid and exported at 2x by scripts/build_*.py, so one
+// tile is 32 world px and every image is drawn 1:1 (no sprite is ever scaled in the engine).
 const TILE = 32;
-const HUMAN_SHEET = 32;
-const CAT_FRAME = 16;
+const CHAR_FRAME = 64;
+const PET_FRAME = 32;
 /** Existing interaction radius: also used as the navigation arrival distance. */
 const INTERACT_RADIUS = 64;
+
+// Movement feel. Speeds are world px/s; the walk cycle (4 frames = 2 steps) is played at a rate
+// proportional to actual speed so feet keep pace with the ground (~1 tile per step).
+const WALK_SPEED = 175;
+const RUN_SPEED = 320; // hold Shift
+
+const ACCEL_MS = 70; // time to reach full speed / stop (exponential smoothing)
+const WALK_FPS = 11; // at WALK_SPEED
+const IDLE_FPS = 4;
+const PET_SPEED = 38;
+
+// Camera: the zoom snaps to half steps so one art pixel is always a whole number of canvas px.
+const VIEW_TILES_TALL = 11;
+const VIEW_TILES_WIDE = 18;
+
+const DEPTH_GROUND = 0;
+const DEPTH_WALLS = 1;
+const DEPTH_UI = 5000;
 
 export type OfficeOptions = {
   world: WorldView;
@@ -27,15 +47,32 @@ export type OfficeOptions = {
   isLocked?: () => boolean;
 };
 
+type ObjectSlot = {
+  x: number;
+  y: number;
+  /** Approach anchor in world px (the floor in front of the object). */
+  ax: number;
+  ay: number;
+  frame: string;
+  px: number;
+  py: number;
+  d: number;
+  mounted: boolean;
+};
+
 type MapMeta = {
   width: number;
   height: number;
   spawn: { x: number; y: number };
   rooms: { id: string; x0: number; y0: number; x1: number; y1: number }[];
-  npc_slots: Record<string, { x: number; y: number }>;
-  object_slots: Record<string, { x: number; y: number }>;
+  npc_slots: Record<string, { x: number; y: number; face?: Dir }>;
+  object_slots: Record<string, ObjectSlot>;
+  props: { f: string; x: number; y: number; d: number }[];
+  pets: { sprite: string; x: number; y: number; room: string }[];
   collision: number[][];
 };
+
+type Dir = "down" | "left" | "right" | "up";
 
 type Interactable = {
   kind: "character" | "object";
@@ -44,14 +81,67 @@ type Interactable = {
   x: number;
   y: number;
   gameObject: Phaser.GameObjects.GameObject & { x: number; y: number };
+  /** Objects: the sprite to swap to its highlighted frame when it's the current target. */
+  sprite?: Phaser.GameObjects.Image;
+  frame?: string;
+  tag?: Phaser.GameObjects.Text;
+  npc?: Phaser.GameObjects.Sprite;
+  texture?: string;
+  face?: Dir;
 };
 
-const HUMAN_DIRS: Record<string, { walkRow: number; idleRow: number }> = {
-  down: { walkRow: 4, idleRow: 0 },
-  left: { walkRow: 5, idleRow: 1 },
-  right: { walkRow: 6, idleRow: 2 },
-  up: { walkRow: 7, idleRow: 3 },
+type Pet = {
+  sprite: Phaser.GameObjects.Sprite;
+  key: string;
+  room: { x0: number; y0: number; x1: number; y1: number };
+  path: { x: number; y: number }[];
+  restUntil: number;
 };
+
+const HUMAN_ROWS: Record<Dir, { idle: number; walk: number }> = {
+  down: { idle: 0, walk: 4 },
+  left: { idle: 1, walk: 5 },
+  right: { idle: 2, walk: 6 },
+  up: { idle: 3, walk: 7 },
+};
+
+/** Cast sheets from scripts/build_characters.py; NPCs are matched to their colleague's gender. */
+const CAST = {
+  player: "player",
+  male: ["m1", "m2", "m3", "m4", "m5"],
+  female: ["f1", "f2", "f3", "f4", "f5"],
+  pets: ["cat_white", "cat_brown", "cat_brown2"],
+};
+
+function hash(s: string): number {
+  let h = 2166136261;
+  for (let i = 0; i < s.length; i++) h = Math.imul(h ^ s.charCodeAt(i), 16777619);
+  return h >>> 0;
+}
+
+/** Stable, distinct sheet per colleague: gender pool, starting at a hash of their name. */
+export function assignCast(characters: Pick<WorldCharacter, "id" | "name" | "sprite" | "profile">[]) {
+  const used = new Set<string>();
+  const out: Record<string, string> = {};
+  for (const c of characters) {
+    const female = c.profile?.gender
+      ? c.profile.gender === "female"
+      : c.sprite === "blue_haired_woman";
+    const pool = female ? CAST.female : CAST.male;
+    const start = hash(c.name || c.id) % pool.length;
+    let pick = pool[start]!;
+    for (let i = 0; i < pool.length; i++) {
+      const candidate = pool[(start + i) % pool.length]!;
+      if (!used.has(candidate)) {
+        pick = candidate;
+        break;
+      }
+    }
+    used.add(pick);
+    out[c.id] = pick;
+  }
+  return out;
+}
 
 export function createOfficeGame(parent: HTMLElement, options: OfficeOptions): Phaser.Game {
   class OfficeScene extends Phaser.Scene {
@@ -59,17 +149,22 @@ export function createOfficeGame(parent: HTMLElement, options: OfficeOptions): P
     private player!: Phaser.Physics.Arcade.Sprite;
     private keys!: Record<string, Phaser.Input.Keyboard.Key>;
     private interactables: Interactable[] = [];
-    private foreground?: Phaser.GameObjects.Image;
     private currentTarget: Interactable | null = null;
     private lastNearCharacter: string | null = null;
     private lastLocation = "";
-    private lastDir = "down";
+    private lastDir: Dir = "down";
     private cursors!: Phaser.Types.Input.Keyboard.CursorKeys;
-    private playerTexture = options.playerTexture;
+    private playerTexture = CAST.player;
     private navGrid!: NavGrid;
     private nav!: NavigationOverlay;
     private navTarget: NavigationTarget | null = null;
     private navVisible = true;
+    private navTargetId: string | null = null;
+    private colliders!: Phaser.Physics.Arcade.StaticGroup;
+    private velocity = new Phaser.Math.Vector2();
+    private lastPos = new Phaser.Math.Vector2();
+    private achieved = 0;
+    private pets: Pet[] = [];
 
     constructor() {
       super("office");
@@ -78,36 +173,46 @@ export function createOfficeGame(parent: HTMLElement, options: OfficeOptions): P
     preload() {
       this.load.image("ground", "/assets/game/map/ground.png");
       this.load.image("walls", "/assets/game/map/walls.png");
-      this.load.image("foreground", "/assets/game/map/foreground.png");
+      this.load.atlas("props", "/assets/game/map/props.png", "/assets/game/map/props.json");
       this.load.json("mapmeta", "/assets/game/map/map.json");
-      this.load.spritesheet("blonde_man", "/assets/game/chars/blonde_man.png", {
-        frameWidth: HUMAN_SHEET,
-        frameHeight: HUMAN_SHEET,
-      });
-      this.load.spritesheet("blue_haired_woman", "/assets/game/chars/blue_haired_woman.png", {
-        frameWidth: HUMAN_SHEET,
-        frameHeight: HUMAN_SHEET,
-      });
-      for (const cat of ["cat_brown", "cat_brown2", "cat_white"]) {
-        this.load.spritesheet(cat, `/assets/game/chars/${cat}.png`, {
-          frameWidth: CAT_FRAME,
-          frameHeight: CAT_FRAME,
+      for (const key of [CAST.player, ...CAST.male, ...CAST.female]) {
+        this.load.spritesheet(key, `/assets/game/chars/${key}.png`, {
+          frameWidth: CHAR_FRAME,
+          frameHeight: CHAR_FRAME,
+        });
+      }
+      for (const key of CAST.pets) {
+        this.load.spritesheet(key, `/assets/game/chars/${key}.png`, {
+          frameWidth: PET_FRAME,
+          frameHeight: PET_FRAME,
         });
       }
     }
 
     create() {
       this.meta = this.cache.json.get("mapmeta") as MapMeta;
+      if (!this.meta?.collision || !this.textures.exists("props")) {
+        // A failed asset load (e.g. an HTML page served instead of JSON) must not crash the scene.
+        console.error("Office map assets failed to load (map.json / props atlas).");
+        return;
+      }
       const worldW = this.meta.width * TILE;
       const worldH = this.meta.height * TILE;
 
-      this.add.image(0, 0, "ground").setOrigin(0, 0).setDepth(0);
-      this.add.image(0, 0, "walls").setOrigin(0, 0).setDepth(1);
+      this.add.image(0, 0, "ground").setOrigin(0, 0).setDepth(DEPTH_GROUND);
+      this.add.image(0, 0, "walls").setOrigin(0, 0).setDepth(DEPTH_WALLS);
+      // Free-standing furniture is y-sorted with characters by its base line.
+      for (const p of this.meta.props) {
+        this.add.image(p.x, p.y, "props", p.f).setOrigin(0, 0).setDepth(p.d);
+      }
 
+      this.colliders = this.physics.add.staticGroup();
       this.buildAnimations();
       this.buildCollision();
+      this.buildIndicatorTexture();
       this.buildInteractables();
       this.buildPlayer();
+      this.buildPets();
 
       this.navGrid = buildNavGrid(this.meta.collision);
       this.nav = new NavigationOverlay(this, this.navGrid, TILE, (status) =>
@@ -115,16 +220,16 @@ export function createOfficeGame(parent: HTMLElement, options: OfficeOptions): P
       );
       this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => this.nav.destroy());
 
-      this.foreground = this.add
-        .image(0, 0, "foreground")
-        .setOrigin(0, 0)
-        .setDepth(5000);
-
       this.physics.world.setBounds(0, 0, worldW, worldH);
-      this.cameras.main.setBounds(0, 0, worldW, worldH);
-      this.cameras.main.startFollow(this.player, true, 0.15, 0.15);
-      this.cameras.main.setZoom(1.5);
-      this.cameras.main.setRoundPixels(true);
+      const cam = this.cameras.main;
+      cam.setBounds(0, 0, worldW, worldH);
+      cam.startFollow(this.player, true, 0.14, 0.14);
+      cam.setRoundPixels(true);
+      this.fitZoom();
+      this.scale.on(Phaser.Scale.Events.RESIZE, this.fitZoom, this);
+      this.events.once(Phaser.Scenes.Events.SHUTDOWN, () =>
+        this.scale.off(Phaser.Scale.Events.RESIZE, this.fitZoom, this),
+      );
 
       this.cursors = this.input.keyboard!.addKeys(
         {
@@ -155,31 +260,54 @@ export function createOfficeGame(parent: HTMLElement, options: OfficeOptions): P
 
       this.lastLocation = this.locationAt(this.player.x, this.player.y);
       options.onLocationChange(this.lastLocation);
+      if (process.env.NODE_ENV !== "production") {
+        // Dev-only handle for automated checks (movement, collisions) from the preview page.
+        (window as unknown as { __officeScene?: Phaser.Scene }).__officeScene = this;
+      }
       options.onReady();
     }
 
+    /** Largest half-step zoom that still shows a comfortable slice of the office. */
+    private fitZoom() {
+      const { width, height } = this.scale.gameSize;
+      const raw = Math.min(height / (VIEW_TILES_TALL * TILE), width / (VIEW_TILES_WIDE * TILE));
+      const zoom = Phaser.Math.Clamp(Math.floor(raw * 2) / 2, 1, 3);
+      this.cameras.main.setZoom(zoom);
+    }
+
     private buildAnimations() {
-      const textures = ["blonde_man", "blue_haired_woman"];
-      for (const tex of textures) {
-        for (const [dir, rows] of Object.entries(HUMAN_DIRS)) {
-          const walkFrames = [0, 1, 2, 3].map((c) => rows.walkRow * 4 + c);
+      for (const tex of [CAST.player, ...CAST.male, ...CAST.female]) {
+        for (const [dir, rows] of Object.entries(HUMAN_ROWS)) {
           this.anims.create({
             key: `${tex}-walk-${dir}`,
-            frames: walkFrames.map((f) => ({ key: tex, frame: f })),
-            frameRate: 8,
+            frames: this.anims.generateFrameNumbers(tex, { start: rows.walk * 4, end: rows.walk * 4 + 3 }),
+            frameRate: WALK_FPS,
             repeat: -1,
           });
+          // The idle row is a gentle 4-frame breath; ping-pong keeps it from popping.
           this.anims.create({
             key: `${tex}-idle-${dir}`,
-            frames: [{ key: tex, frame: rows.idleRow * 4 }],
-            frameRate: 1,
+            frames: this.anims.generateFrameNumbers(tex, { start: rows.idle * 4, end: rows.idle * 4 + 3 }),
+            frameRate: IDLE_FPS,
+            repeat: -1,
+          });
+        }
+      }
+      // Pet rows: idle-down, idle-up, idle-side (3 frames), walk-down, walk-up, walk-side (4 frames).
+      for (const pet of CAST.pets) {
+        const rows = { "idle-down": [0, 3], "idle-up": [1, 3], "idle-side": [2, 3], "walk-down": [3, 4], "walk-up": [4, 4], "walk-side": [5, 4] };
+        for (const [name, [row, count]] of Object.entries(rows) as [string, [number, number]][]) {
+          this.anims.create({
+            key: `${pet}-${name}`,
+            frames: this.anims.generateFrameNumbers(pet, { start: row * 4, end: row * 4 + count - 1 }),
+            frameRate: name.startsWith("walk") ? 8 : 3,
+            repeat: -1,
           });
         }
       }
     }
 
     private buildCollision() {
-      const group = this.physics.add.staticGroup();
       const grid = this.meta.collision;
       const H = grid.length;
       const W = grid[0]?.length ?? 0;
@@ -190,41 +318,62 @@ export function createOfficeGame(parent: HTMLElement, options: OfficeOptions): P
           if (solid && runStart === -1) runStart = x;
           if (!solid && runStart !== -1) {
             const w = (x - runStart) * TILE;
-            const rect = this.add.rectangle(
-              runStart * TILE + w / 2,
-              y * TILE + TILE / 2,
-              w,
-              TILE,
-              0xff0000,
-              0,
+            this.colliders.add(
+              this.add.rectangle(runStart * TILE + w / 2, y * TILE + TILE / 2, w, TILE, 0xff0000, 0),
             );
-            group.add(rect);
             runStart = -1;
           }
         }
       }
       this.physics.world.setBoundsCollision(true, true, true, true);
-      (this as unknown as { _collisionGroup: Phaser.Physics.Arcade.StaticGroup })._collisionGroup =
-        group;
+    }
+
+    /** A small pixel diamond that floats over things you can use. */
+    private buildIndicatorTexture() {
+      if (this.textures.exists("indicator")) return;
+      const g = this.make.graphics({ x: 0, y: 0 }, false);
+      const px = (x: number, y: number, w: number, h: number, c: number) => {
+        g.fillStyle(c, 1);
+        g.fillRect(x * 2, y * 2, w * 2, h * 2);
+      };
+      // 7x7 art px diamond: outline, gold body, highlight
+      const rows = ["...#...", "..#a#..", ".#aab#.", "#aabbb#", ".#bbb#.", "..#b#..", "...#..."];
+      rows.forEach((row, y) =>
+        [...row].forEach((ch, x) => {
+          if (ch === "#") px(x, y, 1, 1, 0x2b2232);
+          if (ch === "a") px(x, y, 1, 1, 0xfff1a8);
+          if (ch === "b") px(x, y, 1, 1, 0xfecc33);
+        }),
+      );
+      g.generateTexture("indicator", 14, 14);
+      g.destroy();
+    }
+
+    private nameTag(x: number, y: number, text: string, emphasis = false) {
+      return this.add
+        .text(x, y, text, {
+          fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
+          fontSize: "10px",
+          fontStyle: "bold",
+          color: emphasis ? "#1d1a26" : "#ffffff",
+          backgroundColor: emphasis ? "#fecc33" : "#1d1a26d9",
+          padding: { left: 4, right: 4, top: 2, bottom: 2 },
+          resolution: 3,
+        })
+        .setOrigin(0.5, 1)
+        .setDepth(DEPTH_UI);
     }
 
     private buildPlayer() {
       const spawn = this.meta.spawn;
-      this.player = this.physics.add.sprite(
-        spawn.x * TILE + TILE / 2,
-        spawn.y * TILE + TILE,
-        this.playerTexture,
-        0,
-      );
+      this.playerTexture = this.textures.exists(options.playerTexture) ? options.playerTexture : CAST.player;
+      this.player = this.physics.add.sprite(spawn.x * TILE + TILE / 2, spawn.y * TILE + TILE - 2, this.playerTexture, 0);
       this.player.setOrigin(0.5, 1);
-      this.player.setDepth(10);
-      this.player.setSize(14, 10);
-      this.player.setOffset(9, 20);
+      // Feet-only body: the sprite's art spans x 18..46 and its soles sit 2px above the frame bottom.
+      this.player.setSize(20, 10);
+      this.player.setOffset(22, 52);
       this.player.setCollideWorldBounds(true);
-      const group = (
-        this as unknown as { _collisionGroup: Phaser.Physics.Arcade.StaticGroup }
-      )._collisionGroup;
-      this.physics.add.collider(this.player, group);
+      this.physics.add.collider(this.player, this.colliders);
       this.player.anims.play(`${this.playerTexture}-idle-down`, true);
     }
 
@@ -232,89 +381,158 @@ export function createOfficeGame(parent: HTMLElement, options: OfficeOptions): P
       const slots = kind === "character" ? this.meta.npc_slots : this.meta.object_slots;
       if (slots[id]) return slots[id];
       const room = this.meta.rooms.find((r) => r.id === locationId);
-      if (room) {
-        return { x: Math.round((room.x0 + room.x1) / 2), y: Math.round((room.y0 + room.y1) / 2) };
-      }
-      return { x: this.meta.spawn.x, y: this.meta.spawn.y };
+      const tile = room
+        ? { x: Math.round((room.x0 + room.x1) / 2), y: Math.round((room.y0 + room.y1) / 2) }
+        : { x: this.meta.spawn.x, y: this.meta.spawn.y };
+      const free = nearestWalkable(buildNavGrid(this.meta.collision), tile) ?? tile;
+      return free;
     }
 
     private buildInteractables() {
+      const cast = assignCast(options.world.characters);
       for (const character of options.world.characters) {
         const slot = this.slotFor(character.id, "character", character.location_id);
-        const tex = character.sprite;
-        const isCat = tex.startsWith("cat_");
-        const sprite = this.add.sprite(slot.x * TILE + TILE / 2, slot.y * TILE + TILE, tex, 0);
-        sprite.setOrigin(0.5, 1);
-        if (isCat) sprite.setScale(2);
-        sprite.setDepth(20);
-        sprite.setInteractive({ useHandCursor: true });
+        const tex = cast[character.id] ?? CAST.male[0]!;
+        const face: Dir = this.meta.npc_slots[character.id]?.face ?? "down";
+        const x = slot.x * TILE + TILE / 2;
+        const y = slot.y * TILE + TILE - 2;
+        const sprite = this.add.sprite(x, y, tex, 0).setOrigin(0.5, 1).setDepth(y);
+        sprite.anims.play({ key: `${tex}-idle-${face}`, startFrame: hash(character.id) % 4 }, true);
+        sprite.setInteractive({
+          useHandCursor: true,
+          hitArea: new Phaser.Geom.Rectangle(16, 22, 32, 42),
+          hitAreaCallback: Phaser.Geom.Rectangle.Contains,
+        });
         sprite.on("pointerdown", () => {
           if (options.isLocked?.()) return;
           this.currentTarget = null;
           options.onInteractCharacter(character.id);
         });
-        this.add
-          .text(slot.x * TILE + TILE / 2, slot.y * TILE - 6, character.name, {
-            fontFamily: "monospace",
-            fontSize: "10px",
-            color: "#222c21",
-            backgroundColor: "#e7e6dbcc",
-            padding: { left: 3, right: 3, top: 1, bottom: 1 },
-          })
-          .setOrigin(0.5, 1)
-          .setDepth(21);
+        // Colleagues are solid at their feet so you walk around them, not through them.
+        const feet = this.add.rectangle(x, y - 5, 20, 10, 0, 0);
+        this.colliders.add(feet);
+        const tag = this.nameTag(x, y - 44, character.name);
         this.interactables.push({
           kind: "character",
           id: character.id,
           label: character.name,
-          x: sprite.x,
-          y: sprite.y,
+          x,
+          y,
           gameObject: sprite,
+          npc: sprite,
+          texture: tex,
+          face,
+          tag,
         });
       }
 
       for (const object of options.world.objects) {
-        const slot = this.slotFor(object.id, "object", object.location_id);
-        const marker = this.add.rectangle(
-          slot.x * TILE + TILE / 2,
-          slot.y * TILE + TILE / 2,
-          18,
-          18,
-          0x8a6d2e,
-          1,
-        );
-        marker.setStrokeStyle(2, 0x222c21);
-        marker.setDepth(15);
-        marker.setInteractive({ useHandCursor: true });
-        marker.on("pointerdown", () => {
-          this.currentTarget = null;
-          options.onInteractObject(object.id);
-        });
+        const slot = this.meta.object_slots[object.id];
+        let sprite: Phaser.GameObjects.Image | undefined;
+        let ax: number;
+        let ay: number;
+        let top: number;
+        let cx: number;
+        if (slot) {
+          sprite = this.add
+            .image(slot.px, slot.py, "props", slot.frame)
+            .setOrigin(0, 0)
+            .setDepth(slot.mounted ? DEPTH_WALLS + 1 : slot.d);
+          ax = slot.ax;
+          ay = slot.ay;
+          top = slot.py;
+          cx = slot.px + sprite.width / 2;
+        } else {
+          const tile = this.slotFor(object.id, "object", object.location_id);
+          ax = tile.x * TILE + TILE / 2;
+          ay = tile.y * TILE + TILE / 2;
+          top = ay - 16;
+          cx = ax;
+        }
+        const indicator = this.add.image(cx, top - 6, "indicator").setOrigin(0.5, 1).setDepth(DEPTH_UI - 1);
         this.tweens.add({
-          targets: marker,
-          scale: { from: 0.85, to: 1.1 },
-          duration: 900,
+          targets: indicator,
+          y: top - 11,
+          duration: 700,
+          ease: "Sine.easeInOut",
           yoyo: true,
           repeat: -1,
         });
-        this.add
-          .text(slot.x * TILE + TILE / 2, slot.y * TILE + 2, object.label, {
-            fontFamily: "monospace",
-            fontSize: "9px",
-            color: "#222c21",
-            backgroundColor: "#e7e6dbcc",
-            padding: { left: 3, right: 3, top: 1, bottom: 1 },
-          })
-          .setOrigin(0.5, 1)
-          .setDepth(21);
+        const target = sprite ?? indicator;
+        target.setInteractive({ useHandCursor: true });
+        target.on("pointerdown", () => {
+          this.currentTarget = null;
+          options.onInteractObject(object.id);
+        });
+        const tag = this.nameTag(cx, top - 16, object.label, true).setVisible(false);
         this.interactables.push({
           kind: "object",
           id: object.id,
           label: object.label,
-          x: marker.x,
-          y: marker.y,
-          gameObject: marker,
+          x: ax,
+          y: ay,
+          gameObject: target,
+          sprite,
+          frame: slot?.frame,
+          tag,
         });
+      }
+    }
+
+    private buildPets() {
+      this.meta.pets?.forEach((pet, i) => {
+        const key = CAST.pets[i % CAST.pets.length]!;
+        const room = this.meta.rooms.find((r) => r.id === pet.room);
+        if (!room || !this.textures.exists(key)) return;
+        const x = pet.x * TILE + TILE / 2;
+        const y = pet.y * TILE + TILE - 4;
+        const sprite = this.add.sprite(x, y, key, 0).setOrigin(0.5, 1).setDepth(y);
+        sprite.anims.play(`${key}-idle-down`);
+        this.pets.push({ sprite, key, room, path: [], restUntil: this.time.now + 1500 + i * 1200 });
+      });
+    }
+
+    private updatePets(delta: number) {
+      for (const pet of this.pets) {
+        const s = pet.sprite;
+        if (pet.path.length === 0) {
+          if (this.time.now < pet.restUntil) continue;
+          // Wander: pick a reachable tile a few steps away inside its room.
+          const from = { x: Math.floor(s.x / TILE), y: Math.floor((s.y - 2) / TILE) };
+          const goal = {
+            x: Phaser.Math.Between(pet.room.x0, pet.room.x1),
+            y: Phaser.Math.Between(pet.room.y0, pet.room.y1),
+          };
+          const path = findPath(this.navGrid, from, [goal]);
+          if (path && path.length > 1 && path.length < 14) {
+            pet.path = toWorldPoints(smoothPath(this.navGrid, path), TILE).slice(1);
+          } else {
+            pet.restUntil = this.time.now + 800;
+          }
+          continue;
+        }
+        const next = pet.path[0]!;
+        const tx = next.x;
+        const ty = next.y + TILE / 2 - 4;
+        const dx = tx - s.x;
+        const dy = ty - s.y;
+        const dist = Math.hypot(dx, dy);
+        const step = (PET_SPEED * delta) / 1000;
+        if (dist <= step) {
+          s.setPosition(tx, ty);
+          pet.path.shift();
+          if (pet.path.length === 0) {
+            pet.restUntil = this.time.now + Phaser.Math.Between(2500, 7000);
+            s.anims.play(`${pet.key}-idle-down`, true);
+            s.setFlipX(false);
+          }
+        } else {
+          s.setPosition(s.x + (dx / dist) * step, s.y + (dy / dist) * step);
+          const side = Math.abs(dx) > Math.abs(dy);
+          s.anims.play(`${pet.key}-walk-${side ? "side" : dy < 0 ? "up" : "down"}`, true);
+          s.setFlipX(side && dx < 0);
+        }
+        s.setDepth(s.y);
       }
     }
 
@@ -349,36 +567,74 @@ export function createOfficeGame(parent: HTMLElement, options: OfficeOptions): P
       }
     }
 
-    update() {
+    private setTarget(next: Interactable | null) {
+      const prev = this.currentTarget;
+      if (prev?.sprite && prev.frame) prev.sprite.setFrame(prev.frame);
+      if (prev?.kind === "object") prev.tag?.setVisible(prev.id === this.navTargetId);
+      if (next?.sprite && next.frame) {
+        // The highlight frame has a 1 art px (2 world px) ring, so shift to keep the art still.
+        next.sprite.setFrame(`${next.frame}_hl`);
+      }
+      next?.tag?.setVisible(true);
+      this.currentTarget = next;
+      this.alignHighlights();
+    }
+
+    private alignHighlights() {
+      for (const it of this.interactables) {
+        if (!it.sprite || !it.frame) continue;
+        const slot = this.meta.object_slots[it.id];
+        if (!slot) continue;
+        const lit = it === this.currentTarget;
+        it.sprite.setPosition(slot.px - (lit ? 2 : 0), slot.py - (lit ? 2 : 0));
+      }
+    }
+
+    update(_time: number, delta: number) {
       if (!this.player || !this.player.body) return;
-      const speed = 190;
       const body = this.player.body as Phaser.Physics.Arcade.Body;
       const typing = this.isTyping() || (options.isLocked?.() ?? false);
-      let vx = 0;
-      let vy = 0;
       const left = !typing && (this.cursors.left.isDown || this.keys.A?.isDown === true);
       const right = !typing && (this.cursors.right.isDown || this.keys.D?.isDown === true);
       const up = !typing && (this.cursors.up.isDown || this.keys.W?.isDown === true);
       const down = !typing && (this.cursors.down.isDown || this.keys.S?.isDown === true);
-      if (left) vx -= speed;
-      if (right) vx += speed;
-      if (up) vy -= speed;
-      if (down) vy += speed;
-      body.setVelocity(vx, vy);
+      const input = new Phaser.Math.Vector2((right ? 1 : 0) - (left ? 1 : 0), (down ? 1 : 0) - (up ? 1 : 0));
+      // Normalised so diagonals are no faster than straight lines.
+      if (input.lengthSq() > 0) input.normalize();
+      const speed = !typing && this.cursors.shift.isDown ? RUN_SPEED : WALK_SPEED;
+      // Frame-rate independent ease toward the target velocity: snappy, but never a hard pop.
+      const k = 1 - Math.exp(-delta / ACCEL_MS);
+      this.velocity.x += (input.x * speed - this.velocity.x) * k;
+      this.velocity.y += (input.y * speed - this.velocity.y) * k;
+      if (input.lengthSq() === 0 && this.velocity.lengthSq() < 16) this.velocity.set(0, 0);
+      body.setVelocity(this.velocity.x, this.velocity.y);
 
-      let dir = "down";
-      if (vy < 0) dir = "up";
-      else if (vy > 0) dir = "down";
-      else if (vx < 0) dir = "left";
-      else if (vx > 0) dir = "right";
-
-      if (vx !== 0 || vy !== 0) {
-        this.lastDir = dir;
-        this.player.anims.play(`${this.playerTexture}-walk-${dir}`, true);
+      // Facing follows the input, keeping the current facing while it's still part of a diagonal.
+      if (input.lengthSq() > 0) {
+        const keeps =
+          (this.lastDir === "left" && input.x < 0) ||
+          (this.lastDir === "right" && input.x > 0) ||
+          (this.lastDir === "up" && input.y < 0) ||
+          (this.lastDir === "down" && input.y > 0);
+        if (!keeps) {
+          this.lastDir = Math.abs(input.x) > Math.abs(input.y) ? (input.x < 0 ? "left" : "right") : input.y < 0 ? "up" : "down";
+        }
+      }
+      // Animate from the speed actually achieved last frame (a wall stops the feet, not just the body).
+      if (delta > 0) {
+        const step = Phaser.Math.Distance.Between(this.lastPos.x, this.lastPos.y, this.player.x, this.player.y);
+        this.achieved += ((step * 1000) / delta - this.achieved) * 0.5;
+      }
+      this.lastPos.set(this.player.x, this.player.y);
+      const moved = this.achieved;
+      if (input.lengthSq() > 0 && moved > 12) {
+        this.player.anims.play(`${this.playerTexture}-walk-${this.lastDir}`, true);
+        this.player.anims.timeScale = Phaser.Math.Clamp(moved / WALK_SPEED, 0.5, RUN_SPEED / WALK_SPEED);
       } else {
         this.player.anims.play(`${this.playerTexture}-idle-${this.lastDir}`, true);
+        this.player.anims.timeScale = 1;
       }
-      this.player.setDepth(10 + this.player.y / 1000);
+      this.player.setDepth(this.player.y);
 
       // proximity
       let nearest: Interactable | null = null;
@@ -391,7 +647,7 @@ export function createOfficeGame(parent: HTMLElement, options: OfficeOptions): P
         }
       }
       if (nearest !== this.currentTarget) {
-        this.currentTarget = nearest;
+        this.setTarget(nearest);
         options.onPrompt(nearest ? nearest.label : null);
       }
       const nearCharId = nearest && nearest.kind === "character" ? nearest.id : null;
@@ -399,6 +655,8 @@ export function createOfficeGame(parent: HTMLElement, options: OfficeOptions): P
         this.lastNearCharacter = nearCharId;
         options.onNearCharacter(nearCharId);
       }
+      this.updateNpcFacing();
+      this.updatePets(delta);
 
       const loc = this.locationAt(this.player.x, this.player.y);
       if (loc !== this.lastLocation) {
@@ -407,6 +665,27 @@ export function createOfficeGame(parent: HTMLElement, options: OfficeOptions): P
       }
 
       this.nav.update(this.player.x, this.player.y);
+    }
+
+    /** Colleagues turn to face you when you come over, and settle back when you leave. */
+    private updateNpcFacing() {
+      for (const it of this.interactables) {
+        if (!it.npc || !it.texture) continue;
+        const dx = this.player.x - it.x;
+        const dy = this.player.y - it.y;
+        const near = dx * dx + dy * dy < (INTERACT_RADIUS * 1.6) ** 2;
+        const dir: Dir = near
+          ? Math.abs(dx) > Math.abs(dy)
+            ? dx < 0
+              ? "left"
+              : "right"
+            : dy < 0
+              ? "up"
+              : "down"
+          : (it.face ?? "down");
+        const key = `${it.texture}-idle-${dir}`;
+        if (it.npc.anims.currentAnim?.key !== key) it.npc.anims.play(key, true);
+      }
     }
 
     private labelFor(target: NavigationTarget, fallback: string): string {
@@ -433,11 +712,15 @@ export function createOfficeGame(parent: HTMLElement, options: OfficeOptions): P
         ? this.meta.rooms.find((r) => r.id === target.location_id)
         : undefined;
       if (room) {
+        const tile = nearestWalkable(this.navGrid, {
+          x: Math.round((room.x0 + room.x1) / 2),
+          y: Math.round((room.y0 + room.y1) / 2),
+        }) ?? { x: room.x0, y: room.y0 };
         return {
           id: target.target_id ?? room.id,
           label: this.labelFor(target, room.id),
-          x: ((room.x0 + room.x1) / 2) * TILE + TILE / 2,
-          y: ((room.y0 + room.y1) / 2) * TILE + TILE / 2,
+          x: tile.x * TILE + TILE / 2,
+          y: tile.y * TILE + TILE / 2,
           radius: INTERACT_RADIUS,
           showLabel: true,
         };
@@ -446,7 +729,13 @@ export function createOfficeGame(parent: HTMLElement, options: OfficeOptions): P
     }
 
     private applyNavigation() {
-      this.nav.setTarget(this.resolveRouteTarget(this.navTarget));
+      const route = this.resolveRouteTarget(this.navTarget);
+      // An object you're being routed to keeps its label up so the marker always has a name.
+      this.navTargetId = route && this.navTarget?.target_type === "object" ? route.id : null;
+      for (const it of this.interactables) {
+        if (it.kind === "object") it.tag?.setVisible(it === this.currentTarget || it.id === this.navTargetId);
+      }
+      this.nav.setTarget(route);
       this.nav.setVisible(this.navVisible);
     }
 
@@ -460,37 +749,42 @@ export function createOfficeGame(parent: HTMLElement, options: OfficeOptions): P
       this.nav.setVisible(visible);
     }
 
+    /** Put the player's feet on the nearest walkable tile to a tile coordinate. */
+    private placePlayerAt(tile: { x: number; y: number }) {
+      const free = nearestWalkable(this.navGrid, tile) ?? tile;
+      const x = free.x * TILE + TILE / 2;
+      const y = free.y * TILE + TILE - 2;
+      this.player.setPosition(x, y);
+      this.player.body?.reset(x, y);
+      this.velocity.set(0, 0);
+      this.lastPos.set(x, y);
+      this.achieved = 0;
+    }
+
     travelTo(locationId: string) {
       const room = this.meta.rooms.find((r) => r.id === locationId);
       if (!room) return;
-      const cx = ((room.x0 + room.x1) / 2) * TILE + TILE / 2;
-      const cy = (room.y1 + 1) * TILE - 4;
-      this.player.setPosition(cx, cy);
-      this.player.body?.reset(cx, cy);
+      this.placePlayerAt({ x: Math.round((room.x0 + room.x1) / 2), y: room.y1 });
     }
 
     focusCharacter(characterId: string) {
       const it = this.interactables.find((i) => i.kind === "character" && i.id === characterId);
-      if (it) {
-        const cx = it.x;
-        const cy = it.y + TILE;
-        this.player.setPosition(cx - 40, cy);
-        this.player.body?.reset(cx - 40, cy);
-      }
+      if (!it) return;
+      this.placePlayerAt({ x: Math.floor(it.x / TILE) - 1, y: Math.floor((it.y - 2) / TILE) + 1 });
     }
   }
 
   const config: Phaser.Types.Core.GameConfig = {
     type: Phaser.AUTO,
     parent,
-    width: 1024,
-    height: 640,
-    backgroundColor: "#14140f",
+    backgroundColor: "#1d1a26",
     pixelArt: true,
     roundPixels: true,
     scale: {
-      mode: Phaser.Scale.FIT,
-      autoCenter: Phaser.Scale.CENTER_BOTH,
+      // The canvas matches its container 1:1 (no CSS stretching); the camera zoom does the scaling.
+      mode: Phaser.Scale.RESIZE,
+      width: parent.clientWidth || 1024,
+      height: parent.clientHeight || 640,
     },
     physics: {
       default: "arcade",
