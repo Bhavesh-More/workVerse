@@ -40,7 +40,7 @@ w("- **Facts unlock by keywords:** when your message contains one of a colleague
 w("- **Portraits:** `apps/web/public/assets/portraits/<name-slug>.svg` (DiceBear Lorelei, CC0). Game sprite and office location come from the slot.\n")
 
 for key, t in tracks.TRACKS.items():
-    locs = {l.id: l.name for l in T._locations(t)}
+    locs = {loc.id: loc.name for loc in T._locations(t)}
     w(f"---\n\n## Track: {t['label']} (`{key}`)\n")
     w(f"- **Who gets it:** {ROLE_HINT.get(key, '')}")
     w(f"- **Scenario title:** {fmt(t['title'])}")
