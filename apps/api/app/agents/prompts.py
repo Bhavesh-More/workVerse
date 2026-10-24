@@ -65,9 +65,14 @@ def build_character_messages(
 
     context_lines = [
         "SCENARIO CONTEXT (trusted):",
-        f"- Incident: {state.incident.get('service', 'critical service')} is failing; "
-        f"severity {state.incident.get('severity', 'unknown')}; deploy was "
-        f"{state.incident.get('deploy_minutes_ago', '?')} minutes ago.",
+        "- Incident: "
+        + (
+            state.incident.get("summary")
+            or f"{state.incident.get('service', 'critical service')} is failing; a deploy was "
+            f"{state.incident.get('deploy_minutes_ago', '?')} minutes ago"
+        )
+        + f"; severity {state.incident.get('severity', 'unknown')}.",
+        f"- Talk like a real {character.role}: use that job's everyday words.",
         f"- Current phase: {state.phase}.",
     ]
     active_objectives = [

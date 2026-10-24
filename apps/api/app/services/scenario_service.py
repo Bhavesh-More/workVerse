@@ -13,6 +13,7 @@ from app.schemas.runtime import SimulationState
 from app.schemas.scenario import ActionDefinition, ScenarioBlueprint
 from app.simulation.engine import is_action_available
 from app.simulation.templates import TEMPLATE_CATALOG, TEMPLATE_SLUG, build_production_incident
+from app.simulation.tracks import TRACKS, track_for
 from app.simulation.validation import validate_blueprint
 
 logger = logging.getLogger(__name__)
@@ -72,6 +73,8 @@ def world_view(blueprint: ScenarioBlueprint, state: SimulationState) -> dict[str
                 "sprite": c.sprite,
                 "location_id": c.location_id,
                 "greeting": c.greeting,
+                "profile": blueprint.metadata.get("profiles", {}).get(c.id),
+                "questions": blueprint.metadata.get("questions", {}).get(c.id, []),
             }
             for c in blueprint.characters
         ],
@@ -91,7 +94,21 @@ async def ensure_seed_templates(repo: Repository) -> None:
 _CATALOG_EXTRAS = ("story", "you_will", "people", "skills", "report")
 
 
-async def list_catalog(repo: Repository) -> list[dict[str, Any]]:
+def _track_copy(role: str | None) -> dict[str, Any]:
+    """Card copy re-told for the learner's role track (same flow, their world)."""
+    t = TRACKS[track_for(role or "")]
+    ctx = {"role": role or "new hire", "service": t["services"][0], "pct": 24, "minutes": 10}
+    return {
+        "title": t["title"],
+        "summary": t["briefing"].format(**ctx),
+        "story": t["briefing"].format(**ctx),
+        "track": track_for(role or ""),
+        "track_label": t["label"],
+        "people": [{"role": c["role"], "knows": t["people_knows"][cid]} for cid, c in t["characters"].items()],
+    }
+
+
+async def list_catalog(repo: Repository, role: str | None = None) -> list[dict[str, Any]]:
     rows = await repo.list_templates()
     if not rows:
         await ensure_seed_templates(repo)
@@ -99,7 +116,11 @@ async def list_catalog(repo: Repository) -> list[dict[str, Any]]:
     # Descriptive copy lives in code so it updates without re-seeding the database.
     by_slug = {entry["slug"]: entry for entry in TEMPLATE_CATALOG}
     return [
-        {**row, **{k: by_slug[row["slug"]][k] for k in _CATALOG_EXTRAS if k in by_slug.get(row["slug"], {})}}
+        {
+            **row,
+            **{k: by_slug[row["slug"]][k] for k in _CATALOG_EXTRAS if k in by_slug.get(row["slug"], {})},
+            **(_track_copy(role) if row["slug"] == TEMPLATE_SLUG else {}),
+        }
         for row in rows
     ]
 
@@ -244,6 +265,8 @@ def prebrief(blueprint: ScenarioBlueprint) -> dict[str, Any]:
                 "role": c.role,
                 "location": next((loc.name for loc in blueprint.locations if loc.id == c.location_id), c.location_id),
                 "knows_about": bool(c.disclosure_rules),
+                "knows": blueprint.metadata.get("profiles", {}).get(c.id, {}).get("knows"),
+                "profile": blueprint.metadata.get("profiles", {}).get(c.id),
             }
             for c in blueprint.characters
         ],
@@ -254,7 +277,7 @@ def prebrief(blueprint: ScenarioBlueprint) -> dict[str, Any]:
         "tips": [
             "Talk like you would on a real call: one short question at a time.",
             "Ask before you act — the people around you hold facts the consoles don't.",
-            "Check that a rollback is safe before you press it.",
+            blueprint.metadata.get("tip_risk", "Check that a rollback is safe before you press it."),
             "Your status update should say impact, cause, action, next update time and owner.",
         ],
     }

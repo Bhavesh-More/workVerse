@@ -23,9 +23,9 @@ _QUESTION_START = re.compile(
 
 # Status-update checklist: what a stakeholder needs to hear, and a plain-language test for each.
 UPDATE_CHECKS: list[tuple[str, str, re.Pattern[str]]] = [
-    ("impact", "Says who/what is affected", re.compile(r"\d+\s*%|impact|customer|user|checkout|order|affect|fail", re.I)),
-    ("cause", "Names the likely cause", re.compile(r"cause|migration|deploy|release|schema|column|because|due to", re.I)),
-    ("action", "Says what was done", re.compile(r"roll(ed)?\s*back|revert|forward.?fix|hotfix|mitigat|fix(ed)?|applied|restor", re.I)),
+    ("impact", "Says who/what is affected", re.compile(r"\d+\s*%|impact|customer|user|checkout|order|affect|fail|sign.?up|shopper|revenue|numbers|report", re.I)),
+    ("cause", "Names the likely cause", re.compile(r"cause|migration|deploy|release|schema|column|because|due to|api|field|rename|pipeline|upstream|launch|flag|sms|verification", re.I)),
+    ("action", "Says what was done", re.compile(r"roll(ed)?\s*back|revert|forward.?fix|hotfix|mitigat|fix(ed)?|applied|restor|patch|backfill|optional|turn(ed)?\s*off|pause", re.I)),
     ("next_update", "Commits to a next update time", re.compile(r"next update|update (you|again|in|at|by)|\b\d{1,2}(:\d{2})?\s*(am|pm)\b|\b\d{1,2}:\d{2}\b|in \d+\s*(min|minutes|hour)", re.I)),
     ("owner", "States who owns it", re.compile(r"\bI('m| am| will|'ll)\b|\bowner\b|\bon.?call\b|\bI\b.*(own|lead|handl)", re.I)),
 ]
@@ -96,6 +96,10 @@ def build_ledger(
     """Per-criterion list of verifiable checks. Unknown criteria simply get no checks."""
     done = state.actions_done
     known = set(state.facts_known)
+    # Labels come from the blueprint so each role track reads in its own words.
+    A = {a.id: a.label for a in blueprint.actions}  # noqa: N806
+    F = {f.id: f.label for f in blueprint.facts}  # noqa: N806
+    R = {c.id: c.role for c in blueprint.characters}  # noqa: N806
     ev = lambda a: _event_for_action(events, a)  # noqa: E731
     fact_ev = lambda f: _event_for_fact(events, f)  # noqa: E731
     rejected = [e for e in events if e["event_type"] == "decision_rejected"]
@@ -112,22 +116,22 @@ def build_ledger(
 
     ledger: dict[str, list[dict[str, Any]]] = {
         "diagnosis": [
-            _check("logs", "Inspected application logs", "a_inspect_logs" in done, "event", ev("a_inspect_logs")),
-            _check("metrics", "Inspected database metrics", "a_inspect_metrics" in done, "event", ev("a_inspect_metrics")),
-            _check("dashboard", "Checked the incident dashboard", "a_inspect_dashboard" in done, "event", ev("a_inspect_dashboard")),
-            _check("migration_known", "Found out a DB migration shipped", "f_migration_ran" in known, "event", fact_ev("f_migration_ran")),
+            _check("logs", A["a_inspect_logs"], "a_inspect_logs" in done, "event", ev("a_inspect_logs")),
+            _check("metrics", A["a_inspect_metrics"], "a_inspect_metrics" in done, "event", ev("a_inspect_metrics")),
+            _check("dashboard", A["a_inspect_dashboard"], "a_inspect_dashboard" in done, "event", ev("a_inspect_dashboard")),
+            _check("migration_known", f"Learned: {F['f_migration_ran']}", "f_migration_ran" in known, "event", fact_ev("f_migration_ran")),
         ],
         "risk_decision": [
-            _check("compat_checked", "Checked migration compatibility", "a_check_migration_compat" in done, "event", ev("a_check_migration_compat")),
-            _check("compat_first", "Checked compatibility before mitigating", compat_before, "event", ev("a_check_migration_compat")),
+            _check("compat_checked", A["a_check_migration_compat"], "a_check_migration_compat" in done, "event", ev("a_check_migration_compat")),
+            _check("compat_first", f"{A['a_check_migration_compat']} before fixing", compat_before, "event", ev("a_check_migration_compat")),
             _check(
                 "right_fix",
-                "Chose the forward fix (a rollback can't undo an incompatible migration)",
+                f"Chose: {A['a_apply_forward_fix']} (undoing can't fix this change)",
                 state.flags.get("mitigation") == "forward_fix",
                 "event",
                 ev("a_apply_forward_fix"),
             ),
-            _check("runbook", "Read the ops runbook", "a_inspect_runbook" in done, "event", ev("a_inspect_runbook")),
+            _check("runbook", A["a_inspect_runbook"], "a_inspect_runbook" in done, "event", ev("a_inspect_runbook")),
             _check(
                 "no_blocked",
                 "No unsafe action was blocked",
@@ -153,15 +157,15 @@ def build_ledger(
             ),
         ],
         "ownership": [
-            _check("impact_known", "Asked the manager about impact", "f_business_impact" in known, "event", fact_ev("f_business_impact")),
-            _check("talked_qa", "Talked to QA about what testing missed", "qa" in consulted, "message", _first_message_to(messages, "qa")),
-            _check("talked_client", "Kept the client informed", "client_pm" in consulted, "message", _first_message_to(messages, "client_pm")),
+            _check("impact_known", f"Asked the {R['manager']} about impact", "f_business_impact" in known, "event", fact_ev("f_business_impact")),
+            _check("talked_qa", f"Talked to the {R['qa']}", "qa" in consulted, "message", _first_message_to(messages, "qa")),
+            _check("talked_client", f"Kept the {R['client_pm']} informed", "client_pm" in consulted, "message", _first_message_to(messages, "client_pm")),
             _check("followup", "Documented a follow-up", "a_document_followup" in done, "event", ev("a_document_followup")),
         ],
         "adaptation": [
-            _check("mitigated", "Applied a real mitigation (not just a restart)", state.flags.get("mitigation") in {"rollback", "forward_fix"}, "event", ev("a_apply_rollback") or ev("a_apply_forward_fix")),
-            _check("pool", "Noticed the connection pool saturation", "f_connection_pool" in known, "event", fact_ev("f_connection_pool")),
-            _check("deploy", "Reviewed how the deploy rolled out", "a_inspect_deploy" in done, "event", ev("a_inspect_deploy")),
+            _check("mitigated", f"Applied a real fix (not just: {A['a_restart_service']})", state.flags.get("mitigation") in {"rollback", "forward_fix"}, "event", ev("a_apply_rollback") or ev("a_apply_forward_fix")),
+            _check("pool", f"Learned: {F['f_connection_pool']}", "f_connection_pool" in known, "event", fact_ev("f_connection_pool")),
+            _check("deploy", A["a_inspect_deploy"], "a_inspect_deploy" in done, "event", ev("a_inspect_deploy")),
         ],
     }
     criterion_ids = {c.id for c in blueprint.rubric.criteria}
@@ -220,10 +224,11 @@ def conversation_stats(
 def say_next_time(ledger: dict[str, list[dict[str, Any]]], blueprint: ScenarioBlueprint) -> list[dict[str, str]]:
     """Ready-to-use lines for the checks the learner missed (max 4, in ledger order)."""
     names = {c.id: c.name for c in blueprint.characters}
+    lines = blueprint.metadata.get("say_next_time") or SAY_NEXT_TIME
     out: list[dict[str, str]] = []
     for checks in ledger.values():
         for c in checks:
-            tip = SAY_NEXT_TIME.get(c["id"])
+            tip = lines.get(c["id"])
             if tip and not c["passed"]:
                 out.append({"check": c["label"], "to": names.get(tip["to"], tip["to"]), "say": tip["say"]})
     return out[:4]

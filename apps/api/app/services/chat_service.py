@@ -34,6 +34,14 @@ ACTION_HINTS = (
     "deploy",
     "runbook",
     "metrics",
+    "pipeline",
+    "backfill",
+    "patch",
+    "flag",
+    "turn off",
+    "release",
+    "checklist",
+    "playbook",
 )
 
 

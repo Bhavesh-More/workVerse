@@ -112,16 +112,17 @@ def deterministic_findings(
     findings: list[str] = []
     done = state.actions_done
     asked = sorted({m["character_id"] for m in messages if m["speaker_type"] == "character" and m.get("character_id")})
-    findings.append(f"Learner inspected logs: {'yes' if 'a_inspect_logs' in done else 'no'}")
-    findings.append(f"Learner inspected metrics: {'yes' if 'a_inspect_metrics' in done else 'no'}")
-    findings.append(
-        f"Migration compatibility checked: {'yes' if 'a_check_migration_compat' in done else 'no'}"
-    )
+    labels = {a.id: a.label for a in blueprint.actions}
+    for aid in ("a_inspect_logs", "a_inspect_metrics", "a_check_migration_compat"):
+        findings.append(f"{labels.get(aid, aid)}: {'yes' if aid in done else 'no'}")
     mitigation = state.flags.get("mitigation")
     findings.append(f"Chosen mitigation: {mitigation or 'none applied'}")
     if "a_apply_rollback" in done and "a_check_migration_compat" in done:
         order_ok = done.index("a_check_migration_compat") < done.index("a_apply_rollback")
-        findings.append(f"Rollback applied after compatibility check: {'yes' if order_ok else 'no'}")
+        findings.append(
+            f"{labels.get('a_apply_rollback')} done after {labels.get('a_check_migration_compat')}: "
+            f"{'yes' if order_ok else 'no'}"
+        )
     rejected = [e for e in events if e["event_type"] == "decision_rejected"]
     if rejected:
         reasons = "; ".join(
