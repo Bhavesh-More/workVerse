@@ -241,7 +241,7 @@ export const api = {
       provider_conversation_id?: string | null;
     },
   ) =>
-    request<{ id: string; duplicate: boolean }>(
+    request<{ id: string; duplicate: boolean; session?: SessionView }>(
       `/sessions/${sessionId}/voice-sessions/${voiceSessionId}/messages`,
       { method: "POST", body },
     ),

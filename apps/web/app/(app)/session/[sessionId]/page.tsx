@@ -173,6 +173,7 @@ export default function SessionPage() {
         setSession(res.session);
         setMessages((await api.transcript(sessionId)).items);
         const newly = res.state_delta?.newly_discovered_fact_ids as string[] | undefined;
+        (res.findings ?? []).forEach((f) => toolFactIds.current.add(f.id));
         if (res.tool && action.action_type === "inspect") {
           // Inspecting a tool opens it: the findings show inside a pixel window styled like the tool.
           setToolView({ ...res.tool, findings: res.findings ?? [], service: String(res.session.incident?.service ?? "") || undefined });
@@ -273,16 +274,18 @@ export default function SessionPage() {
   // step; if that's another person, switch the chat to them after a short, cancellable countdown.
   const [handoff, setHandoff] = useState<{ from: string; to: string | null; secs: number } | null>(null);
   const doneBefore = useRef<Set<string> | null>(null);
+  // Whoever the learner is talking to right now: the voice call wins over the open chat.
+  const talkingTo = voice?.npc.id ?? activeCharacter;
   useEffect(() => {
     if (!session) return;
     const done = new Set(session.characters_done ?? []);
     const before = doneBefore.current;
     doneBefore.current = done;
-    if (!before || !activeCharacter || !done.has(activeCharacter) || before.has(activeCharacter)) return;
+    if (!before || !talkingTo || !done.has(talkingTo) || before.has(talkingTo)) return;
     const nav = session.navigation;
-    const to = nav?.target_type === "character" && nav.target_id !== activeCharacter ? nav.target_id : null;
-    setHandoff({ from: activeCharacter, to, secs: 6 });
-  }, [session, activeCharacter]);
+    const to = nav?.target_type === "character" && nav.target_id !== talkingTo ? nav.target_id : null;
+    setHandoff({ from: talkingTo, to, secs: 6 });
+  }, [session, talkingTo]);
   useEffect(() => {
     if (!handoff?.to || voice) return;
     if (handoff.secs <= 0) {
@@ -295,8 +298,25 @@ export default function SessionPage() {
   }, [handoff, voice, openCharacter]);
   useEffect(() => {
     // Picking someone else yourself cancels the handoff.
-    setHandoff((h) => (h && h.from !== activeCharacter ? null : h));
-  }, [activeCharacter]);
+    setHandoff((h) => (h && h.from !== talkingTo ? null : h));
+  }, [talkingTo]);
+
+  // Facts a colleague tells you (typed or spoken) pop up as a dialogue box, like tool findings do.
+  // Facts from tools are skipped here: the tool's own window already showed them.
+  const factsBefore = useRef<Set<string> | null>(null);
+  const toolFactIds = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    if (!session) return;
+    const known = session.facts_known;
+    const before = factsBefore.current;
+    factsBefore.current = new Set(known.map((f) => f.id));
+    if (!before) return;
+    const fresh = known.filter((f) => !before.has(f.id) && !toolFactIds.current.has(f.id));
+    const who = characters.find((c) => c.id === talkingTo);
+    if (!fresh.length || !who) return;
+    setToolView({ id: "dialogue", label: who.name, portrait: who.profile?.portrait, findings: fresh.map((f) => ({ ...f, new: true })) });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- runs per session update; speaker read at that moment
+  }, [session]);
 
   const startVoiceMeeting = useCallback(
     async (characterId: string) => {
@@ -694,6 +714,26 @@ export default function SessionPage() {
               conversationToken={voice.conversationToken}
               contextGrant={voice.contextGrant}
               onEnd={endVoiceMeeting}
+              onSession={setSession}
+              handoff={
+                handoff && handoff.from === voice.npc.id
+                  ? handoff.to
+                    ? {
+                        text: `talk to ${characters.find((c) => c.id === handoff.to)?.name}.`,
+                        goLabel: `End call · talk to ${characters.find((c) => c.id === handoff.to)?.name.split(" ")[0]}`,
+                        onGo: () => {
+                          const to = handoff.to!;
+                          setHandoff(null);
+                          openCharacter(to);
+                        },
+                      }
+                    : {
+                        text: `${navigation?.action_label ?? navigation?.objective_label ?? "check the guide"} — follow the arrow in the office.`,
+                        goLabel: "End call · go there",
+                        onGo: () => setHandoff(null),
+                      }
+                  : null
+              }
             />
           )}
 

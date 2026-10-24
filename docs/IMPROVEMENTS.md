@@ -394,3 +394,20 @@ Code: `apps/web/components/ShiftComplete.tsx`.
   - **Unfinished** session → click (or **Start new**) starts a **new** session of that scenario with a
     fresh incident. **Resume** next to it continues the old one instead.
 - Code: `apps/web/app/(app)/sessions/page.tsx` (uses the existing `/sessions/{id}/retry` API).
+
+## 24. Voice handoff, "told you" dialogue, sticky voice transcript
+
+- **Facts count no matter how you learn them.** Before, a fact only counted if your *question* used
+  certain keywords (which the suggested questions always did). Now, after every colleague reply,
+  in text chat **and** in a voice call, a quick AI check (`apps/api/app/services/fact_check.py`)
+  asks: "did this reply actually state any of the facts this person is allowed to share?" If yes,
+  they're added to *What you know*. The AI only ever sees facts that person may share right now,
+  so nothing hidden leaks.
+- **Voice calls now trigger the handoff.** Each spoken line is saved as before; now the server also
+  updates what you know and sends the new state back. When the person on the call has told you
+  everything, the call shows **"✓ … has told you what they know. Next: …"** with a button that
+  ends the call and takes you to the next person (or the next step).
+- **"Told you" dialogue box.** When a colleague tells you something new (typed or spoken), a pixel
+  dialogue window pops up with their portrait and the facts, like the tool findings popup.
+- **Voice transcript sticks to the newest line** like a chat app, and voice tags such as `[calm]`
+  are hidden from the text.

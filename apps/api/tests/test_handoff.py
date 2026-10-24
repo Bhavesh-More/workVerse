@@ -58,3 +58,53 @@ def test_inspecting_a_tool_returns_its_findings(monkeypatch):
     ))
     assert res["tool"]["id"] == "log_viewer"
     assert [f["id"] for f in res["findings"]] == ["f_error_logs"] and res["findings"][0]["new"]
+
+
+def _voice_harness(monkeypatch, stated):
+    from app.services import voice_service
+
+    bp = build_production_incident(seed=11, incident="base")
+    state = build_initial_state(bp, "v1")
+
+    class Repo:
+        async def save_session_state(self, **kw):
+            return {"id": "s", "status": "active", "state_version": kw["new_version"]}
+
+    async def fake_load(*_a, **_k):
+        return {"id": "s", "status": "active", "state_version": state.state_version}, bp, state
+
+    async def no_events(*_a, **_k):
+        return []
+
+    async def fake_stated(*_a, **_k):
+        return stated
+
+    monkeypatch.setattr(voice_service, "_load", fake_load)
+    monkeypatch.setattr(voice_service, "_persist_pending_events", no_events)
+    monkeypatch.setattr(voice_service, "facts_stated", fake_stated)
+    monkeypatch.setattr(voice_service, "session_view", lambda _r, _b, s: {"facts": list(s.facts_known)})
+    return voice_service, Repo(), bp, state
+
+
+def test_voice_turns_reveal_facts_from_question_and_from_reply(monkeypatch):
+    import asyncio
+
+    from app.simulation.engine import disclosable_now
+
+    vs, repo, bp, state = _voice_harness(monkeypatch, stated=[])
+    # Learner asks out loud: keyword disclosure, same as typed chat.
+    view = asyncio.run(vs._learn_from_voice(repo, object(), "u", "s", "manager", "user", "what's the customer impact?"))
+    assert view and view["facts"]
+    # Manager volunteers the rest unprompted: the fact check counts it, so the manager becomes "done".
+    rest = disclosable_now(bp, state, "manager")
+    vs2, repo2, *_ = _voice_harness(monkeypatch, stated=rest)
+    monkeypatch.setattr(vs2, "_load", lambda *_a, **_k: _ret(state, bp))
+    view = asyncio.run(vs2._learn_from_voice(repo2, object(), "u", "s", "manager", "npc", "and the deadline is 5pm"))
+    assert view and set(rest) <= set(view["facts"])
+    assert character_done(bp, state, next(c for c in bp.characters if c.id == "manager"))
+    # Nothing new said: no update.
+    assert asyncio.run(vs2._learn_from_voice(repo2, object(), "u", "s", "manager", "npc", "ok")) is None
+
+
+async def _ret(state, bp):
+    return {"id": "s", "status": "active", "state_version": state.state_version}, bp, state

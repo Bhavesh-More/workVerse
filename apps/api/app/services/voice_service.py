@@ -13,6 +13,7 @@ from typing import Any
 from sqlalchemy.exc import IntegrityError
 
 from app.agents.elevenlabs_cloud import ElevenLabsClient
+from app.agents.ollama_cloud import OllamaCloudClient
 from app.core.config import Settings
 from app.core.errors import (
     AIConfigError,
@@ -23,7 +24,9 @@ from app.core.errors import (
 )
 from app.core.voice_grant import issue_grant
 from app.db.repository import Repository
-from app.services.session_service import _load
+from app.services.fact_check import facts_stated
+from app.services.session_service import _load, _persist_pending_events, session_view
+from app.simulation.engine import apply_disclosure, reveal_facts
 from app.simulation.tracks import gender_of
 
 logger = logging.getLogger(__name__)
@@ -150,6 +153,7 @@ async def ingest_transcript_message(
     provider_message_id: str | None = None,
     provider_conversation_id: str | None = None,
     sequence: int | None = None,
+    ai: OllamaCloudClient | None = None,
 ) -> dict[str, Any]:
     voice = await _load_voice_session(repo, user_id, session_id, voice_session_id)
     if voice["status"] in {"ended", "failed", "expired"}:
@@ -206,7 +210,33 @@ async def ingest_transcript_message(
         await repo.set_voice_session_status(
             str(voice["id"]), "active", provider_conversation_id=provider_conversation_id
         )
-    return {"id": str(row["id"]), "duplicate": False}
+    session = await _learn_from_voice(repo, ai, user_id, session_id, str(voice["npc_id"]), speaker, clean)
+    return {"id": str(row["id"]), "duplicate": False, **({"session": session} if session else {})}
+
+
+async def _learn_from_voice(
+    repo: Repository, ai: OllamaCloudClient | None, user_id: str, session_id: str, npc_id: str, speaker: str, text: str
+) -> dict[str, Any] | None:
+    """Voice turns reveal facts like text chat: keywords in what the learner asks, plus facts the
+    colleague actually says. Returns the new session view when something was learned, else None."""
+    row, blueprint, state = await _load(repo, user_id, session_id, for_update=True)
+    if row["status"] != "active":
+        return None
+    if speaker == "user":
+        newly, events = apply_disclosure(blueprint, state, npc_id, text)
+    else:
+        stated = await facts_stated(ai, blueprint, state, npc_id, text) if ai else []
+        newly, events = reveal_facts(blueprint, state, npc_id, stated)
+    if not newly:
+        return None
+    await _persist_pending_events(repo, session_id, state, events)
+    saved = await repo.save_session_state(
+        session_id=session_id,
+        expected_version=int(row["state_version"]),
+        new_version=state.state_version,
+        state=state.model_dump(),
+    )
+    return session_view(saved, blueprint, state) if saved else None
 
 
 async def end_voice_session(

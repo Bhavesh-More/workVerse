@@ -2598,3 +2598,24 @@ blockquote {
 @media (hover: hover) and (pointer: fine) {
   .session-row__main:hover .session-row__title { text-decoration: underline; }
 }
+
+/* Dialogue (a colleague told you something): RPG-style portrait + speech box */
+.px-dialogue { display: flex; gap: 14px; align-items: flex-start; padding: 14px; }
+.px-dialogue__face {
+  width: 96px;
+  height: 96px;
+  flex-shrink: 0;
+  background: var(--color-highlight-yellow);
+  box-shadow: 0 -4px 0 0 var(--color-ink), 0 4px 0 0 var(--color-ink), -4px 0 0 0 var(--color-ink), 4px 0 0 0 var(--color-ink);
+}
+.px-dialogue__speech { flex: 1; display: grid; gap: 8px; min-width: 0; }
+.px-dialogue__name {
+  justify-self: start;
+  padding: 2px 8px;
+  background: var(--color-ink);
+  color: var(--color-paper);
+  text-transform: uppercase;
+}
+@media (max-width: 520px) {
+  .px-dialogue__face { width: 64px; height: 64px; }
+}

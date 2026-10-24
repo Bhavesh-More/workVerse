@@ -7,7 +7,7 @@ import {
   type MessagePayload,
 } from "@elevenlabs/react";
 import { api } from "../lib/api";
-import type { VoiceNpc, VoiceTranscriptEntry } from "../lib/types";
+import type { SessionView, VoiceNpc, VoiceTranscriptEntry } from "../lib/types";
 
 export type VoicePhase =
   | "connecting"
@@ -23,6 +23,10 @@ type Props = {
   conversationToken: string;
   contextGrant: string | null;
   onEnd: () => void;
+  /** Called when a voice turn taught the learner something (the server returns the new session). */
+  onSession?: (session: SessionView) => void;
+  /** Shown once this colleague has told the learner everything: where to go next. */
+  handoff?: { text: string; goLabel: string; onGo: () => void } | null;
 };
 
 const PHASE_LABEL: Record<VoicePhase, string> = {
@@ -52,7 +56,11 @@ function VoiceSession({
   conversationToken,
   contextGrant,
   onEnd,
+  onSession,
+  handoff,
 }: Props) {
+  const onSessionRef = useRef(onSession);
+  onSessionRef.current = onSession;
   const [entries, setEntries] = useState<VoiceTranscriptEntry[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [detail, setDetail] = useState<string | null>(null);
@@ -77,6 +85,9 @@ function VoiceSession({
               provider_message_id: id,
               provider_conversation_id: conversationIdRef.current,
             })
+            .then((res) => {
+              if (res.session) onSessionRef.current?.(res.session);
+            })
             .catch(() => {
               /* transcript persistence is best-effort; the server also reconciles */
             });
@@ -90,7 +101,8 @@ function VoiceSession({
     (message: MessagePayload) => {
       const id: string = message.response_id ?? `evt-${message.event_id}`;
       const speaker: "user" | "npc" = message.role === "user" ? "user" : "npc";
-      const text = (message.message || "").trim();
+      // Drop expressive voice tags like "[calm]": they steer the voice, they aren't words.
+      const text = (message.message || "").replace(/\[[a-z][a-z \-]*\]\s*/gi, "").trim();
       if (!text) return;
       setEntries((prev) => {
         const index = prev.findIndex((entry) => entry.id === id);
@@ -167,12 +179,14 @@ function VoiceSession({
     };
   }, [conversationToken, contextGrant]);
 
+  // Stick to the newest line like a chat app, including while a line is still growing.
   useEffect(() => {
-    const node = logRef.current;
-    if (!node) return;
-    const nearBottom = node.scrollHeight - node.scrollTop - node.clientHeight < 80;
-    if (nearBottom) node.scrollTo({ top: node.scrollHeight });
-  }, [entries.length]);
+    const id = requestAnimationFrame(() => {
+      const node = logRef.current;
+      node?.scrollTo({ top: node.scrollHeight, behavior: "smooth" });
+    });
+    return () => cancelAnimationFrame(id);
+  }, [entries, handoff]);
 
   useEffect(() => {
     const timers = timersRef.current;
@@ -263,6 +277,25 @@ function VoiceSession({
         <p className="xsmall muted" data-testid="voice-detail" style={{ marginTop: 4 }}>
           {detail}
         </p>
+      )}
+
+      {handoff && (
+        <div className="handoff" role="status" data-testid="voice-handoff" style={{ marginTop: 8 }}>
+          <strong>✓ {npc.name.split(" ")[0]} has told you what they know.</strong>
+          <span className="xsmall">Next: {handoff.text}</span>
+          <div className="chip-row">
+            <button
+              className="btn btn--small"
+              data-testid="voice-handoff-go"
+              onClick={() => {
+                endMeeting();
+                handoff.onGo();
+              }}
+            >
+              {handoff.goLabel}
+            </button>
+          </div>
+        </div>
       )}
 
       <div className="voice-meeting__controls">

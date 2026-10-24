@@ -8,10 +8,10 @@ const pixelTitle = Press_Start_2P({ weight: "400", subsets: ["latin"], display: 
 const pixelBody = VT323({ weight: "400", subsets: ["latin"], display: "swap" });
 
 export type Finding = { id: string; label: string; detail: string; new?: boolean };
-export type ToolView = { id: string; label: string; findings: Finding[]; service?: string };
+export type ToolView = { id: string; label: string; findings: Finding[]; service?: string; portrait?: string };
 
 // Which "screen" each workplace tool opens as. Unknown tools fall back to a plain document.
-type Kind = "terminal" | "chart" | "pipeline" | "document";
+type Kind = "terminal" | "chart" | "pipeline" | "document" | "dialogue";
 const KIND: Record<string, Kind> = {
   log_viewer: "terminal",
   metrics_panel: "chart",
@@ -19,6 +19,7 @@ const KIND: Record<string, Kind> = {
   deploy_console: "pipeline",
   runbook: "document",
   migration_notes: "document",
+  dialogue: "dialogue", // a colleague told you something
 };
 
 /** Pixel-art window that shows what a workplace tool revealed, styled like that tool. */
@@ -60,6 +61,7 @@ export function ToolPopup({ tool, onClose }: { tool: ToolView; onClose: () => vo
           {kind === "chart" && <Chart tool={tool} />}
           {kind === "pipeline" && <Pipeline tool={tool} />}
           {kind === "document" && <Document tool={tool} />}
+          {kind === "dialogue" && <Dialogue tool={tool} />}
         </div>
         <div className="px-footer">
           <span>{tool.findings.some((f) => f.new) ? "★ New finding added to “What you know”" : "Nothing new since last time"}</span>
@@ -133,6 +135,19 @@ function Pipeline({ tool }: { tool: ToolView }) {
         ))}
       </div>
       <Findings findings={tool.findings} prefix="▶" />
+    </div>
+  );
+}
+
+function Dialogue({ tool }: { tool: ToolView }) {
+  return (
+    <div className="px-dialogue">
+      {/* eslint-disable-next-line @next/next/no-img-element -- local SVG */}
+      {tool.portrait && <img className="px-dialogue__face" src={tool.portrait} alt="" draggable={false} />}
+      <div className="px-dialogue__speech">
+        <span className="px-dialogue__name">{tool.label.split(" ")[0]} told you</span>
+        <Findings findings={tool.findings} prefix="»" />
+      </div>
     </div>
   );
 }

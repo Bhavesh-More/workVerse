@@ -10,8 +10,9 @@ from app.agents.prompts import build_character_messages, build_intent_messages
 from app.core.errors import ConflictError, NotFoundError, ValidationAppError
 from app.db.repository import Repository
 from app.schemas.ai import IntentInterpretation
+from app.services.fact_check import facts_stated
 from app.services.session_service import _load, _persist_pending_events, session_view
-from app.simulation.engine import apply_disclosure
+from app.simulation.engine import apply_disclosure, reveal_facts
 
 logger = logging.getLogger(__name__)
 
@@ -141,6 +142,13 @@ async def handle_turn(
             "completion_tokens": result.completion_tokens,
         },
     )
+
+    # Facts the colleague volunteered in the reply count too, not only ones the question keyed.
+    told, told_events = reveal_facts(
+        blueprint, state, character_id, await facts_stated(ai, blueprint, state, character_id, result.content)
+    )
+    newly_revealed += told
+    disclosure_events += told_events
 
     state.active_character_id = character_id
     persisted = await _persist_pending_events(repo, session_id, state, disclosure_events)

@@ -71,10 +71,12 @@ async def ingest_voice_message(
     repo: Repo,
     session_id: str,
     voice_session_id: str,
+    ai: AIDep,
     body: VoiceMessageRequest = Body(...),
 ) -> dict:
     return await voice_service.ingest_transcript_message(
         repo=repo,
+        ai=ai,
         user_id=principal.user_id,
         session_id=session_id,
         voice_session_id=voice_session_id,
