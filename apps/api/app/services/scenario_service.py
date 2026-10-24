@@ -9,6 +9,7 @@ from typing import Any
 
 from app.agents.ollama_cloud import OllamaCloudClient
 from app.agents.role_cards import NEEDS_FROM_LEARNER
+from app.company.judges import apply_topic
 from app.core.errors import NotFoundError, ValidationAppError
 from app.db.repository import Repository
 from app.schemas.runtime import SimulationState
@@ -27,6 +28,13 @@ from app.simulation.validation import validate_blueprint
 logger = logging.getLogger(__name__)
 
 VALIDATOR_VERSION = "validator-v1"
+# A role label per track that track_for() maps back to the same track.
+TRACK_ROLES = {
+    "backend": "Backend Engineer",
+    "frontend": "Frontend Engineer",
+    "data": "Data Analyst",
+    "product": "Product Manager",
+}
 PROMPT_VERSION = "prompts-v1"
 
 
@@ -198,7 +206,11 @@ async def create_instance(
     learning_objectives: list[str] | None = None,
     variation_request: str = "",
     incident: str | None = None,
+    topic: dict[str, Any] | None = None,
+    company: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
+    """`topic` + `company` turn this into a company assessment: the topic picks the track and
+    incident, and its judges' names and personalities are written into the blueprint."""
     template = await repo.get_template_by_slug(template_slug)
     if template is None:
         await ensure_seed_templates(repo)
@@ -207,6 +219,10 @@ async def create_instance(
         raise NotFoundError("Scenario template not found.")
 
     role = (profile or {}).get("target_role") or "Junior Software Engineer"
+    if topic:
+        role = TRACK_ROLES.get(topic.get("track") or "backend", role)
+        difficulty = topic.get("difficulty") or difficulty
+        incident = topic.get("incident") or incident
     profile_goals = list(learning_objectives or []) or list(
         (profile or {}).get("career_goals") or []
     )
@@ -224,7 +240,12 @@ async def create_instance(
 
     # The incident mechanics stay deterministic (and validated); Ollama only writes a short,
     # profile-aware story around them, and the session starts without it if it's slow or off.
-    generator_model = ai.model_name if await personalize(ai, blueprint, profile) else None
+    # A company topic brings its own story, so it is not rewritten.
+    if topic:
+        apply_topic(blueprint, topic, company or {})
+        generator_model = None
+    else:
+        generator_model = ai.model_name if await personalize(ai, blueprint, profile) else None
 
     report = validate_blueprint(blueprint)
     if not report.ok:
@@ -238,6 +259,8 @@ async def create_instance(
             profile_goals=profile_goals,
             incident=incident,
         )
+        if topic:
+            apply_topic(blueprint, topic, company or {})
         report = validate_blueprint(blueprint)
         if not report.ok:
             raise ValidationAppError(

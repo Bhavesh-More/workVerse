@@ -148,6 +148,17 @@ class Settings(BaseSettings):
     minio_presigned_url_ttl_seconds: int = 300
     minio_max_upload_bytes: int = 10_485_760
 
+    # --- Company assessments: invite links and the fallback SMTP server ----
+    # Companies can store their own SMTP settings; these are used when they haven't.
+    web_base_url: str = "http://localhost:3000"
+    smtp_host: str = ""
+    smtp_port: int = 587
+    smtp_username: str = ""
+    smtp_password: str = ""
+    smtp_from_email: str = ""
+    smtp_from_name: str = "WorkVerse Assessments"
+    smtp_security: str = "starttls"  # starttls | ssl | none
+
     # --- Development auth (never enabled in production) -------------------
     dev_auth_enabled: bool = False
 
