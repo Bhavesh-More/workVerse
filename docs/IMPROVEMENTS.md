@@ -411,3 +411,16 @@ Code: `apps/web/components/ShiftComplete.tsx`.
   dialogue window pops up with their portrait and the facts, like the tool findings popup.
 - **Voice transcript sticks to the newest line** like a chat app, and voice tags such as `[calm]`
   are hidden from the text.
+
+## 25. Handoff fires when the step is done (and calls end themselves)
+
+- **Before:** you were only handed on once a colleague had told you *everything* they know. The
+  manager knows the impact *and* the deadline, so learning only the impact (which is all the
+  "Establish the impact" step needs) moved the path on but never ended the conversation.
+- **Now:** the handoff also fires the moment the step you went to that person for is finished (the
+  path stops pointing at them).
+- **In a voice call** a banner shows the next step with a 6-second countdown (paused while the
+  "told you" box is open). At 0 the call hangs up by itself and you're taken to the next person, or
+  the office arrow points you to the next place. You can press the button to go sooner.
+- **In text chat** the same countdown switches the chat to the next person; if the next step is a
+  place, the card tells you where and the arrow shows the way.

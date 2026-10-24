@@ -26,7 +26,7 @@ type Props = {
   /** Called when a voice turn taught the learner something (the server returns the new session). */
   onSession?: (session: SessionView) => void;
   /** Shown once this colleague has told the learner everything: where to go next. */
-  handoff?: { text: string; goLabel: string; onGo: () => void } | null;
+  handoff?: { text: string; goLabel: string; onGo: () => void; secs: number } | null;
 };
 
 const PHASE_LABEL: Record<VoicePhase, string> = {
@@ -206,6 +206,16 @@ function VoiceSession({
     onEnd();
   }, [conversation, sessionId, voiceSessionId, onEnd]);
 
+  // The handoff countdown reached zero: hang up properly and move on.
+  const goRef = useRef(handoff?.onGo);
+  goRef.current = handoff?.onGo;
+  const autoEnd = handoff != null && handoff.secs <= 0;
+  useEffect(() => {
+    if (!autoEnd) return;
+    endMeeting();
+    goRef.current?.();
+  }, [autoEnd, endMeeting]);
+
   const connected = conversation.status === "connected";
   // Only the learner's own Mute button touches the mic. Toggling it on every speaking/listening
   // flip raced the WebRTC track swap and left the mic dead; "let them finish" is the agents'
@@ -292,7 +302,7 @@ function VoiceSession({
                 handoff.onGo();
               }}
             >
-              {handoff.goLabel}
+              {handoff.goLabel} ({handoff.secs}s)
             </button>
           </div>
         </div>

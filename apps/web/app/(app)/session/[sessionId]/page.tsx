@@ -274,28 +274,40 @@ export default function SessionPage() {
   // step; if that's another person, switch the chat to them after a short, cancellable countdown.
   const [handoff, setHandoff] = useState<{ from: string; to: string | null; secs: number } | null>(null);
   const doneBefore = useRef<Set<string> | null>(null);
+  const navBefore = useRef<SessionView["navigation"]>(null);
   // Whoever the learner is talking to right now: the voice call wins over the open chat.
   const talkingTo = voice?.npc.id ?? activeCharacter;
   useEffect(() => {
     if (!session) return;
+    const nav = session.navigation;
     const done = new Set(session.characters_done ?? []);
     const before = doneBefore.current;
+    const prevNav = navBefore.current;
     doneBefore.current = done;
-    if (!before || !talkingTo || !done.has(talkingTo) || before.has(talkingTo)) return;
-    const nav = session.navigation;
+    navBefore.current = nav;
+    if (!before || !talkingTo) return;
+    const atThem = (n: SessionView["navigation"]) => n?.target_type === "character" && n.target_id === talkingTo;
+    // Hand on when they've told you everything, or as soon as the step you came to them for is done
+    // (e.g. you only needed the impact from the manager: the path has moved on to the logs).
+    const toldAll = done.has(talkingTo) && !before.has(talkingTo);
+    const stepDone = atThem(prevNav) && !atThem(nav);
+    if (!toldAll && !stepDone) return;
     const to = nav?.target_type === "character" && nav.target_id !== talkingTo ? nav.target_id : null;
     setHandoff({ from: talkingTo, to, secs: 6 });
   }, [session, talkingTo]);
   useEffect(() => {
-    if (!handoff?.to || voice) return;
+    // Counts down to switching chat to the next person, or (in a call) to ending the call;
+    // paused while the "told you" box is open so there's time to read it.
+    if (!handoff || toolView || (!handoff.to && !voice)) return;
     if (handoff.secs <= 0) {
-      openCharacter(handoff.to);
+      if (voice) return; // the call ends itself at 0 (VoiceMeeting), then runs onGo
+      openCharacter(handoff.to!);
       setHandoff(null);
       return;
     }
     const t = setTimeout(() => setHandoff((h) => h && { ...h, secs: h.secs - 1 }), 1000);
     return () => clearTimeout(t);
-  }, [handoff, voice, openCharacter]);
+  }, [handoff, voice, toolView, openCharacter]);
   useEffect(() => {
     // Picking someone else yourself cancels the handoff.
     setHandoff((h) => (h && h.from !== talkingTo ? null : h));
@@ -719,6 +731,7 @@ export default function SessionPage() {
                 handoff && handoff.from === voice.npc.id
                   ? handoff.to
                     ? {
+                        secs: handoff.secs,
                         text: `talk to ${characters.find((c) => c.id === handoff.to)?.name}.`,
                         goLabel: `End call · talk to ${characters.find((c) => c.id === handoff.to)?.name.split(" ")[0]}`,
                         onGo: () => {
@@ -728,6 +741,7 @@ export default function SessionPage() {
                         },
                       }
                     : {
+                        secs: handoff.secs,
                         text: `${navigation?.action_label ?? navigation?.objective_label ?? "check the guide"} — follow the arrow in the office.`,
                         goLabel: "End call · go there",
                         onGo: () => setHandoff(null),
