@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
 
 from app.agents.ollama_cloud import OllamaCloudClient
 from app.schemas.runtime import SimulationState
@@ -16,6 +17,15 @@ from app.schemas.scenario import ScenarioBlueprint
 from app.simulation.engine import disclosable_now
 
 logger = logging.getLogger(__name__)
+
+_NUMBER = re.compile(r"\d+(?:[.:]\d+)?")
+
+
+def says_specifics(detail: str, reply: str) -> bool:
+    """A fact with numbers (24%, 16:00, 3 devices) only counts if the reply says at least one of them:
+    "checkout is failing" is not "24% of checkouts are failing"."""
+    needed = set(_NUMBER.findall(detail))
+    return not needed or bool(needed & set(_NUMBER.findall(reply)))
 
 
 async def facts_stated(
@@ -32,7 +42,8 @@ async def facts_stated(
             "content": (
                 f"Facts:\n{listed}\n\nMessage:\n{reply[:1200]}\n\n"
                 'Return {"stated": [fact ids]}: only facts the message clearly tells the listener '
-                "(the substance, not just the topic). Asking about something, or saying they don't know, does not count."
+                "including any specific numbers, times or names in it; a vague version (e.g. 'checkout is failing' "
+                "for a fact with a percentage) does not count. Asking about something, or saying they don't know, does not count."
             ),
         },
     ]
@@ -42,4 +53,8 @@ async def facts_stated(
         logger.info("fact_check_skipped")
         return []
     stated = out.get("stated") if isinstance(out, dict) else None
-    return [f for f in candidates if isinstance(stated, list) and f in stated]
+    return [
+        f
+        for f in candidates
+        if isinstance(stated, list) and f in stated and says_specifics(blueprint.fact(f).detail, reply)  # type: ignore[union-attr]
+    ]

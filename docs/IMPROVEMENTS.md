@@ -453,3 +453,10 @@ Music switches to a new bright "victory" march (C major) for the whole card. **N
 to the next slide; Esc or **See your debrief →** leaves at any time. Dots under the chart show where you are.
 Sounds and music are synthesized in `apps/web/lib/sfx.ts` (cues `fanfare`, `trumpet`; mood `victory`), no audio files.
 Preview: `http://localhost:3000/intro-preview?end=1`.
+
+## 28. A vague answer doesn't count as the exact fact
+
+If a fact has numbers, times or percentages (e.g. "About 24% of checkouts are failing"), the colleague
+now has to actually say at least one of them for it to count. "Checkout is failing for customers" no
+longer unlocks the 24% fact, its popup, or "has told you what they know". (`says_specifics` in
+`apps/api/app/services/fact_check.py`.)

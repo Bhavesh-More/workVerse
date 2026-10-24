@@ -108,3 +108,12 @@ def test_voice_turns_reveal_facts_from_question_and_from_reply(monkeypatch):
 
 async def _ret(state, bp):
     return {"id": "s", "status": "active", "state_version": state.state_version}, bp, state
+
+
+def test_vague_reply_does_not_count_for_a_fact_with_numbers():
+    from app.services.fact_check import says_specifics
+
+    detail = "About 24% of checkouts are failing; revenue is dropping by the minute."
+    assert not says_specifics(detail, "Impact is that checkout is failing for customers right now.")
+    assert says_specifics(detail, "Roughly 24 percent of checkouts fail.")
+    assert says_specifics("The release went out this morning.", "We shipped a release this morning.")
