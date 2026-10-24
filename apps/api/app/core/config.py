@@ -163,9 +163,10 @@ class Settings(BaseSettings):
             mapping.setdefault("*", self.elevenlabs_agent_id.strip())
         return mapping
 
-    def agent_for_npc(self, npc_id: str) -> str | None:
+    def agent_for_npc(self, npc_id: str, gender: str | None = None) -> str | None:
+        """Most specific match wins: "client_pm:male", then "client_pm", then the default "*"."""
         agents = self.elevenlabs_agents
-        return agents.get(npc_id) or agents.get("*")
+        return (gender and agents.get(f"{npc_id}:{gender}")) or agents.get(npc_id) or agents.get("*")
 
     @property
     def voice_configured(self) -> bool:

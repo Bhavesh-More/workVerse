@@ -5,7 +5,7 @@
 // this is where the motion budget is spent. Skippable at any time; reduced motion keeps fades only.
 import { AnimatePresence, animate, m, useMotionValue, useReducedMotion, useTransform } from "framer-motion";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { play } from "../lib/sfx";
+import { isMuted, play } from "../lib/sfx";
 import type { WorldCharacter } from "../lib/types";
 
 const EASE = [0.22, 1, 0.36, 1] as const; // the codebase's --ease-out
@@ -118,8 +118,15 @@ function Card({ c, n, total, reduce }: { c: WorldCharacter; n: number; total: nu
       at(560, () => play("shimmer")),
       at(1150, () => play("stat")),
     ];
-    return () => timers.forEach(window.clearTimeout);
-  }, []);
+    // Their own voice says "Hello, I'm <name>" as the name lands (clips from scripts/gen_intro_voices.py).
+    const portrait = c.profile?.portrait;
+    const hello = portrait && !isMuted() ? new Audio(portrait.replace("/portraits/", "/voices/").replace(/\.svg$/, ".mp3")) : null;
+    if (hello) timers.push(at(520, () => void hello.play().catch(() => {}))); // no clip yet: stay silent
+    return () => {
+      timers.forEach(window.clearTimeout);
+      hello?.pause();
+    };
+  }, [c.profile?.portrait]);
 
   const from = reduce ? "none" : "translateX(18%) scale(1.18) rotate(-9deg)";
   const words = c.name.split(" ");

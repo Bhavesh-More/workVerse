@@ -21,6 +21,7 @@ export type CharacterProfile = {
   weakness: string;
   stats: Record<string, number>;
   portrait: string;
+  gender?: "male" | "female";
   knows: string;
 };
 

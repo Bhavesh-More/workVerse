@@ -246,3 +246,16 @@ It ends with a line-up of the whole team and the incident stamped across it.
 arrow keys counts — instead of waiting for a click. If you came from the dashboard by clicking, it is already playing.
 
 **Full list of every colleague** (all tracks, names, profiles, facts, keywords, questions, voice setup): see [`docs/CHARACTERS.md`](CHARACTERS.md).
+
+## 14. Each colleague has their own voice
+
+- **Casting** (`apps/api/app/simulation/tracks.py` → `VOICES`, `CASTING`): manager = Arabella, teammate = Brayden,
+  client = Hope (women) / Tony Smyles (men), QA = Sia / Jeremy, coworker = Siren / Jeremy. Gender comes from the first name.
+- **Intro line:** on each intro card the colleague says only "Hello, I'm <name>" in their voice.
+  Clips live in `apps/web/public/assets/voices/`; make them with
+  `cd apps/api && uv run python scripts/gen_intro_voices.py --dry-run` (free preview) then without `--dry-run` (uses credits).
+  "Sound off" mutes them too.
+- **Voice calls:** one ElevenLabs agent per slot and gender, created by `scripts/create_voice_agents.py` (`--dry-run` first).
+  It writes `ELEVENLABS_AGENT_MAP` into `apps/api/.env`, e.g. `{"manager":"agent_…","client_pm:male":"agent_…"}`.
+  Lookup order: `client_pm:male` → `client_pm` → `ELEVENLABS_AGENT_ID`.
+- **Role cards** (`apps/api/app/agents/role_cards.py`) set how the manager, teammate and client behave on calls.

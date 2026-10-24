@@ -544,3 +544,39 @@ COMMON_SAY_NEXT_TIME = {
     "talked_qa": ("qa", "What did testing or support see?"),
     "talked_client": ("client_pm", "We're on it. I'll update you by the top of the hour."),
 }
+
+
+# Voice casting. Names are drawn per run, so gender comes from the first name; every voice is an
+# ElevenLabs library voice picked to fit the slot's personality (see docs/CHARACTERS.md).
+_MALE_FIRST_NAMES = {
+    "Marcus", "Diego", "Noah", "Arjun", "Lucas", "Ethan", "Vikram", "Mateo", "Daniel", "Rohan", "Ben",
+    "Hiro", "Leo", "Rahul", "James", "Robert", "Aditya", "Chris", "Ravi", "Tom", "Kabir", "Imran",
+    "Sam", "Kai", "Omar", "Jordan", "Felix",
+}
+
+VOICES: dict[str, tuple[str, str]] = {  # name -> (voice_id, label)
+    "arabella": ("ocFEgn1SP9oWO9QrLDgb", "Arabella - Calm & Mature"),
+    "brayden": ("wToR447ojQ91QCc7UqnX", "Brayden - Ambitious Office Manager"),
+    "hope": ("WAhoMTNdLdMoq1j3wf3I", "Hope - Smooth, Engaging and Kind"),
+    "tony": ("q1OMOTZNtqpS50TIQtu4", "Tony Smyles - The Voice of Trust"),
+    "sia": ("CUvmi6RSy4BQr6vnMyEw", "Sia - Counselor & Friend"),
+    "siren": ("eXpIbVcVbLo8ZJQDlDnl", "Siren - Natural realistic conversational voice"),
+    "jeremy": ("V2aW90aP6L5wBvSqWbDm", "Real Jeremy - Conversational"),
+}
+
+CASTING: dict[str, dict[str, str]] = {  # slot -> gender -> voice name
+    "manager": {"female": "arabella", "male": "tony"},
+    "teammate": {"male": "brayden", "female": "sia"},
+    "client_pm": {"female": "hope", "male": "tony"},
+    "qa": {"female": "sia", "male": "jeremy"},
+    "coworker": {"female": "siren", "male": "jeremy"},
+}
+
+
+def gender_of(name: str) -> str:
+    return "male" if name.split(" ")[0] in _MALE_FIRST_NAMES else "female"
+
+
+def voice_for(slot: str, name: str) -> str:
+    """Voice name for a colleague, e.g. 'arabella'."""
+    return CASTING.get(slot, CASTING["coworker"])[gender_of(name)]

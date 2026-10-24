@@ -27,7 +27,7 @@ from app.schemas.scenario import (
     ScenarioBlueprint,
     TaskDef,
 )
-from app.simulation.tracks import COMMON_SAY_NEXT_TIME, TRACKS, track_for
+from app.simulation.tracks import COMMON_SAY_NEXT_TIME, TRACKS, gender_of, track_for
 
 RUBRIC_VERSION = "production-incident-v1"
 TEMPLATE_SLUG = "production-incident"
@@ -391,7 +391,7 @@ def build_production_incident(
             },
             # Per-character extras for the UI: intro card, suggested questions, who knows what.
             "profiles": {
-                c.id: {**t["characters"][c.id]["profile"], "portrait": _portrait(c.name), "knows": t["people_knows"][c.id]}
+                c.id: {**t["characters"][c.id]["profile"], "portrait": _portrait(c.name), "knows": t["people_knows"][c.id], "gender": gender_of(c.name)}
                 for c in characters
             },
             "questions": {

@@ -18,7 +18,7 @@ from app.simulation.templates import (
     _portrait,
     build_production_incident,
 )
-from app.simulation.tracks import TRACKS, track_for
+from app.simulation.tracks import TRACKS, gender_of, track_for
 from app.simulation.validation import validate_blueprint
 
 logger = logging.getLogger(__name__)
@@ -47,12 +47,12 @@ def _profile(blueprint: ScenarioBlueprint, char_id: str, name: str) -> dict[str,
     """Intro-card profile; scenarios generated before profiles existed fall back to their track's."""
     stored = blueprint.metadata.get("profiles", {}).get(char_id)
     if stored:
-        return stored
+        return {"gender": gender_of(name), **stored}
     track = TRACKS.get(blueprint.metadata.get("track", "backend"), TRACKS["backend"])
     slot = track["characters"].get(char_id)
     if not slot:
         return None
-    return {**slot["profile"], "portrait": _portrait(name), "knows": track["people_knows"].get(char_id, "")}
+    return {**slot["profile"], "portrait": _portrait(name), "knows": track["people_knows"].get(char_id, ""), "gender": gender_of(name)}
 
 
 def world_view(blueprint: ScenarioBlueprint, state: SimulationState) -> dict[str, Any]:

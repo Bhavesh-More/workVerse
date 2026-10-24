@@ -24,6 +24,7 @@ from app.core.errors import (
 from app.core.voice_grant import issue_grant
 from app.db.repository import Repository
 from app.services.session_service import _load
+from app.simulation.tracks import gender_of
 
 logger = logging.getLogger(__name__)
 
@@ -65,7 +66,7 @@ async def start_voice_session(
         raise AIConfigError(
             "Real-time voice is disabled for this deployment.", code="voice_disabled"
         )
-    agent_id = settings.agent_for_npc(npc_id)
+    agent_id = settings.agent_for_npc(npc_id, gender_of(character.name))
     if not agent_id or not voice_client.configured:
         raise AIConfigError(
             "Voice is not configured. Set ELEVENLABS_API_KEY and an agent id for this character.",
