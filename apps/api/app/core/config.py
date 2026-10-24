@@ -108,7 +108,7 @@ class Settings(BaseSettings):
     # the custom-LLM bridge; must be a long random value.
     voice_context_grant_secret: str = ""
     voice_context_grant_ttl_seconds: int = 900
-    voice_llm_max_output_tokens: int = 220
+    voice_llm_max_output_tokens: int = 100  # ~60 spoken words; replies are 1-3 sentences
     voice_llm_max_history_messages: int = 24
     voice_llm_max_history_chars: int = 6000
 

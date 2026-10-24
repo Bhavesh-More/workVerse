@@ -250,6 +250,16 @@ def test_voice_llm_bridge_endpoint(monkeypatch: pytest.MonkeyPatch) -> None:
             assert ok.headers["content-type"].startswith("text/event-stream")
             assert "Hello" in ok.text
             assert ok.text.rstrip().endswith("data: [DONE]")
+
+            # ElevenLabs may append /chat/completions to the Server URL; both forms must route here.
+            for path in ("/api/v1/voice/llm/chat/completions", "/api/v1/voice/llm/v1/chat/completions"):
+                alias = client.post(
+                    path,
+                    headers={"Authorization": "Bearer bridge-secret"},
+                    json={"messages": [{"role": "user", "content": "hi"}], "elevenlabs_extra_body": {"context_grant": "tok"}},
+                )
+                assert alias.status_code == 200, path
+                assert "Hello" in alias.text
     finally:
         app.dependency_overrides.clear()
         get_settings.cache_clear()
@@ -550,3 +560,25 @@ def test_prompt_disclosure_still_uses_server_rules() -> None:
     assert character is not None
     msgs = build_character_messages(BLUEPRINT, state, character, [], "impact?", newly)
     assert any("Business impact" in m["content"] for m in msgs)
+
+
+def test_voice_prompt_uses_role_card_and_spoken_rules() -> None:
+    state = _state()
+    manager = BLUEPRINT.character("manager")
+    assert manager is not None
+    msgs = voice_llm.build_voice_messages(BLUEPRINT, state, manager, [{"role": "user", "content": "update?"}])
+    system = msgs[0]["content"]
+    assert "one question at a time" in system.lower()
+    assert "No markdown, no lists" in system
+    assert "Never solve the problem" in system
+    # nothing the manager hasn't been granted: the teammate's deploy fact stays out of the prompt
+    everything = " ".join(m["content"] for m in msgs)
+    migration = BLUEPRINT.fact("f_migration_ran")
+    assert migration is not None and migration.detail not in everything
+    # text chat keeps its own prompt (no role card)
+    chat = build_character_messages(BLUEPRINT, state, manager, [], "update?", [])
+    assert "Never solve the problem" not in chat[0]["content"]
+
+
+def test_spoken_strips_markdown() -> None:
+    assert voice_llm.spoken("**Impact** is `high`") == "Impact is high"
