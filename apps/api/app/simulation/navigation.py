@@ -245,3 +245,24 @@ def resolve_navigation(
     if objective is None:
         return None
     return _objective_target(blueprint, state, objective, set())
+
+
+def character_done(blueprint: ScenarioBlueprint, state: SimulationState, character: Any) -> bool:
+    """True once the learner knows every fact this colleague holds (their purpose is fulfilled)."""
+    held = {*character.initial_fact_ids, *(r.fact_id for r in character.disclosure_rules)}
+    return bool(held) and held <= set(state.facts_known)
+
+
+def next_step_hint(blueprint: ScenarioBlueprint, state: SimulationState, exclude_character_id: str) -> str | None:
+    """Plain-words pointer to the next destination, for a colleague handing the learner on."""
+    nav = resolve_navigation(blueprint, state)
+    if not nav:
+        return None
+    if nav["target_type"] == "character" and nav["target_id"] != exclude_character_id:
+        c = next((c for c in blueprint.characters if c.id == nav["target_id"]), None)
+        return f"talk to {c.name}, the {c.role}" if c else None
+    if nav["target_type"] in ("object", "location"):
+        where = next((loc.name for loc in blueprint.locations if loc.id == nav["location_id"]), None)
+        what = nav["action_label"] or nav["objective_label"]
+        return f"{what[0].lower()}{what[1:]}" + (f" in the {where}" if where else "")
+    return None

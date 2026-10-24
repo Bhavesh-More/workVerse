@@ -2402,3 +2402,15 @@ blockquote {
 .who-card__split dd { margin: 2px 0 0; font-size: 12px; line-height: 1.35; }
 @media (max-width: 420px) { .who-card__split { grid-template-columns: 1fr; } }
 .panel[open] > :not(summary) + :not(summary) { margin-top: 10px; }
+
+/* Handoff: a colleague has told you everything; points at the next person or place. */
+.handoff {
+  display: grid;
+  gap: 6px;
+  padding: 12px 14px;
+  border-radius: var(--radius-card);
+  background: var(--color-paper);
+  border: 2px solid var(--color-ink);
+  box-shadow: 4px 4px 0 var(--color-highlight-yellow);
+}
+.handoff strong { font-size: 14px; }

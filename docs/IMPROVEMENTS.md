@@ -326,3 +326,19 @@ while the voice followed the name, e.g. a bearded "Aiko" speaking with a woman's
 **Fix:** all 60 portraits were regenerated so the hairstyle and beard follow the same gender the voices use
 (`gender_of()` in `apps/api/app/simulation/tracks.py`). Men get short hairstyles (sometimes a beard); women
 get longer styles and no beard. To regenerate, see `apps/web/scripts/gen_portraits.mjs`.
+
+## 19. Colleagues hand you on when they're done
+
+Each colleague exists to give you certain facts (the manager: impact and deadline; the teammate: what
+changed…). Once you know **all** of them, that colleague's job is done:
+
+- **They say so.** Their next reply (chat or voice) answers you, then points you to the next step in one
+  sentence, e.g. "…next, go inspect the application logs in the Engineering Workspace."
+- **A handoff card appears in the chat:** "✓ Olivia has told you what she knows."
+  - Next step is a **person** → the chat switches to them after a 6-second countdown.
+    **Talk to … now** skips the wait; **Stay here** cancels. (During a voice call it waits for you.)
+  - Next step is a **place or tool** → the card names it, and the arrow in the office points there.
+- The "next step" comes from the same server logic as the office arrow (`resolve_navigation`), so they always agree.
+- Colleagues with no facts (the friendly coworker) never trigger it.
+- Code: `character_done()` / `next_step_hint()` in `apps/api/app/simulation/navigation.py`, the
+  `characters_done` field in the session view, the handoff card in the session page; test `tests/test_handoff.py`.

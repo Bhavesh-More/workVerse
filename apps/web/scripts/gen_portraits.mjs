@@ -6,7 +6,9 @@
 //     | npm_config_prefix=/tmp/dicebear node ../web/scripts/gen_portraits.mjs
 import { createRequire } from "node:module";
 import { readFileSync, writeFileSync } from "node:fs";
+import process from "node:process";
 
+// eslint-disable-next-line turbo/no-undeclared-env-vars -- one-off local script, not a build input
 const require = createRequire(`${process.env.npm_config_prefix ?? process.cwd()}/`);
 const { createAvatar } = require("@dicebear/core");
 const { lorelei } = require("@dicebear/collection");

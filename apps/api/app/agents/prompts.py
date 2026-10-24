@@ -12,6 +12,7 @@ from typing import Any
 from app.agents.role_cards import VOICE_RULES, card_prompt
 from app.schemas.runtime import SimulationState
 from app.schemas.scenario import CharacterBlueprint, ScenarioBlueprint
+from app.simulation.navigation import character_done, next_step_hint
 
 MAX_RECENT_MESSAGES = 10
 TEXT_RULES = (
@@ -118,6 +119,14 @@ def _with_context(
     if shared:
         context_lines.append("Facts already established in the session:")
         context_lines.extend(shared)
+
+    if character_done(blueprint, state, character):
+        nxt = next_step_hint(blueprint, state, character.id)
+        context_lines.append(
+            "- You have now shared everything you know that matters here. Answer the learner, then in one "
+            "short sentence hand them on" + (f": tell them to {nxt}." if nxt else " to the next step.")
+            + " Don't repeat your facts or keep the conversation going."
+        )
 
     facts = _facts_for_character(blueprint, state, character)
     if facts:

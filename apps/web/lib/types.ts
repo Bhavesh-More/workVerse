@@ -102,6 +102,8 @@ export type SessionView = {
   available_locations: string[];
   world: WorldView;
   navigation: NavigationTarget | null;
+  /** Colleagues who have told the learner everything they hold. */
+  characters_done?: string[];
   completion: CompletionStatus;
   completed: boolean;
 };

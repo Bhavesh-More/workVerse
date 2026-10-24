@@ -260,6 +260,35 @@ export default function SessionPage() {
     [meetFirst],
   );
 
+  // Handoff: when the colleague you're talking to has told you everything they hold, point at the next
+  // step; if that's another person, switch the chat to them after a short, cancellable countdown.
+  const [handoff, setHandoff] = useState<{ from: string; to: string | null; secs: number } | null>(null);
+  const doneBefore = useRef<Set<string> | null>(null);
+  useEffect(() => {
+    if (!session) return;
+    const done = new Set(session.characters_done ?? []);
+    const before = doneBefore.current;
+    doneBefore.current = done;
+    if (!before || !activeCharacter || !done.has(activeCharacter) || before.has(activeCharacter)) return;
+    const nav = session.navigation;
+    const to = nav?.target_type === "character" && nav.target_id !== activeCharacter ? nav.target_id : null;
+    setHandoff({ from: activeCharacter, to, secs: 6 });
+  }, [session, activeCharacter]);
+  useEffect(() => {
+    if (!handoff?.to || voice) return;
+    if (handoff.secs <= 0) {
+      openCharacter(handoff.to);
+      setHandoff(null);
+      return;
+    }
+    const t = setTimeout(() => setHandoff((h) => h && { ...h, secs: h.secs - 1 }), 1000);
+    return () => clearTimeout(t);
+  }, [handoff, voice, openCharacter]);
+  useEffect(() => {
+    // Picking someone else yourself cancels the handoff.
+    setHandoff((h) => (h && h.from !== activeCharacter ? null : h));
+  }, [activeCharacter]);
+
   const startVoiceMeeting = useCallback(
     async (characterId: string) => {
       if (interactionLocked.current || voicePending.current) return;
@@ -1045,7 +1074,50 @@ export default function SessionPage() {
                   )}
                 </div>
                 <AnimatePresence>
-                  {idleHint && suggestions.length > 0 && (
+                  {handoff && (
+                    <m.div
+                      key="handoff"
+                      className="handoff"
+                      role="status"
+                      data-testid="handoff"
+                      initial={{ opacity: 0, transform: "translateY(8px) scale(0.97)" }}
+                      animate={{ opacity: 1, transform: "translateY(0px) scale(1)" }}
+                      exit={{ opacity: 0, transform: "translateY(4px) scale(0.98)" }}
+                      transition={{ duration: 0.22, ease: [0.23, 1, 0.32, 1] }}
+                    >
+                      <strong>✓ {characters.find((c) => c.id === handoff.from)?.name.split(" ")[0]} has told you what they know.</strong>
+                      {handoff.to ? (
+                        <>
+                          <span className="xsmall">
+                            Next: talk to {characters.find((c) => c.id === handoff.to)?.name}
+                            {voice ? " after this call." : ` — switching in ${handoff.secs}s…`}
+                          </span>
+                          <div className="chip-row">
+                            <button className="btn btn--small" data-testid="handoff-go" onClick={() => { const to = handoff.to!; setHandoff(null); openCharacter(to); }}>
+                              Talk to {characters.find((c) => c.id === handoff.to)?.name.split(" ")[0]} now
+                            </button>
+                            <button className="btn btn--ghost btn--small" data-testid="handoff-stay" onClick={() => setHandoff(null)}>
+                              Stay here
+                            </button>
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <span className="xsmall">
+                            Next: {navigation?.action_label ?? navigation?.objective_label ?? "check the guide"}
+                            {navigation?.location_id && ` in the ${session.world.locations.find((l) => l.id === navigation.location_id)?.name ?? "office"}`}
+                            {" "}— follow the arrow in the office.
+                          </span>
+                          <div className="chip-row">
+                            <button className="btn btn--ghost btn--small" data-testid="handoff-stay" onClick={() => setHandoff(null)}>
+                              Got it
+                            </button>
+                          </div>
+                        </>
+                      )}
+                    </m.div>
+                  )}
+                  {idleHint && suggestions.length > 0 && !handoff && (
                     <m.div
                       key="coach"
                       className="coach-nudge"
