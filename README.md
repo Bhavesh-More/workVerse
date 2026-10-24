@@ -132,6 +132,8 @@ Companies sign in at `/company/login` and run hiring rounds on top of the same s
 - **Results** — pipeline, recommendation bands, score distribution, skill averages, ranking, a
   per-candidate report (skills vs group, evidence quotes, transcript), and **PDF** (written for HR:
   summary, shortlist, charts, one page per candidate, glossary) and **CSV** exports.
+- **Candidates** — everyone invited to any assessment in one list, with search, assessment/status/band
+  filters, cohort charts and company-wide CSV/PDF exports.
 
 E2E: `pnpm --filter web exec playwright test e2e/company-assessment.spec.ts` (needs mailpit on
 127.0.0.1:1025/8025 in addition to web, api, database and Ollama).
