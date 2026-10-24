@@ -7,6 +7,7 @@ import { api } from "../../../lib/api";
 import { LEVELS, toggle } from "../../../lib/practice";
 import type { Profile } from "../../../lib/types";
 import { AuthShell, FormError } from "../../../components/AuthShell";
+import { RoleSelect } from "../../../components/RoleSelect";
 
 const GOALS = [
   "production debugging",
@@ -87,7 +88,7 @@ export default function OnboardingPage() {
       </div>
       <div className="field">
         <label htmlFor="tr">Target role</label>
-        <input id="tr" className="input" value={targetRole} onChange={(e) => setTargetRole(e.target.value)} />
+        <RoleSelect id="tr" value={targetRole} onChange={setTargetRole} />
         <span className="field__hint">The job you&apos;re aiming for — your first one counts.</span>
       </div>
       <div className="field">
