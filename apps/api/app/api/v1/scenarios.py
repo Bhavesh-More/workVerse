@@ -6,7 +6,7 @@ from fastapi import APIRouter, Body
 
 from app.deps import AIDep, CurrentUser, Repo
 from app.schemas.api import CreateInstanceRequest
-from app.services import scenario_service
+from app.services import context_service, scenario_service
 
 router = APIRouter(tags=["scenarios"])
 
@@ -43,6 +43,11 @@ async def create_instance(
     principal: CurrentUser, repo: Repo, ai: AIDep, body: CreateInstanceRequest = Body(...)
 ) -> dict:
     profile = await repo.get_profile(principal.user_id)
+    spec, plan = (
+        await context_service.find_spec(repo, principal.user_id, body.spec_id)
+        if body.spec_id
+        else (None, None)
+    )
     return await scenario_service.create_instance(
         repo=repo,
         ai=ai,
@@ -53,7 +58,9 @@ async def create_instance(
         difficulty=body.difficulty,
         learning_objectives=body.learning_objectives,
         incident=body.incident,
-        variation_request=body.variation_request,
+        variation_request=body.variation_request
+        or (plan.custom_situation or "" if spec and spec.kind == "custom" else ""),
+        spec=spec,
     )
 
 

@@ -325,9 +325,11 @@ def build_production_incident(
     variation_request: str = "",
     profile_goals: list[str] | None = None,
     incident: str | None = None,
+    track: str | None = None,
 ) -> ScenarioBlueprint:
     rng = random.Random(seed)
-    track = track_for(role)
+    # A personalised scenario plan may pick a track other than the role's own (a stretch scenario).
+    track = track if track in TRACKS else track_for(role)
     incident, t = _pick_incident(TRACKS[track], rng, incident)
     service = rng.choice(t["services"])
     deploy_minutes = rng.choice([6, 9, 12, 15])

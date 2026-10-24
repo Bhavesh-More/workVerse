@@ -5,9 +5,10 @@ import { useRouter } from "next/navigation";
 import { AnimatePresence, m } from "framer-motion";
 import { api } from "../../../lib/api";
 import { LEVELS, toggle } from "../../../lib/practice";
-import type { Profile } from "../../../lib/types";
+import type { ContextSource, ContextView, DocumentKind, Profile } from "../../../lib/types";
 import { AuthShell, FormError } from "../../../components/AuthShell";
 import { RoleSelect, toolsFor } from "../../../components/RoleSelect";
+import { ContextSummary, DocumentUpload, SITUATION_EXAMPLES, SourceStatus } from "../../../components/ContextBuilder";
 
 const GOALS = [
   "production debugging",
@@ -17,7 +18,20 @@ const GOALS = [
   "code review",
   "system design",
 ];
-const STEP_TITLES = ["Where you're headed", "What you want to practise", "A little background"];
+const STEP_TITLES = [
+  "Where you're headed",
+  "What you want to practise",
+  "Your background",
+  "A situation to experience",
+  "Building your scenarios",
+];
+const LAST_INPUT_STEP = 3;
+const BUILD_STEPS = [
+  "Saving your profile",
+  "Reading your GitHub, LinkedIn and website",
+  "Building your learner context",
+  "Picking your scenarios",
+];
 
 function ChipToggle({ value, on, onClick }: { value: string; on: boolean; onClick: () => void }) {
   return (
@@ -41,6 +55,13 @@ export default function OnboardingPage() {
   const [stack, setStack] = useState<string[]>(["Python", "FastAPI"]);
   const [education, setEducation] = useState("");
   const [experience, setExperience] = useState("");
+  const [github, setGithub] = useState("");
+  const [linkedin, setLinkedin] = useState("");
+  const [portfolio, setPortfolio] = useState("");
+  const [situation, setSituation] = useState("");
+  const [docs, setDocs] = useState<Partial<Record<DocumentKind, ContextSource>>>({});
+  const [buildStep, setBuildStep] = useState(-1);
+  const [view, setView] = useState<ContextView | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -56,13 +77,25 @@ export default function OnboardingPage() {
 
   function go(delta: number) {
     setDirection(delta);
-    setStep((s) => Math.min(2, Math.max(0, s + delta)));
+    setStep((s) => Math.min(LAST_INPUT_STEP, Math.max(0, s + delta)));
+  }
+
+  // A CV usually lists the learner's GitHub / LinkedIn / website: pre-fill any empty link field.
+  function onDocument(kind: DocumentKind, source: ContextSource | null) {
+    setDocs((d) => ({ ...d, [kind]: source ?? undefined }));
+    const links = source?.links ?? {};
+    if (links.github) setGithub((v) => v || links.github!);
+    if (links.linkedin) setLinkedin((v) => v || links.linkedin!);
+    if (links.portfolio) setPortfolio((v) => v || links.portfolio!);
   }
 
   async function finish() {
     setBusy(true);
     setError(null);
+    setDirection(1);
+    setStep(LAST_INPUT_STEP + 1);
     try {
+      setBuildStep(0);
       await api.updateMe({
         display_name: displayName || undefined,
         target_role: targetRole,
@@ -71,10 +104,29 @@ export default function OnboardingPage() {
         preferred_stack: stack,
         education_summary: education || undefined,
         experience_summary: experience || undefined,
+        github_url: github.trim() || null,
+        linkedin_url: linkedin.trim() || null,
+        portfolio_url: portfolio.trim() || null,
+        custom_situation: situation.trim() || null,
       });
-      router.push("/dashboard");
+      setBuildStep(1);
+      setView(await api.refreshSources());
+      setBuildStep(2);
+      // One build call makes both the context and the plan; move the label on partway through.
+      const later = setTimeout(() => setBuildStep(3), 6000);
+      try {
+        setView(await api.buildContext());
+      } finally {
+        clearTimeout(later);
+      }
+      setBuildStep(BUILD_STEPS.length);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not save your profile.");
+      setError(
+        e instanceof Error
+          ? `${e.message} Your profile is saved — you can rebuild your scenarios from your profile page.`
+          : "Could not build your scenarios.",
+      );
+    } finally {
       setBusy(false);
     }
   }
@@ -133,6 +185,31 @@ export default function OnboardingPage() {
       </div>
     </div>,
     <div key="s2" className="stack">
+      <p className="xsmall muted">
+        We read these to build your learner context — what you know, what you&apos;ve built and what to
+        train next. All optional; from files we keep only the extracted text.
+      </p>
+      <DocumentUpload kind="cv" label="CV / résumé" hint="PDF, Word or text, up to 5 MB." source={docs.cv} onChange={(s) => onDocument("cv", s)} />
+      <div className="field">
+        <label htmlFor="gh">GitHub</label>
+        <input id="gh" className="input" value={github} onChange={(e) => setGithub(e.target.value)} placeholder="github.com/your-username" autoComplete="url" />
+      </div>
+      <div className="field">
+        <label htmlFor="li">LinkedIn</label>
+        <input id="li" className="input" value={linkedin} onChange={(e) => setLinkedin(e.target.value)} placeholder="linkedin.com/in/your-name" autoComplete="url" />
+        <span className="field__hint">LinkedIn often blocks automated reading — add its PDF below for the best result.</span>
+      </div>
+      <DocumentUpload
+        kind="linkedin_pdf"
+        label="LinkedIn PDF (optional)"
+        hint="On your LinkedIn profile: More → Save to PDF."
+        source={docs.linkedin_pdf}
+        onChange={(s) => onDocument("linkedin_pdf", s)}
+      />
+      <div className="field">
+        <label htmlFor="pf">Portfolio or personal website</label>
+        <input id="pf" className="input" value={portfolio} onChange={(e) => setPortfolio(e.target.value)} placeholder="https://you.dev" autoComplete="url" />
+      </div>
       <div className="field">
         <label htmlFor="ed">Education (optional)</label>
         <textarea id="ed" className="textarea" value={education} onChange={(e) => setEducation(e.target.value)} placeholder="Second-year Computer Science student…" />
@@ -142,13 +219,62 @@ export default function OnboardingPage() {
         <textarea id="ex" className="textarea" value={experience} onChange={(e) => setExperience(e.target.value)} placeholder="Hackathon API, a course project with Postgres, an internship…" />
       </div>
     </div>,
+    <div key="s3" className="stack">
+      <div className="field">
+        <label htmlFor="sit">Is there a situation you want to experience? (optional)</label>
+        <textarea
+          id="sit"
+          className="textarea"
+          value={situation}
+          maxLength={1000}
+          onChange={(e) => setSituation(e.target.value)}
+          placeholder="Describe a moment at work you'd like to rehearse…"
+        />
+        <span className="field__hint">
+          We always cover the major situations of your role. This adds one scenario built around your moment.
+        </span>
+      </div>
+      <div className="chip-row" role="group" aria-label="Examples">
+        {SITUATION_EXAMPLES.map((ex) => (
+          <button key={ex} type="button" className="chip" aria-pressed={situation === ex} onClick={() => setSituation(ex)}>
+            {ex}
+          </button>
+        ))}
+      </div>
+    </div>,
+    <div key="s4" className="stack" aria-live="polite">
+      <ol className="list-reset stack stack--sm ctx-steps">
+        {BUILD_STEPS.map((label, i) => (
+          <li key={label} data-state={buildStep > i ? "done" : buildStep === i ? "active" : "pending"} className="small">
+            <span aria-hidden="true">{buildStep > i ? "✓" : buildStep === i && busy ? "•" : "○"}</span>
+            {buildStep === i && busy ? <span className="busy-dots">{label}</span> : label}
+          </li>
+        ))}
+      </ol>
+      {view && view.sources.length > 0 && (
+        <ul className="list-reset stack stack--sm">
+          {view.sources.map((s) => (
+            <SourceStatus key={s.kind} source={s} />
+          ))}
+        </ul>
+      )}
+      {view?.context && !busy && (
+        <div className="card card--flat stack stack--sm">
+          <ContextSummary view={view} />
+          <p className="xsmall muted">{view.scenarios.length} personalised scenarios are waiting on your Practice page.</p>
+        </div>
+      )}
+    </div>,
   ];
+
+  const building = step > LAST_INPUT_STEP;
+  const shownStep = Math.min(step, LAST_INPUT_STEP) + 1;
 
   return (
     <AuthShell wide>
       <div className="row between" style={{ marginBottom: 12 }}>
         <span className="eyebrow" style={{ margin: 0 }}>
-          Step {step + 1} of 3 · {STEP_TITLES[step]}
+          {building ? STEP_TITLES[step] : `Step ${shownStep} of ${LAST_INPUT_STEP + 1} · ${STEP_TITLES[step]}`}
         </span>
       </div>
       <h1 className="page-title">
@@ -161,7 +287,7 @@ export default function OnboardingPage() {
       <div className="track" style={{ margin: "24px 0 28px" }} aria-hidden="true">
         <m.span
           initial={false}
-          animate={{ width: `${((step + 1) / 3) * 100}%` }}
+          animate={{ width: `${(shownStep / (LAST_INPUT_STEP + 1)) * 100}%` }}
           transition={{ type: "spring", stiffness: 260, damping: 30 }}
         />
       </div>
@@ -180,17 +306,30 @@ export default function OnboardingPage() {
         </m.div>
       </AnimatePresence>
       <div className="row between" style={{ marginTop: 32 }}>
-        <button className="btn btn--ghost" onClick={() => go(-1)} disabled={step === 0}>
-          Back
-        </button>
-        {step < 2 ? (
-          <button className="btn" onClick={() => go(1)} disabled={step === 0 && !targetRole.trim()}>
-            Next <span className="arrow" aria-hidden="true">→</span>
-          </button>
+        {building ? (
+          <>
+            <button className="btn btn--ghost" onClick={() => setStep(LAST_INPUT_STEP)} disabled={busy}>
+              Back
+            </button>
+            <button className="btn" onClick={() => router.push(view?.scenarios.length ? "/scenarios" : "/dashboard")} disabled={busy}>
+              {busy ? <span className="busy-dots">Building</span> : <>Enter WorkVerse <span className="arrow" aria-hidden="true">→</span></>}
+            </button>
+          </>
         ) : (
-          <button className="btn" onClick={finish} disabled={busy}>
-            {busy ? <span className="busy-dots">Saving</span> : <>Enter WorkVerse <span className="arrow" aria-hidden="true">→</span></>}
-          </button>
+          <>
+            <button className="btn btn--ghost" onClick={() => go(-1)} disabled={step === 0}>
+              Back
+            </button>
+            {step < LAST_INPUT_STEP ? (
+              <button className="btn" onClick={() => go(1)} disabled={step === 0 && !targetRole.trim()}>
+                Next <span className="arrow" aria-hidden="true">→</span>
+              </button>
+            ) : (
+              <button className="btn" onClick={finish} disabled={busy}>
+                Build my scenarios <span className="arrow" aria-hidden="true">→</span>
+              </button>
+            )}
+          </>
         )}
       </div>
     </AuthShell>
