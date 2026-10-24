@@ -35,27 +35,27 @@ export function AssetThumb({ frame, box = 56 }: { frame: string; box?: number })
           height: f.h,
           backgroundImage: `url(${KIT_PATHS.props})`,
           backgroundPosition: `-${f.x}px -${f.y}px`,
-          transform: `scale(${k})`,
+          transform: `translate(-50%, -50%) scale(${k})`,
         }}
       />
     </span>
   );
 }
 
-/** A character's idle-down frame (64x64 humans, 32x32 cats). */
+/** A character's idle-down frame, cropped to the figure (humans 64x64 sheets, cats 32x32). */
 export function CharThumb({ sheet, box = 40 }: { sheet: string; box?: number }) {
   const pet = sheet.startsWith("cat");
-  const size = pet ? 32 : 64;
-  const k = box / (pet ? 32 : 48);
+  const crop = pet ? { x: 4, y: 6, w: 24, h: 24 } : { x: 14, y: 10, w: 36, h: 52 };
+  const k = box / Math.max(crop.w, crop.h);
   return (
     <span className="we-thumb" style={{ width: box, height: box }}>
       <span
         style={{
-          width: size,
-          height: pet ? 32 : 48,
+          width: crop.w,
+          height: crop.h,
           backgroundImage: `url(${KIT_PATHS.char(sheet)})`,
-          backgroundPosition: pet ? "0 0" : "0 -12px",
-          transform: `scale(${k})`,
+          backgroundPosition: `-${crop.x}px -${crop.y}px`,
+          transform: `translate(-50%, -50%) scale(${k})`,
         }}
       />
     </span>

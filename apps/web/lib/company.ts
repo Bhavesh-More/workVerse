@@ -27,6 +27,7 @@ export type Company = {
   name: string;
   smtp: Smtp;
   judge_defaults: JudgeMap;
+  world_mode?: "default" | "custom" | null;
   created_at: string;
 };
 

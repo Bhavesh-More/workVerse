@@ -22,6 +22,7 @@ function Overview({ company }: { company: Company }) {
     : null;
 
   const steps = [
+    { done: Boolean(company.world_mode), label: "Set up your virtual workplace", href: "/company/workplace/setup", hint: "Use the default office or build your own with the world editor." },
     { done: (topics?.items.length ?? 0) > 0, label: "Create a topic", href: "/company/topics/new", hint: "Just a title and a description — or fill a sample." },
     { done: Object.keys(company.judge_defaults).length > 0, label: "Tune your AI judges", href: "/company/judges", hint: "Tone, strictness and focus for each colleague." },
     { done: Boolean(company.smtp.host), label: "Connect your SMTP server", href: "/company/settings", hint: "Invites are sent from your own address." },

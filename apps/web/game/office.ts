@@ -8,6 +8,7 @@ import {
 import { buildNavGrid, findPath, nearestWalkable, smoothPath, toWorldPoints, type NavGrid } from "./pathfinding";
 import { drawGround, drawWalls } from "../lib/world/render";
 import { KIT } from "../lib/world/kit";
+import { REQUIRED_OBJECTS } from "../lib/world/validate";
 import type { CompiledWorld } from "../lib/world/types";
 
 // World units: art is authored on a 16px grid and exported at 2x by scripts/build_*.py, so one
@@ -314,7 +315,7 @@ export function createOfficeGame(parent: HTMLElement, options: OfficeOptions): P
         const sprite = this.add.sprite(x, y, tex, 0).setOrigin(0.5, 1).setDepth(y);
         sprite.anims.play({ key: `${tex}-idle-${m.face}`, startFrame: hash(m.id) % 4 }, true);
         this.colliders.add(this.add.rectangle(x, y - 5, 20, 10, 0, 0));
-        this.nameTag(x, y - 44, m.title ? `${m.name} · ${m.title}` : m.name);
+        this.nameTag(x, y - 44, m.name);
       }
     }
 
@@ -479,6 +480,9 @@ export function createOfficeGame(parent: HTMLElement, options: OfficeOptions): P
 
       for (const object of options.world.objects) {
         const slot = this.meta.object_slots[object.id];
+        // A company world without an optional object (task board, whiteboard...) just doesn't have
+        // it; only the incident's required tools fall back to a marker so the scenario stays playable.
+        if (options.map && !slot && !REQUIRED_OBJECTS.includes(object.id)) continue;
         let sprite: Phaser.GameObjects.Image | undefined;
         let ax: number;
         let ay: number;

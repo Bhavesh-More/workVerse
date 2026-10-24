@@ -195,8 +195,8 @@ export function Library({ state, dispatch, members, judgeNames, onPlaceAtCenter 
                 <div key={slot} className="we-person" {...source({ kind: "person", ref })} data-testid={`lib-person-${slot}`}>
                   <CharThumb sheet={sheetFor(ref, members)} />
                   <span>
-                    <strong>{judgeNames[slot] ?? JUDGE_TITLES[slot]}</strong>
-                    <span className="xsmall muted">{JUDGE_TITLES[slot]} · AI judge</span>
+                    <strong>{JUDGE_TITLES[slot]}</strong>
+                    <span className="xsmall muted">{judgeNames[slot] ? `${judgeNames[slot]} · AI judge` : "AI judge · name varies per candidate"}</span>
                   </span>
                   <span className={`badge${placedPeople.has(ref) ? " badge--ok" : ""}`}>{placedPeople.has(ref) ? "Placed" : "Not placed"}</span>
                 </div>

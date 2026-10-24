@@ -52,7 +52,7 @@ export const PRESETS: RoomPreset[] = [
     capacity: "8 desks",
     objects: [
       o("window_2", 1, -2), o("window_2", 8, -2), o("clock", 10, -2), o("bulletin", 11, -2),
-      o("plant_tall", 0, 0), o("bookshelf", 3, 0), o("bookshelf_b", 8, 0), o("plant_tall_b", 13, 0),
+      o("plant_tall", 0, 0), o("bookshelf", 3, 0), o("bookshelf_b", 7, 0), o("obj_team_board", 10, 0), o("plant_tall_b", 13, 0),
       ...pod(2, 3), ...pod(8, 3),
       o("printer", 13, 4), o("cabinet", 13, 5),
       o("plant_tall", 0, 9), o("trash", 6, 9), o("plant_small", 13, 9),
@@ -70,7 +70,7 @@ export const PRESETS: RoomPreset[] = [
     h: 8,
     capacity: "8 seats",
     objects: [
-      o("art_hills", 1, -2), o("presentation", 4, -2), o("window_2", 9, -2),
+      o("presentation", 4, -2), o("obj_meeting_whiteboard", 8, -2), o("art_sea", 11, -2),
       o("plant_tall", 0, 0), o("plant_tall_b", 11, 0),
       o("meeting_table_6", 3, 3),
       o("chair_s_teal", 4, 2), o("chair_s_teal", 6, 2), o("chair_s_teal", 8, 2),
@@ -395,7 +395,10 @@ export function autoPlacePeople(doc: WorldDoc, kit: Kit, members: Member[]): Wor
       cells.sort((a, b) => a.d - b.d);
       for (const c of cells) {
         const k = `${c.x},${c.y}`;
-        if (reach.has(k) && !used.has(k) && !blockedFront.has(k) && !used.has(`${c.x - 1},${c.y}`) && !used.has(`${c.x + 1},${c.y}`)) return c;
+        // Keep a clear tile all round so people (and their name tags) don't stack up.
+        let crowded = false;
+        for (let dy = -1; dy <= 1 && !crowded; dy++) for (let dx = -2; dx <= 2; dx++) if (used.has(`${c.x + dx},${c.y + dy}`)) crowded = true;
+        if (reach.has(k) && !blockedFront.has(k) && !crowded) return c;
       }
     }
     return null;
@@ -410,6 +413,11 @@ export function autoPlacePeople(doc: WorldDoc, kit: Kit, members: Member[]): Wor
     people.push({ id: uid("person"), ref, x: s.x, y: s.y, face });
   };
   for (const slot of JUDGE_SLOTS) add(`judge:${slot}`, doc.rooms.filter((r) => r.purpose === JUDGE_HOME[slot]), "down");
-  for (const m of members) add(`member:${m.id}`, doc.rooms.filter((r) => MEMBER_PURPOSES.includes(r.purpose)), "down");
+  // Spread team members across the rooms people work in, one room after another.
+  const workRooms = doc.rooms.filter((r) => MEMBER_PURPOSES.includes(r.purpose));
+  members.forEach((m, i) => {
+    const order = workRooms.length ? [...workRooms.slice(i % workRooms.length), ...workRooms.slice(0, i % workRooms.length)] : [];
+    add(`member:${m.id}`, order, "down");
+  });
   return { ...doc, people };
 }

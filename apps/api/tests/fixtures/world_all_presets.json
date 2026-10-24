@@ -24,9 +24,9 @@
    ".ccccccccccccccccccccccccccccccccccccccccccccc.",
    ".ccccccccccccccccccccccccccccccccccccccccccccc.",
    ".ccccccccccccccccccccccccccccccccccccccccccccc.",
-   "....cc.......cc..........cc..............cc....",
-   "....cc.......cc..........cc..............cc....",
-   "....cc.......cc..........cc..............cc....",
+   "....cc.......cc.........cc...............cc....",
+   "....cc.......cc.........cc...............cc....",
+   "....cc.......cc.........cc...............cc....",
    ".wwwwwwww.wwwwwwww.pppppppppppppp.kkkkkkkkkkkk.",
    ".wwwwwwww.wwwwwwww.pppppppppppppp.kkkkkkkkkkkk.",
    ".wwwwwwww.wwwwwwww.pppppppppppppp.kkkkkkkkkkkk.",
@@ -41,7 +41,7 @@
   ],
   "rooms": [
    {
-    "id": "room_924ebd80",
+    "id": "room_2bb677dd",
     "name": "Corridor",
     "purpose": "corridor_main",
     "x": 1,
@@ -52,7 +52,7 @@
     "floor": "concrete"
    },
    {
-    "id": "room_d276038d",
+    "id": "room_6fc767a3",
     "name": "Reception & lobby",
     "purpose": "reception",
     "x": 1,
@@ -63,7 +63,7 @@
     "floor": "stone"
    },
    {
-    "id": "room_4b228e26",
+    "id": "room_e6028463",
     "name": "Engineering & operations lab",
     "purpose": "engineering_workspace",
     "x": 14,
@@ -74,7 +74,7 @@
     "floor": "carpet"
    },
    {
-    "id": "room_0f4d6243",
+    "id": "room_7178395f",
     "name": "Meeting & conference room",
     "purpose": "meeting_room",
     "x": 31,
@@ -85,7 +85,7 @@
     "floor": "oak"
    },
    {
-    "id": "room_a2fe61ad",
+    "id": "room_a460b2c8",
     "name": "Executive & private offices",
     "purpose": "manager_office",
     "x": 1,
@@ -96,7 +96,7 @@
     "floor": "walnut"
    },
    {
-    "id": "room_fb73f875",
+    "id": "room_7e5fa1c1",
     "name": "Open-plan office",
     "purpose": "other",
     "x": 19,
@@ -107,7 +107,7 @@
     "floor": "carpet"
    },
    {
-    "id": "room_eb863d37",
+    "id": "room_b12174fa",
     "name": "Breakout & collaboration lounge",
     "purpose": "break_area",
     "x": 34,
@@ -120,793 +120,799 @@
   ],
   "objects": [
    {
-    "id": "obj_9102b913",
+    "id": "obj_b38e0cd7",
     "asset": "plant_tall",
     "x": 1,
     "y": 16
    },
    {
-    "id": "obj_2daad711",
+    "id": "obj_afbd69eb",
     "asset": "plant_tall_b",
     "x": 45,
     "y": 16
    },
    {
-    "id": "obj_f9a02627",
+    "id": "obj_0df5a25e",
     "asset": "window_2",
     "x": 1,
     "y": 1
    },
    {
-    "id": "obj_78e4bfcb",
+    "id": "obj_73bbb692",
     "asset": "logo_sign",
     "x": 5,
     "y": 1
    },
    {
-    "id": "obj_ebb3b80e",
+    "id": "obj_092c5c78",
     "asset": "window_2",
     "x": 9,
     "y": 1
    },
    {
-    "id": "obj_b43f3118",
+    "id": "obj_2c776773",
     "asset": "clock",
     "x": 12,
     "y": 1
    },
    {
-    "id": "obj_e009ed82",
+    "id": "obj_a13313cb",
     "asset": "coat_rack",
     "x": 1,
     "y": 3
    },
    {
-    "id": "obj_fa4ee253",
+    "id": "obj_a61d6b67",
     "asset": "plant_snake",
     "x": 11,
     "y": 3
    },
    {
-    "id": "obj_d3160961",
+    "id": "obj_70030f2d",
     "asset": "plant_tall",
     "x": 12,
     "y": 3
    },
    {
-    "id": "obj_bdd3f42b",
+    "id": "obj_888650ab",
     "asset": "obj_reception_desk",
     "x": 5,
     "y": 6
    },
    {
-    "id": "obj_66a69a64",
+    "id": "obj_3452126f",
     "asset": "water_cooler",
     "x": 1,
     "y": 7
    },
    {
-    "id": "obj_4e38822a",
+    "id": "obj_ee3567b6",
     "asset": "armchair_coral",
     "x": 9,
     "y": 9
    },
    {
-    "id": "obj_8ddb74de",
+    "id": "obj_1e1ae242",
     "asset": "round_table",
     "x": 10,
     "y": 9
    },
    {
-    "id": "obj_1508b0c0",
+    "id": "obj_c6e4fc28",
     "asset": "armchair_navy",
     "x": 11,
     "y": 9
    },
    {
-    "id": "obj_fa3b150b",
+    "id": "obj_31a9c7f1",
     "asset": "trash",
     "x": 1,
     "y": 10
    },
    {
-    "id": "obj_5db118ff",
+    "id": "obj_367408e0",
     "asset": "plant_small",
     "x": 12,
     "y": 10
    },
    {
-    "id": "obj_ae1e6529",
+    "id": "obj_afe4e5dd",
     "asset": "obj_incident_dashboard",
     "x": 15,
     "y": 1
    },
    {
-    "id": "obj_a2df72b4",
+    "id": "obj_47bafd56",
     "asset": "obj_migration_notes",
     "x": 20,
     "y": 1
    },
    {
-    "id": "obj_31a56e2c",
+    "id": "obj_df165675",
     "asset": "window_2",
     "x": 23,
     "y": 1
    },
    {
-    "id": "obj_e9001b83",
+    "id": "obj_b44bea72",
     "asset": "clock",
     "x": 26,
     "y": 1
    },
    {
-    "id": "obj_f3dcf417",
+    "id": "obj_463029b7",
     "asset": "obj_log_viewer",
     "x": 15,
     "y": 4
    },
    {
-    "id": "obj_9229d8a9",
+    "id": "obj_6a29b816",
     "asset": "obj_metrics_panel",
     "x": 18,
     "y": 4
    },
    {
-    "id": "obj_0b0af5c6",
+    "id": "obj_6e92df86",
     "asset": "obj_deploy_console",
     "x": 21,
     "y": 4
    },
    {
-    "id": "obj_1ad6ee7c",
+    "id": "obj_bea6ea95",
     "asset": "plant_tall_b",
     "x": 29,
     "y": 3
    },
    {
-    "id": "obj_e2358173",
+    "id": "obj_36864c70",
     "asset": "obj_runbook",
     "x": 27,
     "y": 5
    },
    {
-    "id": "obj_bf2fd911",
+    "id": "obj_d728351c",
     "asset": "chair_s",
     "x": 16,
     "y": 8
    },
    {
-    "id": "obj_9d18055b",
+    "id": "obj_308aadb0",
     "asset": "chair_s",
     "x": 18,
     "y": 8
    },
    {
-    "id": "obj_228cd150",
+    "id": "obj_c0c9e1dc",
     "asset": "desk_n",
     "x": 16,
     "y": 9
    },
    {
-    "id": "obj_e860d310",
+    "id": "obj_e7c8587f",
     "asset": "desk_n2",
     "x": 18,
     "y": 9
    },
    {
-    "id": "obj_9e5efe42",
+    "id": "obj_b2b73b20",
     "asset": "desk_s_code",
     "x": 16,
     "y": 10
    },
    {
-    "id": "obj_1f8a9d41",
+    "id": "obj_5014faa9",
     "asset": "desk_s_logs",
     "x": 18,
     "y": 10
    },
    {
-    "id": "obj_d556af79",
+    "id": "obj_15acf784",
     "asset": "chair_n",
     "x": 16,
     "y": 11
    },
    {
-    "id": "obj_3b56d0ba",
+    "id": "obj_7bc773dd",
     "asset": "chair_n",
     "x": 18,
     "y": 11
    },
    {
-    "id": "obj_f5a3dcaf",
+    "id": "obj_bdf13ad5",
     "asset": "desk_s_code",
     "x": 22,
     "y": 9
    },
    {
-    "id": "obj_dbf3b4ad",
+    "id": "obj_7c13dcf5",
     "asset": "desk_s_logs",
     "x": 24,
     "y": 9
    },
    {
-    "id": "obj_9e07df70",
+    "id": "obj_ed34cdd8",
     "asset": "chair_n",
     "x": 22,
     "y": 10
    },
    {
-    "id": "obj_7d3d889d",
+    "id": "obj_41f999ff",
     "asset": "chair_n",
     "x": 24,
     "y": 10
    },
    {
-    "id": "obj_a901d42b",
+    "id": "obj_4f9e7e25",
     "asset": "printer",
     "x": 29,
     "y": 8
    },
    {
-    "id": "obj_00ac4121",
+    "id": "obj_074576d9",
     "asset": "plant_tall",
     "x": 14,
     "y": 12
    },
    {
-    "id": "obj_c4b174c7",
+    "id": "obj_5468296e",
     "asset": "server_rack",
     "x": 25,
     "y": 12
    },
    {
-    "id": "obj_78db37cc",
+    "id": "obj_433c52c7",
     "asset": "server_rack_b",
     "x": 26,
     "y": 12
    },
    {
-    "id": "obj_74216fd0",
+    "id": "obj_712df384",
     "asset": "server_rack",
     "x": 27,
     "y": 12
    },
    {
-    "id": "obj_70669b38",
+    "id": "obj_d89216d8",
     "asset": "cabinet",
     "x": 28,
     "y": 12
    },
    {
-    "id": "obj_735031b0",
-    "asset": "art_hills",
-    "x": 32,
-    "y": 1
-   },
-   {
-    "id": "obj_ba859b76",
+    "id": "obj_7295eced",
     "asset": "presentation",
     "x": 35,
     "y": 1
    },
    {
-    "id": "obj_86ed95cc",
-    "asset": "window_2",
-    "x": 40,
+    "id": "obj_e9d12739",
+    "asset": "obj_meeting_whiteboard",
+    "x": 39,
     "y": 1
    },
    {
-    "id": "obj_df57b625",
+    "id": "obj_97751e16",
+    "asset": "art_sea",
+    "x": 42,
+    "y": 1
+   },
+   {
+    "id": "obj_36e28df9",
     "asset": "plant_tall",
     "x": 31,
     "y": 3
    },
    {
-    "id": "obj_930bd7ca",
+    "id": "obj_2aa2dc36",
     "asset": "plant_tall_b",
     "x": 42,
     "y": 3
    },
    {
-    "id": "obj_4fafc080",
+    "id": "obj_f0b4c168",
     "asset": "meeting_table_6",
     "x": 34,
     "y": 6
    },
    {
-    "id": "obj_38d73179",
+    "id": "obj_ecea3c8d",
     "asset": "chair_s_teal",
     "x": 35,
     "y": 5
    },
    {
-    "id": "obj_fed393ae",
+    "id": "obj_30117c4f",
     "asset": "chair_s_teal",
     "x": 37,
     "y": 5
    },
    {
-    "id": "obj_37d1c41a",
+    "id": "obj_74060a10",
     "asset": "chair_s_teal",
     "x": 39,
     "y": 5
    },
    {
-    "id": "obj_01d32886",
+    "id": "obj_4100a782",
     "asset": "chair_n_teal",
     "x": 34,
     "y": 8
    },
    {
-    "id": "obj_b5829f2a",
+    "id": "obj_bca34834",
     "asset": "chair_n_teal",
     "x": 36,
     "y": 8
    },
    {
-    "id": "obj_d16ecfbb",
+    "id": "obj_42f9f454",
     "asset": "chair_n_teal",
     "x": 38,
     "y": 8
    },
    {
-    "id": "obj_96c9529b",
+    "id": "obj_4cc73f8c",
     "asset": "chair_e",
     "x": 33,
     "y": 6
    },
    {
-    "id": "obj_47a0fdeb",
+    "id": "obj_f4efbcb3",
     "asset": "chair_w",
     "x": 40,
     "y": 6
    },
    {
-    "id": "obj_5d5bee62",
+    "id": "obj_bfd8238e",
     "asset": "plant_small",
     "x": 31,
     "y": 10
    },
    {
-    "id": "obj_a913c585",
+    "id": "obj_2c2a8bd1",
     "asset": "cabinet",
     "x": 42,
     "y": 10
    },
    {
-    "id": "obj_dd8234bc",
+    "id": "obj_d5441eea",
     "asset": "window_2",
     "x": 2,
     "y": 20
    },
    {
-    "id": "obj_1133a808",
+    "id": "obj_ad001389",
     "asset": "art_city",
     "x": 6,
     "y": 20
    },
    {
-    "id": "obj_8be9ae93",
+    "id": "obj_9774e46a",
     "asset": "window_2",
     "x": 11,
     "y": 20
    },
    {
-    "id": "obj_30f559a1",
+    "id": "obj_e3e6de63",
     "asset": "art_hills",
     "x": 15,
     "y": 20
    },
    {
-    "id": "obj_46219f1d",
+    "id": "obj_1d733e26",
     "asset": "bookshelf",
     "x": 1,
     "y": 22
    },
    {
-    "id": "obj_c5d7d2c8",
+    "id": "obj_2da7cdda",
     "asset": "plant_tall",
     "x": 8,
     "y": 22
    },
    {
-    "id": "obj_ee39038a",
+    "id": "obj_c2838a5e",
     "asset": "exec_desk",
     "x": 3,
     "y": 25
    },
    {
-    "id": "obj_d3298998",
+    "id": "obj_59de9468",
     "asset": "chair_s",
     "x": 3,
     "y": 24
    },
    {
-    "id": "obj_e71761c9",
+    "id": "obj_9ef55386",
     "asset": "armchair_mustard_n",
     "x": 3,
     "y": 27
    },
    {
-    "id": "obj_c1567cbd",
+    "id": "obj_09303fc6",
     "asset": "armchair_navy_n",
     "x": 5,
     "y": 27
    },
    {
-    "id": "obj_d7743a1a",
+    "id": "obj_edd1e9bc",
     "asset": "cabinet",
     "x": 1,
     "y": 30
    },
    {
-    "id": "obj_8a6b2aca",
+    "id": "obj_4294c5c9",
     "asset": "plant_snake",
     "x": 8,
     "y": 30
    },
    {
-    "id": "obj_167cdb1a",
+    "id": "obj_bb4a944a",
     "asset": "plant_tall_b",
     "x": 10,
     "y": 22
    },
    {
-    "id": "obj_3cb014ea",
+    "id": "obj_a4073fd6",
     "asset": "bookshelf_b",
     "x": 16,
     "y": 22
    },
    {
-    "id": "obj_ccfc1645",
+    "id": "obj_83d3a790",
     "asset": "exec_desk",
     "x": 12,
     "y": 25
    },
    {
-    "id": "obj_55304ace",
+    "id": "obj_5ad6bc07",
     "asset": "chair_s",
     "x": 12,
     "y": 24
    },
    {
-    "id": "obj_c28ccbc9",
+    "id": "obj_40787ba0",
     "asset": "armchair_navy_n",
     "x": 12,
     "y": 27
    },
    {
-    "id": "obj_03295865",
+    "id": "obj_a12cdbf3",
     "asset": "armchair_mustard_n",
     "x": 14,
     "y": 27
    },
    {
-    "id": "obj_09a2ae48",
+    "id": "obj_b95d71a2",
     "asset": "cabinet_teal",
     "x": 17,
     "y": 30
    },
    {
-    "id": "obj_7ab03be9",
+    "id": "obj_ae4a918e",
     "asset": "plant_small",
     "x": 10,
     "y": 30
    },
    {
-    "id": "obj_735b8d37",
+    "id": "obj_46891c88",
     "asset": "window_2",
     "x": 20,
     "y": 20
    },
    {
-    "id": "obj_6663b13c",
+    "id": "obj_90de45ca",
     "asset": "window_2",
     "x": 27,
     "y": 20
    },
    {
-    "id": "obj_e464e3da",
+    "id": "obj_20cd1a24",
     "asset": "clock",
     "x": 29,
     "y": 20
    },
    {
-    "id": "obj_d6978eab",
+    "id": "obj_1a2e238d",
     "asset": "bulletin",
     "x": 30,
     "y": 20
    },
    {
-    "id": "obj_5276e6aa",
+    "id": "obj_25f7c2c7",
     "asset": "plant_tall",
     "x": 19,
     "y": 22
    },
    {
-    "id": "obj_95c0120b",
+    "id": "obj_83204573",
     "asset": "bookshelf",
     "x": 22,
     "y": 22
    },
    {
-    "id": "obj_116127e1",
+    "id": "obj_d7946f72",
     "asset": "bookshelf_b",
-    "x": 27,
+    "x": 26,
     "y": 22
    },
    {
-    "id": "obj_d21774cd",
+    "id": "obj_c8ddbf27",
+    "asset": "obj_team_board",
+    "x": 29,
+    "y": 22
+   },
+   {
+    "id": "obj_ef211f0f",
     "asset": "plant_tall_b",
     "x": 32,
     "y": 22
    },
    {
-    "id": "obj_0a2636e1",
+    "id": "obj_94d49a43",
     "asset": "chair_s",
     "x": 21,
     "y": 25
    },
    {
-    "id": "obj_6b1e5146",
+    "id": "obj_38a0e91d",
     "asset": "chair_s",
     "x": 23,
     "y": 25
    },
    {
-    "id": "obj_258d0a12",
+    "id": "obj_77348181",
     "asset": "desk_n",
     "x": 21,
     "y": 26
    },
    {
-    "id": "obj_9ba17287",
+    "id": "obj_dbdeea9a",
     "asset": "desk_n2",
     "x": 23,
     "y": 26
    },
    {
-    "id": "obj_3e04db7f",
+    "id": "obj_36fdd8e4",
     "asset": "desk_s_code",
     "x": 21,
     "y": 27
    },
    {
-    "id": "obj_9c1797c2",
+    "id": "obj_3bda1444",
     "asset": "desk_s_logs",
     "x": 23,
     "y": 27
    },
    {
-    "id": "obj_2fae828c",
+    "id": "obj_da8e78ca",
     "asset": "chair_n",
     "x": 21,
     "y": 28
    },
    {
-    "id": "obj_cce0e407",
+    "id": "obj_31f2aa97",
     "asset": "chair_n",
     "x": 23,
     "y": 28
    },
    {
-    "id": "obj_10c49bae",
+    "id": "obj_44419ece",
     "asset": "chair_s",
     "x": 27,
     "y": 25
    },
    {
-    "id": "obj_90f3ea42",
+    "id": "obj_598689e8",
     "asset": "chair_s",
     "x": 29,
     "y": 25
    },
    {
-    "id": "obj_68265dd2",
+    "id": "obj_ba4d213b",
     "asset": "desk_n",
     "x": 27,
     "y": 26
    },
    {
-    "id": "obj_ce6ef364",
+    "id": "obj_07d12dd9",
     "asset": "desk_n2",
     "x": 29,
     "y": 26
    },
    {
-    "id": "obj_31b85f1b",
+    "id": "obj_af9f465b",
     "asset": "desk_s_code",
     "x": 27,
     "y": 27
    },
    {
-    "id": "obj_bd6a7bde",
+    "id": "obj_794c7fd0",
     "asset": "desk_s_logs",
     "x": 29,
     "y": 27
    },
    {
-    "id": "obj_80f5a96d",
+    "id": "obj_f81a21b6",
     "asset": "chair_n",
     "x": 27,
     "y": 28
    },
    {
-    "id": "obj_aa28bbd8",
+    "id": "obj_cc5b8e9b",
     "asset": "chair_n",
     "x": 29,
     "y": 28
    },
    {
-    "id": "obj_7486097e",
+    "id": "obj_48b5ee58",
     "asset": "printer",
     "x": 32,
     "y": 26
    },
    {
-    "id": "obj_95a5bffc",
+    "id": "obj_b0bb21ab",
     "asset": "cabinet",
     "x": 32,
     "y": 27
    },
    {
-    "id": "obj_4cf7e704",
+    "id": "obj_e8dec7eb",
     "asset": "plant_tall",
     "x": 19,
     "y": 31
    },
    {
-    "id": "obj_429e515d",
+    "id": "obj_512bb2ef",
     "asset": "trash",
     "x": 25,
     "y": 31
    },
    {
-    "id": "obj_03d99ce9",
+    "id": "obj_4488e0d6",
     "asset": "plant_small",
     "x": 32,
     "y": 31
    },
    {
-    "id": "obj_c57a40b4",
+    "id": "obj_c6da7c15",
     "asset": "upper_cabinets",
     "x": 35,
     "y": 20
    },
    {
-    "id": "obj_b79f1bca",
+    "id": "obj_efce8a01",
     "asset": "art_sunset",
     "x": 38,
     "y": 20
    },
    {
-    "id": "obj_522f1fb2",
+    "id": "obj_c64e334b",
     "asset": "window_2",
     "x": 44,
     "y": 20
    },
    {
-    "id": "obj_c6f87483",
+    "id": "obj_b264d04a",
     "asset": "fridge",
     "x": 34,
     "y": 22
    },
    {
-    "id": "obj_eb4bff5f",
+    "id": "obj_ec9602da",
     "asset": "counter_sink",
     "x": 35,
     "y": 22
    },
    {
-    "id": "obj_c8e61024",
+    "id": "obj_bac2e9b6",
     "asset": "counter",
     "x": 36,
     "y": 22
    },
    {
-    "id": "obj_e2e7157e",
+    "id": "obj_6aa537e8",
     "asset": "counter_fruit",
     "x": 37,
     "y": 22
    },
    {
-    "id": "obj_6319812b",
+    "id": "obj_ae1659ad",
     "asset": "obj_coffee_machine",
     "x": 39,
     "y": 22
    },
    {
-    "id": "obj_f1719d5e",
+    "id": "obj_93ad781d",
     "asset": "water_cooler",
     "x": 44,
     "y": 22
    },
    {
-    "id": "obj_332638ff",
+    "id": "obj_9cf6dcce",
     "asset": "vending",
     "x": 45,
     "y": 22
    },
    {
-    "id": "obj_39d83583",
+    "id": "obj_5eb5dda6",
     "asset": "stool",
     "x": 36,
     "y": 26
    },
    {
-    "id": "obj_8cb3a96f",
+    "id": "obj_79b509d7",
     "asset": "round_table",
     "x": 37,
     "y": 26
    },
    {
-    "id": "obj_ab6072b1",
+    "id": "obj_8f302859",
     "asset": "stool_teal",
     "x": 38,
     "y": 26
    },
    {
-    "id": "obj_a93908ce",
+    "id": "obj_d3015aac",
     "asset": "stool",
     "x": 41,
     "y": 26
    },
    {
-    "id": "obj_a908cc6b",
+    "id": "obj_cb8da9f6",
     "asset": "round_table",
     "x": 42,
     "y": 26
    },
    {
-    "id": "obj_140a722e",
+    "id": "obj_8148b740",
     "asset": "stool_teal",
     "x": 43,
     "y": 26
    },
    {
-    "id": "obj_d7ca874f",
+    "id": "obj_b8902600",
     "asset": "armchair_coral",
     "x": 36,
     "y": 29
    },
    {
-    "id": "obj_77fa340f",
+    "id": "obj_564d2e91",
     "asset": "low_table3",
     "x": 37,
     "y": 29
    },
    {
-    "id": "obj_58741509",
+    "id": "obj_ecce18dd",
     "asset": "armchair_mustard",
     "x": 40,
     "y": 29
    },
    {
-    "id": "obj_8f21068d",
+    "id": "obj_8d3184b8",
     "asset": "beanbag_teal",
     "x": 43,
     "y": 29
    },
    {
-    "id": "obj_1de74c9b",
+    "id": "obj_c1ac6f5f",
     "asset": "cat_bed",
     "x": 44,
     "y": 30
    },
    {
-    "id": "obj_effc6e07",
+    "id": "obj_892ceab6",
     "asset": "plant_tall",
     "x": 34,
     "y": 30
    },
    {
-    "id": "obj_20f0f0d5",
+    "id": "obj_a28865d8",
     "asset": "plant_tall_b",
     "x": 45,
     "y": 30
    },
    {
-    "id": "obj_3e11f6d5",
+    "id": "obj_f302b420",
     "asset": "trash",
     "x": 34,
     "y": 26
@@ -914,42 +920,42 @@
   ],
   "people": [
    {
-    "id": "person_9f640ed1",
+    "id": "person_d1e599ad",
     "ref": "judge:manager",
     "x": 10,
     "y": 26,
     "face": "down"
    },
    {
-    "id": "person_abd23b31",
+    "id": "person_00d950ed",
     "ref": "judge:teammate",
     "x": 22,
     "y": 8,
     "face": "down"
    },
    {
-    "id": "person_f0e6d03c",
+    "id": "person_8b25c685",
     "ref": "judge:qa",
     "x": 23,
     "y": 17,
     "face": "down"
    },
    {
-    "id": "person_83e7ca8d",
+    "id": "person_c84fbb01",
     "ref": "judge:client_pm",
     "x": 37,
     "y": 8,
     "face": "down"
    },
    {
-    "id": "person_72612e26",
+    "id": "person_41121011",
     "ref": "judge:coworker",
     "x": 40,
     "y": 26,
     "face": "down"
    },
    {
-    "id": "person_bd099864",
+    "id": "person_76af59c5",
     "ref": "member:m_ana",
     "x": 6,
     "y": 7,

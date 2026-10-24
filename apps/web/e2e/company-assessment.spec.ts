@@ -151,6 +151,11 @@ test.describe("Company assessments", () => {
     await expect(co.getByRole("heading", { name: /Set up your company/ })).toBeVisible({ timeout: 60_000 });
     await co.getByLabel("Company name").fill("E2E Hiring Co");
     await co.getByRole("button", { name: /Create company/ }).click();
+    // New companies choose their virtual workplace first; the default keeps this spec focused.
+    await expect(co).toHaveURL(/\/company\/workplace\/setup/, { timeout: 30_000 });
+    await co.getByTestId("use-default").click();
+    await expect(co).toHaveURL(/\/company\/workplace/);
+    await co.goto("/company");
     await expect(co.getByRole("heading", { name: /Assessment overview/ })).toBeVisible();
     await expect(co.getByText("Getting started")).toBeVisible();
     await shot(co, "01-overview-empty");

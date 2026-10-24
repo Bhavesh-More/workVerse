@@ -137,3 +137,15 @@ test("adding presets grows the world when there's no room", () => {
   assert.ok(doc.width > 18 || doc.height > 12);
   assert.equal(doc.rooms.filter((r) => r.purpose === "engineering_workspace").length, 1);
 });
+
+test("auto-layout doorways never remove preset furniture, in either row", () => {
+  for (const p of PRESETS) {
+    for (const raw of [[p.id], ["reception", p.id], [p.id, "reception", "lounge"]]) {
+      const ids = [...new Set(raw)];
+      const doc = generateLayout(kit, ids);
+      const unique = new Set(ids);
+      const expected = [...unique].reduce((n, id) => n + PRESETS.find((x) => x.id === id)!.objects.length, 0) + 2; // + corridor plants
+      assert.equal(doc.objects.length, expected, `${ids.join(",")}: a doorway cleared furniture`);
+    }
+  }
+});

@@ -6,7 +6,7 @@
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, type Dispatch } from "react";
 import { compileWorld } from "../../../lib/world/compile";
 import { carveDoor, footprint, moveRoom, paintFloor, resizeRoom, roomAt, uid, type Rect } from "../../../lib/world/doc";
-import { JUDGE_LOOK } from "../../../lib/world/kit";
+import { JUDGE_LOOK, JUDGE_TITLES } from "../../../lib/world/kit";
 import type { KitImages } from "../../../lib/world/kit";
 import { canPlaceAsset, canPlacePerson, canPlacePreset, freeCell, placementContext, type PlacementContext } from "../../../lib/world/placement";
 import { presetById } from "../../../lib/world/presets";
@@ -950,7 +950,7 @@ export function sheetFor(ref: string, members: Member[]): string {
 }
 
 export function personLabel(ref: string, judgeNames: Record<string, string>, members: Member[]): string {
-  if (ref.startsWith("judge:")) return judgeNames[ref.slice(6)] ?? ref.slice(6);
+  if (ref.startsWith("judge:")) return judgeNames[ref.slice(6)] ?? JUDGE_TITLES[ref.slice(6)] ?? ref.slice(6);
   if (ref.startsWith("member:")) return members.find((m) => `member:${m.id}` === ref)?.name ?? "Member";
   return "Cat";
 }

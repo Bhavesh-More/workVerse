@@ -485,4 +485,76 @@ test.describe("Workplace builder", () => {
     await page.getByTestId("switch-custom").click();
     await expect(page.getByTestId("active-world")).toContainText("Your custom world");
   });
+
+  test("a candidate invited after publishing plays in the company's custom office", async ({ browser, request }) => {
+    test.setTimeout(600_000);
+    const MAILPIT = "http://127.0.0.1:8025";
+    const { page } = await companyPage(browser, request, `e2e-play-${RUN}@gmail.com`, "Globex Hiring");
+    await onboardCustom(page, ["reception", "ops_lab", "meeting", "lounge"]);
+    await waitSaved(page);
+    await page.getByTestId("publish-btn").click();
+    await page.getByTestId("publish-confirm").click();
+    await expect(page.getByTestId("toast")).toContainText(/Published/);
+    const worldName = (await draft(page, request)).doc.name;
+
+    // Assessment + invite through the API (the assessment UI is covered by its own spec).
+    expect((await api(page, request, "PATCH", "/company", { smtp: { host: "127.0.0.1", port: 1025, security: "none", from_email: "hiring@globex.test", from_name: "Globex" } })).status).toBe(200);
+    const topic = await api(page, request, "POST", "/company/topics", { title: `Globex on-call ${RUN}`, description: "On-call incident in our own office.", track: "backend", difficulty: "standard", judges: {} });
+    const assessment = await api(page, request, "POST", "/company/assessments", { topic_id: topic.body.id, title: `Globex round ${RUN}`, message: "" });
+    const email = `e2e-play-cand-${RUN}@gmail.com`;
+    const sent = await api(page, request, "POST", `/company/assessments/${assessment.body.id}/invites`, { candidates: [{ email, name: "Casey Candidate" }] });
+    expect(sent.body.sent).toBe(1);
+    let link = "";
+    for (let i = 0; i < 30 && !link; i++) {
+      const list = await (await request.get(`${MAILPIT}/api/v1/search?query=${encodeURIComponent(`to:"${email}"`)}`)).json();
+      const msg = list.messages?.[0];
+      if (msg) {
+        const full = await (await request.get(`${MAILPIT}/api/v1/message/${msg.ID}`)).json();
+        link = /\/invite\/[A-Za-z0-9_-]+/.exec(full.Text as string)?.[0] ?? "";
+      }
+      if (!link) await page.waitForTimeout(1000);
+    }
+    expect(link).toBeTruthy();
+
+    // Candidate
+    const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+    const cand = await ctx.newPage();
+    const ticket = await clerkTicket(request, email);
+    await cand.goto("/login");
+    await setupClerkTestingToken({ page: cand });
+    await clerk.signIn({ page: cand, signInParams: { strategy: "ticket", ticket } });
+    await cand.goto(link);
+    await cand.getByTestId("start-assessment").click();
+    await expect(cand).toHaveURL(/\/briefing\/.*session=/, { timeout: 120_000 });
+    const sessionId = new URL(cand.url()).searchParams.get("session")!;
+    await cand.getByRole("button", { name: "Enter the office" }).click();
+    await expect(cand).toHaveURL(/\/session\//, { timeout: 60_000 });
+    const intro = cand.getByRole("dialog", { name: "Meet your team" });
+    if (await intro.isVisible({ timeout: 8_000 }).catch(() => false)) await cand.getByRole("button", { name: /Skip intro/i }).click();
+    // The engine loaded the company's world, not the default map.
+    await expect.poll(async () => cand.evaluate(() => (window as unknown as { __officeScene?: { meta?: { kind?: string; width?: number } } }).__officeScene?.meta?.kind ?? null), { timeout: 60_000 }).toBe("custom");
+    const session = await cand.evaluate(async (sid) => {
+      const c = (window as unknown as { Clerk: { session: { getToken: () => Promise<string> } } }).Clerk;
+      const t = await c.session.getToken();
+      const r = await fetch(`http://localhost:8000/api/v1/sessions/${sid}`, { headers: { Authorization: `Bearer ${t}` } });
+      return r.json();
+    }, sessionId);
+    expect(session.world.map.doc.name).toBe(worldName);
+    if (await intro.isVisible({ timeout: 10_000 }).catch(() => false)) {
+      await cand.getByRole("button", { name: /Skip intro/i }).click();
+      await expect(intro).toBeHidden({ timeout: 15_000 });
+    }
+    await cand.waitForTimeout(1500);
+    await shot(cand, "30-candidate-in-custom-office");
+
+    // Editing the draft afterwards doesn't change the candidate's run (it was snapshotted).
+    const wp = await draft(page, request);
+    expect((await api(page, request, "PUT", "/company/workplace/draft", { doc: { ...wp.doc, name: "Changed after publish" }, base_version: wp.version })).status).toBe(200);
+    const again = await cand.evaluate(async (sid) => {
+      const c = (window as unknown as { Clerk: { session: { getToken: () => Promise<string> } } }).Clerk;
+      const t = await c.session.getToken();
+      return (await (await fetch(`http://localhost:8000/api/v1/sessions/${sid}`, { headers: { Authorization: `Bearer ${t}` } })).json()).world.map.doc.name;
+    }, sessionId);
+    expect(again).toBe(worldName);
+  });
 });
