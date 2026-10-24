@@ -1,3 +1,5 @@
+import asyncio
+
 import pytest
 from app.simulation.engine import apply_disclosure, build_initial_state
 from app.simulation.templates import build_production_incident
@@ -50,3 +52,21 @@ def test_card_incident_is_honoured_and_unknown_falls_back():
     bp = build_production_incident(seed=5, role="Frontend Developer", incident=card["incident"])
     assert bp.title == card["title"]
     assert build_production_incident(seed=5, incident="nope").metadata["variation"]["incident"] in {"base", "queue_format", "key_rotation"}
+
+
+def test_catalog_endpoint_sends_incident_to_the_card():
+    from types import SimpleNamespace
+
+    from app.api.v1.scenarios import list_templates
+    from app.simulation.templates import TEMPLATE_SLUG
+
+    class Repo:
+        async def get_profile(self, _):
+            return {"target_role": "Data Analyst"}
+
+        async def list_templates(self):
+            return [{"id": 1, "slug": TEMPLATE_SLUG, "title": "t", "summary": "s", "categories": [],
+                     "target_roles": [], "supported_modes": [], "estimated_minutes": 10}]
+
+    item = asyncio.run(list_templates(SimpleNamespace(user_id="u"), Repo()))["items"][0]
+    assert item["incident"] in {"base", *(v["id"] for v in TRACKS["data"]["variants"])}

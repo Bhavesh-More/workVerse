@@ -29,7 +29,7 @@ async def list_templates(principal: CurrentUser, repo: Repo) -> dict:
                 "difficulty_options": ["introductory", "standard", "challenging"],
                 **{
                     k: r[k]
-                    for k in ("story", "you_will", "people", "skills", "report", "track", "track_label")
+                    for k in ("story", "you_will", "people", "skills", "report", "track", "track_label", "incident")
                     if k in r
                 },
             }
