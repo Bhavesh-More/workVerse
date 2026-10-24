@@ -1877,3 +1877,469 @@ blockquote {
 @media (prefers-reduced-motion: reduce) {
   .coach-nudge, .coach-nudge__spark, .chip--glow { animation: none; }
 }
+
+/* ---- Team intro (anime opening) -------------------------------------------------------- */
+.ti {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  overflow: hidden;
+  background: radial-gradient(120% 90% at 72% 45%, #262626 0%, var(--color-ink) 60%);
+  color: var(--color-paper);
+  cursor: pointer;
+  isolation: isolate;
+}
+.ti__lines {
+  position: absolute;
+  left: 70%;
+  top: 46%;
+  width: 260vmax;
+  height: 260vmax;
+  translate: -50% -50%;
+  background: repeating-conic-gradient(from 0deg, rgba(255, 255, 255, 0.07) 0deg 0.9deg, transparent 0.9deg 5deg);
+  mask: radial-gradient(circle, transparent 9%, #000 32%);
+  animation: ti-spin 40s linear infinite;
+  pointer-events: none;
+}
+.ti__halftone {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle, rgba(254, 204, 51, 0.22) 1.3px, transparent 1.8px) 0 0 / 14px 14px;
+  mask: linear-gradient(105deg, transparent 38%, #000 70%, transparent 100%);
+  animation: ti-drift 9s linear infinite;
+  pointer-events: none;
+}
+@keyframes ti-spin { to { rotate: 360deg; } }
+@keyframes ti-drift { to { background-position: 140px 70px; } }
+
+.ti-card {
+  position: absolute;
+  inset: 0;
+}
+.ti-card.is-shaking .ti-card__grid { animation: ti-shake 0.34s cubic-bezier(0.36, 0.07, 0.19, 0.97) both; }
+@keyframes ti-shake {
+  10%, 90% { transform: translate(-2px, 1px); }
+  20%, 80% { transform: translate(4px, -2px); }
+  30%, 50%, 70% { transform: translate(-7px, 3px); }
+  40%, 60% { transform: translate(7px, -3px); }
+}
+.ti-card__slash {
+  position: absolute;
+  top: -20%;
+  bottom: -20%;
+  left: 0;
+  width: 70%;
+  z-index: 4;
+  background: linear-gradient(90deg, var(--color-highlight-yellow) 0 6%, var(--color-ember) 6% 94%, var(--color-highlight-yellow) 94%);
+  pointer-events: none;
+}
+.ti-card__flash {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  background: var(--color-paper);
+  pointer-events: none;
+}
+.ti-card__marquee {
+  position: absolute;
+  inset: 4% -10% auto;
+  display: grid;
+  gap: 0;
+  rotate: -6deg;
+  pointer-events: none;
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: clamp(72px, 13vw, 210px);
+  line-height: 0.95;
+  letter-spacing: -0.02em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  color: transparent;
+  -webkit-text-stroke: 1.5px rgba(255, 255, 255, 0.1);
+}
+.ti-card__marquee span { animation: ti-marquee 38s linear infinite; }
+.ti-card__marquee span + span { animation-direction: reverse; -webkit-text-stroke-color: rgba(255, 132, 0, 0.16); }
+@keyframes ti-marquee { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+
+.ti-card__grid {
+  position: relative;
+  z-index: 2;
+  height: 100%;
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr);
+  align-items: center;
+  gap: clamp(16px, 4vw, 64px);
+  padding: clamp(20px, 5vw, 80px) clamp(20px, 6vw, 96px) 84px;
+}
+.ti-card__text { display: grid; gap: 14px; align-content: center; min-width: 0; }
+.ti-card__num {
+  font-family: var(--font-mono);
+  font-size: 56px;
+  line-height: 1;
+  color: var(--color-ember);
+  letter-spacing: var(--tracking-mono);
+}
+.ti-card__num small { font-size: 18px; color: rgba(255, 255, 255, 0.45); }
+.ti-card__name {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: clamp(42px, 6.6vw, 104px);
+  line-height: 0.92;
+  letter-spacing: -0.02em;
+  text-transform: uppercase;
+  text-shadow: 4px 4px 0 rgba(255, 132, 0, 0.35);
+}
+.ti-card__clip { display: inline-block; overflow: hidden; vertical-align: bottom; padding-bottom: 0.06em; }
+.ti-card__clip > span { display: inline-block; }
+.ti-card__role {
+  justify-self: start;
+  padding: 8px 16px 8px 14px;
+  background: var(--color-highlight-yellow);
+  color: var(--color-ink);
+  font-family: var(--font-mono);
+  font-size: 14px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  box-shadow: 6px 6px 0 var(--color-ember);
+}
+.ti-card__badges { display: flex; flex-wrap: wrap; gap: 8px; }
+.ti-badge {
+  padding: 5px 12px;
+  border: 1.5px solid rgba(255, 255, 255, 0.35);
+  border-radius: var(--radius-pill);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: var(--tracking-mono);
+  text-transform: uppercase;
+}
+.ti-badge--exp { background: var(--color-paper); color: var(--color-ink); border-color: var(--color-paper); }
+.ti-badge--exp b { font-size: 14px; }
+.ti-stats { list-style: none; margin: 4px 0 0; padding: 0; display: grid; gap: 8px; max-width: 460px; }
+.ti-stats li { display: grid; grid-template-columns: 76px 1fr 30px; align-items: center; gap: 10px; }
+.ti-stats__label, .ti-stats__value {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: var(--tracking-mono);
+  text-transform: uppercase;
+}
+.ti-stats__value { text-align: right; color: var(--color-highlight-yellow); }
+.ti-stats__track {
+  position: relative;
+  height: 10px;
+  background: rgba(255, 255, 255, 0.12);
+  transform: skewX(-20deg);
+  overflow: hidden;
+}
+.ti-stats__fill {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, var(--color-ember), var(--color-highlight-yellow));
+}
+.ti-card__quote {
+  position: relative;
+  margin: 6px 0 0;
+  max-width: 520px;
+  min-height: 3.2em;
+  padding: 12px 16px;
+  border-radius: var(--radius-card);
+  background: var(--color-paper);
+  color: var(--color-ink);
+  font-size: 17px;
+  line-height: 1.35;
+}
+.ti-card__quote::after {
+  content: "";
+  position: absolute;
+  right: -10px;
+  top: 18px;
+  border: 10px solid transparent;
+  border-left-color: var(--color-paper);
+  border-right: 0;
+}
+.ti-caret {
+  display: inline-block;
+  width: 0.5em;
+  height: 1em;
+  margin-left: 2px;
+  vertical-align: -0.12em;
+  background: var(--color-ember);
+  animation: ti-blink 0.9s steps(1) infinite;
+}
+@keyframes ti-blink { 50% { opacity: 0; } }
+.ti-card__facts {
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px 22px;
+  max-width: 560px;
+}
+.ti-card__facts dt {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--color-highlight-yellow);
+}
+.ti-card__facts dd { margin: 2px 0 0; font-size: 14px; line-height: 1.35; color: rgba(255, 255, 255, 0.86); }
+
+.ti-card__portrait {
+  position: relative;
+  margin: 0;
+  justify-self: center;
+  width: min(34vw, 440px);
+  filter: drop-shadow(16px 16px 0 var(--color-ember));
+}
+.ti-card__frame {
+  position: relative;
+  aspect-ratio: 4 / 5;
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 50% 38%, #fff3c4 0 30%, transparent 62%),
+    var(--color-highlight-yellow);
+  clip-path: polygon(9% 0, 100% 0, 91% 100%, 0 100%);
+  border: 0;
+}
+.ti-card__frame img {
+  position: absolute;
+  left: 50%;
+  bottom: -2%;
+  width: 104%;
+  translate: -50% 0;
+}
+.ti-card__frame-shine {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(105deg, transparent 40%, rgba(255, 255, 255, 0.75) 50%, transparent 60%);
+  transform: translateX(-120%);
+  animation: ti-shine 0.9s var(--ease-out) 0.55s forwards;
+}
+@keyframes ti-shine { to { transform: translateX(120%); } }
+.ti-card__portrait figcaption {
+  position: absolute;
+  top: 4%;
+  right: -34px;
+  writing-mode: vertical-rl;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  letter-spacing: 0.4em;
+  text-transform: uppercase;
+  color: var(--color-highlight-yellow);
+}
+
+.ti__chrome {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 6;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px clamp(20px, 6vw, 96px);
+  cursor: default;
+}
+.ti__pips { list-style: none; margin: 0; padding: 0; display: flex; gap: 6px; }
+.ti__pips li { position: relative; width: 40px; height: 3px; background: rgba(255, 255, 255, 0.2); overflow: hidden; }
+.ti__pips li.is-done { background: var(--color-paper); }
+.ti__pips li span {
+  position: absolute;
+  inset: 0;
+  background: var(--color-ember);
+  transform-origin: left;
+  animation: ti-progress linear forwards;
+}
+@keyframes ti-progress { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+.ti__skip {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border: 1.5px solid rgba(255, 255, 255, 0.4);
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--color-paper);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  letter-spacing: var(--tracking-mono);
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: background-color 0.15s ease, color 0.15s ease;
+}
+@media (hover: hover) and (pointer: fine) {
+  .ti__skip:hover { background: var(--color-paper); color: var(--color-ink); }
+}
+.ti__skip .kbd { background: rgba(255, 255, 255, 0.15); color: inherit; border-color: transparent; }
+
+.ti-finale {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 28px;
+  padding: 24px 24px 90px;
+}
+.ti-finale__eyebrow {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+  color: var(--color-highlight-yellow);
+}
+.ti-finale__row { display: flex; justify-content: center; gap: clamp(8px, 1.6vw, 22px); }
+.ti-finale__card {
+  display: grid;
+  gap: 4px;
+  width: clamp(110px, 14vw, 180px);
+  padding: 10px 10px 12px;
+  border-radius: 14px;
+  background: var(--color-paper);
+  color: var(--color-ink);
+  box-shadow: 8px 8px 0 var(--color-ember);
+}
+.ti-finale__card img { width: 100%; aspect-ratio: 1; border-radius: 10px; background: var(--color-highlight-yellow); }
+.ti-finale__card strong { font-size: 14px; line-height: 1.15; }
+.ti-finale__card span { font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--color-muted); }
+.ti-finale__stamp {
+  display: grid;
+  gap: 2px;
+  padding: 10px 22px 12px;
+  border: 4px solid var(--color-ember);
+  border-radius: 10px;
+  color: var(--color-ember);
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: clamp(22px, 3vw, 38px);
+  line-height: 1;
+  text-align: center;
+  text-transform: uppercase;
+}
+.ti-finale__stamp span { font-family: var(--font-mono); font-size: 12px; letter-spacing: 0.3em; }
+.ti-finale__go { font-size: 17px; padding: 14px 28px; background: var(--color-paper); color: var(--color-ink); }
+
+@media (max-width: 760px) {
+  .ti-card__grid { grid-template-columns: 1fr; align-content: start; gap: 10px; padding-top: 28px; overflow-y: auto; }
+  .ti-card__portrait { order: -1; width: min(52vw, 230px); justify-self: start; }
+  .ti-card__num { font-size: 36px; }
+  .ti-card__facts { grid-template-columns: 1fr; }
+  .ti-finale__row { flex-wrap: wrap; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ti__lines, .ti__halftone, .ti-card__marquee span, .ti-card__frame-shine, .ti-caret { animation: none; }
+  .ti-card.is-shaking .ti-card__grid { animation: none; }
+}
+
+/* Team intro — pass 2 */
+.ti__bars::before, .ti__bars::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 5vh;
+  z-index: 7;
+  background: #000;
+  pointer-events: none;
+  animation: ti-bar 0.6s var(--ease-out) both;
+}
+.ti__bars::before { top: 0; transform-origin: top; }
+.ti__bars::after { bottom: 0; transform-origin: bottom; }
+@keyframes ti-bar { from { transform: scaleY(0); } }
+.ti__chrome { bottom: 5vh; }
+.ti-card__slash {
+  background: linear-gradient(90deg, #000 0 14%, var(--color-highlight-yellow) 14% 19%, var(--color-ember) 19% 92%, var(--color-highlight-yellow) 92%);
+}
+.ti-card__name { font-size: clamp(40px, 5.8vw, 96px); display: flex; flex-wrap: wrap; column-gap: 0.28em; text-shadow: none; }
+.ti-card__word { white-space: nowrap; }
+.ti-card__word.is-outline { color: transparent; -webkit-text-stroke: 2px var(--color-paper); }
+.ti-card__word:first-child .ti-card__clip > span { text-shadow: 5px 5px 0 var(--color-ember); }
+.ti-card__backpanel {
+  position: absolute;
+  inset: 6% -7% -5% 7%;
+  background: var(--color-ember);
+  clip-path: polygon(9% 0, 100% 0, 91% 100%, 0 100%);
+}
+.ti-card__portrait { filter: none; }
+.ti-card__burst {
+  position: absolute;
+  left: 50%;
+  top: 42%;
+  width: 180%;
+  aspect-ratio: 1;
+  translate: -50% -50%;
+  background: repeating-conic-gradient(from 0deg, rgba(255, 255, 255, 0.55) 0deg 6deg, transparent 6deg 15deg);
+  mask: radial-gradient(circle, #000 0 18%, transparent 58%);
+  animation: ti-spin 24s linear infinite;
+}
+.ti-card__frame-dots {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle, rgba(20, 20, 20, 0.22) 1.2px, transparent 1.7px) 0 0 / 9px 9px;
+  mask: linear-gradient(200deg, transparent 45%, #000 100%);
+}
+.ti-card__frame img { z-index: 1; }
+.ti-card__frame-shine { z-index: 2; }
+.ti-card__plate {
+  position: absolute;
+  z-index: 3;
+  left: 8%;
+  bottom: 7%;
+  padding: 6px 14px 6px 12px;
+  background: var(--color-ink);
+  color: var(--color-paper);
+  font-family: var(--font-mono);
+  font-size: 13px;
+  letter-spacing: 0.3em;
+  text-transform: uppercase;
+}
+.ti-card__impact {
+  position: absolute;
+  left: 50%;
+  top: 45%;
+  width: 70%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  border: 6px solid var(--color-highlight-yellow);
+  pointer-events: none;
+}
+.ti-card__level {
+  position: absolute;
+  z-index: 4;
+  top: -4%;
+  left: -6%;
+  display: grid;
+  place-items: center;
+  width: 86px;
+  height: 86px;
+  border-radius: 50%;
+  background: var(--color-paper);
+  color: var(--color-ink);
+  border: 3px solid var(--color-ink);
+  box-shadow: 0 0 0 4px var(--color-ember);
+  font-family: var(--font-display);
+  font-size: 34px;
+  line-height: 0.8;
+}
+.ti-card__level small { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.2em; }
+.ti__skip:focus-visible { outline: 2px solid var(--color-paper); outline-offset: 3px; }
+@media (prefers-reduced-motion: reduce) {
+  .ti-card__burst, .ti__bars::before, .ti__bars::after { animation: none; }
+}
+.ti-finale__stamp { max-width: min(760px, 92vw); margin-top: 18px; font-size: clamp(20px, 2.4vw, 32px); line-height: 1.05; }
+.ti__skip { white-space: nowrap; }
+@media (max-width: 760px) {
+  .ti__bars::before, .ti__bars::after { height: 3vh; }
+  .ti__chrome { bottom: 3vh; padding: 12px 20px; background: linear-gradient(transparent, rgba(0, 0, 0, 0.85) 45%); }
+  .ti-card__grid { padding: 6vh 20px 120px; gap: 8px; }
+  .ti-card__portrait { width: min(38vw, 150px); margin: 10px 0 0 14px; }
+  .ti-card__level { width: 52px; height: 52px; font-size: 20px; }
+  .ti-card__level small { font-size: 8px; }
+  .ti-card__plate { font-size: 10px; padding: 4px 8px; }
+  .ti-card__name { font-size: 40px; }
+  .ti-finale__card { width: 96px; }
+  .ti-finale__row { gap: 8px; }
+}

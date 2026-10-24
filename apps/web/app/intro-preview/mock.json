@@ -1,0 +1,194 @@
+{
+ "title": "The numbers look wrong before the leadership review",
+ "characters": [
+  {
+   "id": "manager",
+   "name": "Nadia Petrova",
+   "role": "Analytics Manager",
+   "sprite": "blue_haired_woman",
+   "location_id": "manager_office",
+   "greeting": "Leadership is about to quote these numbers. Are they real?",
+   "profile": {
+    "years": 12,
+    "personality": "Trusts data, distrusts surprises. Asks 'how do you know?'.",
+    "traits": [
+     "Analytical",
+     "Calm",
+     "Skeptical"
+    ],
+    "power": "Spots a bad metric from the chart's shape",
+    "weakness": "Wants confidence intervals on everything",
+    "stats": {
+     "Calm": 90,
+     "Focus": 86,
+     "Empathy": 62,
+     "Speed": 60
+    },
+    "portrait": "/assets/portraits/nadia-petrova.svg",
+    "knows": "What leadership will decide and when"
+   },
+   "questions": [
+    {
+     "q": "How bad is the drop for leadership?",
+     "fact": "f_business_impact"
+    },
+    {
+     "q": "When is the review?",
+     "fact": "f_reporting_deadline"
+    },
+    {
+     "q": "I'll own this. Anything I should know?",
+     "fact": null
+    }
+   ]
+  },
+  {
+   "id": "teammate",
+   "name": "Daniel Cho",
+   "role": "Senior Data Engineer",
+   "sprite": "blonde_man",
+   "location_id": "engineering_workspace",
+   "greeting": "The pipeline ran green last night, which is exactly what worries me.",
+   "profile": {
+    "years": 8,
+    "personality": "Plumber of the data world. Knows where every number comes from.",
+    "traits": [
+     "Precise",
+     "Sleepy",
+     "Reliable"
+    ],
+    "power": "Traces any metric back to its source",
+    "weakness": "Speaks fluent SQL, broken small talk",
+    "stats": {
+     "Calm": 74,
+     "Focus": 94,
+     "Empathy": 50,
+     "Speed": 72
+    },
+    "portrait": "/assets/portraits/daniel-cho.svg",
+    "knows": "What changed upstream"
+   },
+   "questions": [
+    {
+     "q": "Did an upstream table or schema change?",
+     "fact": "f_migration_ran"
+    },
+    {
+     "q": "Is reverting the pipeline safe?",
+     "fact": "f_migration_incompatible"
+    },
+    {
+     "q": "Which table would you check first?",
+     "fact": null
+    }
+   ]
+  },
+  {
+   "id": "qa",
+   "name": "Sara Lindqvist",
+   "role": "Data Quality Analyst",
+   "sprite": "cat_brown",
+   "location_id": "collaboration_area",
+   "greeting": "My quality checks would've screamed \u2014 if they'd been turned on.",
+   "profile": {
+    "years": 4,
+    "personality": "Guardian of the null rate. Allergic to silent failures.",
+    "traits": [
+     "Careful",
+     "Principled",
+     "Blunt"
+    ],
+    "power": "Writes a data test faster than you can blink",
+    "weakness": "Takes skipped checks personally",
+    "stats": {
+     "Calm": 66,
+     "Focus": 93,
+     "Empathy": 58,
+     "Speed": 54
+    },
+    "portrait": "/assets/portraits/sara-lindqvist.svg",
+    "knows": "Which checks were switched off"
+   },
+   "questions": [
+    {
+     "q": "Were the quality checks running?",
+     "fact": "f_ci_skipped"
+    },
+    {
+     "q": "What check would have caught this?",
+     "fact": null
+    }
+   ]
+  },
+  {
+   "id": "client_pm",
+   "name": "Robert Hale",
+   "role": "Head of Finance",
+   "sprite": "cat_white",
+   "location_id": "meeting_room",
+   "greeting": "I've put these numbers in the board pack. Tell me I don't have to pull them.",
+   "profile": {
+    "years": 15,
+    "personality": "Accountable to the board. Needs certainty, fast.",
+    "traits": [
+     "Formal",
+     "Exacting",
+     "Reasonable"
+    ],
+    "power": "Fixes the narrative once given facts",
+    "weakness": "Panics at the word 'probably'",
+    "stats": {
+     "Calm": 45,
+     "Focus": 82,
+     "Empathy": 50,
+     "Speed": 70
+    },
+    "portrait": "/assets/portraits/robert-hale.svg",
+    "knows": "Where the wrong numbers went"
+   },
+   "questions": [
+    {
+     "q": "Have these numbers been shared yet?",
+     "fact": "f_client_impact"
+    },
+    {
+     "q": "Can I confirm the real numbers in 30 minutes?",
+     "fact": null
+    }
+   ]
+  },
+  {
+   "id": "coworker",
+   "name": "Felix Wagner",
+   "role": "Marketing Analyst",
+   "sprite": "cat_brown2",
+   "location_id": "break_area",
+   "greeting": "Is the dashboard broken? My campaign suddenly looks terrible.",
+   "profile": {
+    "years": 2,
+    "personality": "Enthusiastic dashboard power-user.",
+    "traits": [
+     "Curious",
+     "Friendly",
+     "Chart-obsessed"
+    ],
+    "power": "Notices drops before anyone else",
+    "weakness": "Assumes every dip is their campaign",
+    "stats": {
+     "Calm": 70,
+     "Focus": 50,
+     "Empathy": 88,
+     "Speed": 66
+    },
+    "portrait": "/assets/portraits/felix-wagner.svg",
+    "knows": "How the charts looked to users"
+   },
+   "questions": [
+    {
+     "q": "Did your charts look odd today?",
+     "fact": null
+    }
+   ]
+  }
+ ]
+}

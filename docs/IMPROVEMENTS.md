@@ -200,3 +200,41 @@ Now, during a voice meeting, **your mic is paused while the character speaks** a
 it's your turn (the status shows "speaking · your mic is paused"). Turn it off with the
 **Wait for my turn** button if you want to be able to cut in. Headphones help too: the speakers can't leak
 back into the mic. (`game/VoiceMeeting.tsx`)
+
+## 11. Every role gets its own story (role tracks)
+
+**Before:** everyone played the same "checkout errors" incident with the same people.
+**Now:** the scenario is re-told for your target role (picked in onboarding/profile):
+
+| Your role contains… | Track | What breaks |
+| --- | --- | --- |
+| backend, devops, full-stack (default) | Backend | An API release causes errors |
+| frontend, mobile, QA | Frontend | A UI release breaks a user flow |
+| data, ML, analyst | Data | A dashboard shows wrong numbers before a leadership review |
+| product, design, business | Product | A launch goes wrong and customers complain |
+
+Each track has its own colleagues, facts, tools, actions and suggested questions.
+- Code: `apps/api/app/simulation/tracks.py` (all the text), `templates.py` (builds the scenario).
+- Test: `apps/api/tests/test_tracks.py` checks that every suggested question really unlocks its fact.
+
+## 12. Help when you're stuck
+
+- **Chat open, nothing typed for 8 s:** a glowing "Try asking…" card pops up with two questions you can click.
+- **No key/mouse input for 20 s:** a "Stuck?" card shows your next step with "Talk to them" / "Show guide" buttons.
+- Code: `apps/web/app/(app)/session/[sessionId]/page.tsx` (search for `idleHint` and `stuck`).
+
+## 13. "Meet the team" anime intro
+
+When a session starts you see an anime-opening style intro, one card per colleague:
+a slash wipe and flash, the portrait slams in (screen shake + impact ring), the name
+drops in letter by letter, then role, years of experience, traits, stat bars that count
+up, a typed-out quote, personality, what they know, their "special move" and "weak spot".
+It ends with a line-up of the whole team and the incident stamped across it.
+
+- Shows **once per session**. Replay with **Meet the team** in the top bar; the **ⓘ** next to a chat name shows just that person.
+- Skip any time: **Esc**, the Skip button. **Space / Enter / click** jumps to the next card.
+- Sounds are made in code (`lib/sfx.ts`: `whoosh`, `slam`, `shimmer`, `stat`, `type`, `stamp`) — no audio files.
+- If your OS has "reduce motion" on, it keeps the fades and drops the movement.
+- Portraits: `apps/web/public/assets/portraits/` (DiceBear Lorelei, CC0 — see `CREDITS.md`).
+- Preview without signing in (dev only): run the web app and open http://localhost:3000/intro-preview.
+- Code: `apps/web/components/TeamIntro.tsx`, styles at the end of `apps/web/app/globals.css` (classes start with `ti`).

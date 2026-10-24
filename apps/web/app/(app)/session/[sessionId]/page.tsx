@@ -21,6 +21,7 @@ import {
 } from "../../../../lib/practice";
 import { duckMusic, play } from "../../../../lib/sfx";
 import { SoundToggles } from "../../../../components/Sound";
+import { TeamIntro } from "../../../../components/TeamIntro";
 
 // Browser-only SDK; never evaluated during SSR.
 const VoiceMeeting = dynamic(
@@ -369,6 +370,21 @@ export default function SessionPage() {
     };
   }, []);
 
+  // "Meet the team" intro: once per session on first load; "all" or one colleague's id.
+  const [intro, setIntro] = useState<string | null>(null);
+  const hasProfiles = characters.some((c) => c.profile);
+  useEffect(() => {
+    if (!hasProfiles) return;
+    const key = `wv-intro-${sessionId}`;
+    try {
+      if (sessionStorage.getItem(key)) return;
+      sessionStorage.setItem(key, "1");
+    } catch {
+      // storage blocked: still show it once for this mount
+    }
+    setIntro("all");
+  }, [hasProfiles, sessionId]);
+
   if (!session && !error) return <SimSkeleton />;
   if (!session) {
     return (
@@ -423,6 +439,11 @@ export default function SessionPage() {
         </div>
         <div className="row" style={{ gap: 8 }}>
           <SoundToggles />
+          {hasProfiles && (
+            <button className="btn btn--ghost btn--small" onClick={() => setIntro("all")} title="Replay the team intro">
+              Meet the team
+            </button>
+          )}
           <span className={statusBadge(session.status)}>
             <span className={`dot${live ? " dot--live" : " dot--idle"}`} aria-hidden="true" />
             {session.status}
@@ -442,6 +463,14 @@ export default function SessionPage() {
         </div>
       </div>
 
+      {intro && (
+        <TeamIntro
+          characters={characters}
+          title={String(incident.summary ?? "")}
+          only={intro === "all" ? undefined : intro}
+          onDone={() => setIntro(null)}
+        />
+      )}
       <div className="sim-full__body">
         <div className="sim-full__game">
           <PhaserGame
@@ -850,8 +879,18 @@ export default function SessionPage() {
 
           <section className="card stack stack--sm" style={{ minHeight: 260 }}>
             <div className="row between">
-              <h2 className="section-title" style={{ fontSize: 18 }}>
+              <h2 className="section-title row" style={{ fontSize: 18, gap: 6 }}>
                 {activeName ? `Chat · ${activeName}` : "Conversation"}
+                {activeCharacter && hasProfiles && (
+                  <button
+                    className="btn btn--ghost btn--small"
+                    onClick={() => setIntro(activeCharacter)}
+                    aria-label={`About ${activeName}`}
+                    title={`About ${activeName}`}
+                  >
+                    ⓘ
+                  </button>
+                )}
               </h2>
               <div className="row" style={{ gap: 6 }}>
                 {characters.map((c) => (

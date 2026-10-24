@@ -67,6 +67,27 @@ const SOUNDS = {
     { f: 1047, at: 0.27, len: 0.3, wave: "square", vol: 0.05 },
     { f: 1047, at: 0.27, len: 0.3, wave: "triangle", vol: 0.07 },
   ],
+  // Character intro (anime opening)
+  whoosh: [{ f: 300, to: 7000, len: 0.32, wave: "noise", vol: 0.14 }],
+  slam: [
+    { f: 120, to: 38, len: 0.32, wave: "sine", vol: 0.32 },
+    { f: 900, to: 200, len: 0.14, wave: "noise", vol: 0.2 },
+  ],
+  shimmer: [
+    { f: 1568, len: 0.09, wave: "triangle", vol: 0.04 },
+    { f: 2093, at: 0.035, len: 0.09, wave: "triangle", vol: 0.04 },
+    { f: 2637, at: 0.07, len: 0.09, wave: "triangle", vol: 0.04 },
+    { f: 3136, at: 0.105, len: 0.16, wave: "triangle", vol: 0.04 },
+  ],
+  type: [{ f: 1900, len: 0.014, wave: "square", vol: 0.012 }],
+  stat: [{ f: 520, to: 1240, len: 0.16, wave: "triangle", vol: 0.045 }],
+  stamp: [
+    { f: 95, to: 42, len: 0.4, wave: "sine", vol: 0.34 },
+    { f: 400, to: 120, len: 0.22, wave: "noise", vol: 0.22 },
+    { f: 523, at: 0.12, len: 0.5, wave: "square", vol: 0.03 },
+    { f: 659, at: 0.12, len: 0.5, wave: "square", vol: 0.03 },
+    { f: 784, at: 0.12, len: 0.5, wave: "square", vol: 0.03 },
+  ],
 } satisfies Record<string, Note[]>;
 
 export type Cue = keyof typeof SOUNDS;
@@ -142,7 +163,8 @@ function voice(ac: AudioContext, dest: AudioNode, n: Note, start: number) {
     b.buffer = noiseBuf;
     const hp = ac.createBiquadFilter();
     hp.type = "highpass";
-    hp.frequency.value = n.f > 1 ? n.f : 1000;
+    hp.frequency.setValueAtTime(n.f > 1 ? n.f : 1000, start);
+    if (n.to) hp.frequency.exponentialRampToValueAtTime(n.to, start + n.len); // filter sweep (whoosh)
     b.connect(hp).connect(env);
     src = b;
   } else {
@@ -161,7 +183,7 @@ let lastHover = 0;
 
 export function play(cue: Cue): void {
   if (isMuted()) return;
-  if (cue === "hover") {
+  if (cue === "hover" || cue === "type") {
     const now = performance.now();
     if (now - lastHover < 60) return;
     lastHover = now;
