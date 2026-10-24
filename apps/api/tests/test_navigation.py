@@ -8,7 +8,7 @@ from app.simulation.templates import build_production_incident
 
 
 def _bp():
-    return build_production_incident(seed=7)
+    return build_production_incident(seed=7, incident="base")
 
 
 def test_initial_target_points_to_manager_for_impact() -> None:

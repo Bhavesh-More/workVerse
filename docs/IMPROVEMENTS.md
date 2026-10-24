@@ -293,3 +293,23 @@ were confused whether to answer or investigate.
   "rollback", "test"…) or numbers is thrown away. If Ollama is slow (8 s) or off, the random company is used.
 - Colleagues know the company too, so chat and voice stay consistent.
 - Code: `personalize()` in `apps/api/app/services/scenario_service.py`; test `tests/test_personalize.py`.
+
+## 17. A different incident every session
+
+**Before:** each role always got the same problem (backend = a database change that can't be rolled back).
+**Now:** each role has **3 incident types** and every new session picks one at random:
+
+| Role track | Incident types |
+| --- | --- |
+| Backend | Database migration · Message format change jams the queue · Rotated payment key |
+| Frontend | API field renamed · Service worker caches a broken app · New app version crashes on old phones |
+| Data | Upstream column renamed · Timezone switched to UTC · Source sends events twice |
+| Product | Phone verification launch · Promo code only works in one region · Google-only login launch |
+
+- All of them follow the same shape, so the game logic and scoring stay the same: *something shipped →
+  a plain undo won't fix it → find that out → ship a forward fix → send an update.* Only the story, clues,
+  colleague lines and suggested questions change.
+- Add your own: append to `TRACKS["<track>"]["variants"]` at the bottom of
+  `apps/api/app/simulation/tracks.py`; list only the text that changes.
+  `tests/test_incident_variants.py` checks that every type builds, passes validation and that each
+  suggested question unlocks its clue.

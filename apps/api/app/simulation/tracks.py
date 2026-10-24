@@ -579,3 +579,437 @@ def gender_of(name: str) -> str:
 def voice_for(slot: str, name: str) -> str:
     """Voice name for a colleague, e.g. 'arabella'."""
     return CASTING.get(slot, CASTING["coworker"])[gender_of(name)]
+
+
+# ---------------------------------------------------------------------- incident variants
+# Each track's base story is one incident type; these are more. A variant is a text overlay merged
+# into the track, so the mechanics stay identical and validated: something shipped (f_migration_ran),
+# a plain undo can't fix it (f_migration_incompatible, found by a_check_migration_compat), and the
+# forward fix is the safe move. Only keys that change are listed.
+TRACKS["backend"]["variants"] = [
+    {
+        "id": "queue_format",
+        "title": "Orders stuck after a message format change",
+        "briefing": (
+            "You are on-call as a {role}. About {minutes} minutes ago a deployment of {service} went to "
+            "production. Orders stopped completing and the job queue is backing up. Investigate what "
+            "happened, decide on a safe response, and keep stakeholders informed."
+        ),
+        "incident_line": "{service} orders are stuck and the queue is growing; a deploy went out {minutes} minutes ago",
+        "facts": {
+            "f_initial_5xx": ("Orders aren't completing", "{service} accepts orders but they never finish processing."),
+            "f_error_logs": ("Workers can't read queue messages", "Worker logs show 'unknown message version: 2' on every order event."),
+            "f_connection_pool": ("Queue backlog is growing", "Thousands of messages are piling up and being retried, so the backlog keeps growing."),
+            "f_runbook_rollback": ("Rollback requires a message check", "The runbook says check what is already in the queue before rolling back a producer change."),
+            "f_migration_ran": ("The deploy changed the message format", "This release started writing order events in a new version 2 format."),
+            "f_migration_incompatible": ("Rolling back leaves broken messages behind", "Thousands of version 2 messages are already in the queue, and the old workers can't read them either, so a plain rollback keeps orders stuck."),
+            "f_ci_skipped": ("No test covered old and new formats together", "The contract tests between the API and the workers were disabled last sprint."),
+            "f_client_impact": ("Client orders are stuck", "The client's customers are charged but their orders never confirm."),
+        },
+        "actions": {
+            "a_inspect_metrics": ("Inspect queue metrics", "Check queue depth, retries and worker errors."),
+            "a_check_migration_compat": ("Check messages already in the queue", "See whether the old workers could read the messages written since the deploy."),
+            "a_apply_forward_fix": ("Ship workers that read both formats", "Release a worker fix that accepts version 1 and version 2 messages."),
+        },
+        "blocked": {
+            "a_check_migration_compat": "You need to know what changed in the deploy first. Ask your teammate about the release.",
+            "a_apply_rollback": "Rolling back now is unsafe: you haven't checked what's already in the queue.",
+        },
+        "objects": {"metrics_panel": "Queue metrics", "migration_notes": "Message format notes"},
+        "objectives": {
+            "o_identify_risk": ("Identify the rollback risk", "Check whether old code can read the messages already queued."),
+            "o_choose_mitigation": ("Choose a safe mitigation", "Pick a fix that also clears the messages already in the queue."),
+        },
+        "questions": {
+            "teammate": [("Did this deploy change any message formats?", "f_migration_ran"), ("Would a rollback read what's already queued?", "f_migration_incompatible"), ("What would you check first?", None)],
+            "qa": [("Do we test the API and workers together?", "f_ci_skipped"), ("What would have caught this?", None)],
+        },
+        "say_next_time": {
+            "compat_checked": ("teammate", "Before I roll back, can the old workers read what's already in the queue?"),
+            "right_fix": ("teammate", "Rollback leaves the new messages stuck. Can we make the workers read both formats?"),
+            "update_sent": ("stakeholders", "Impact: orders stuck. Cause: new message format. Action: workers read both. Next update 15 min. Owner: me."),
+        },
+        "tip_risk": "Check what's already in the queue before you roll back.",
+        "characters": {
+            "teammate": {
+                "greeting": "Yeah, the workers started choking right after the deploy. Want to know what changed?",
+                "keywords": {
+                    "f_migration_ran": ["message", "format", "queue", "event", "deploy", "change", "release", "shipped", "version"],
+                    "f_migration_incompatible": ["rollback", "roll back", "revert", "safe", "already", "stuck", "old workers"],
+                },
+            },
+            "qa": {"greeting": "If it's the order queue, ask me about our contract tests.", "keywords": {"f_ci_skipped": ["test", "contract", "ci", "pipeline", "check", "covered"]}},
+        },
+    },
+    {
+        "id": "key_rotation",
+        "title": "Payments failing after a key rotation",
+        "briefing": (
+            "You are on-call as a {role}. About {minutes} minutes ago a deployment of {service} went to "
+            "production. Card payments started failing right away. Investigate what happened, decide on a "
+            "safe response, and keep stakeholders informed."
+        ),
+        "incident_line": "{service} card payments fail; a deploy went out {minutes} minutes ago",
+        "facts": {
+            "f_initial_5xx": ("Card payments are failing", "{service} returns errors whenever a customer pays by card."),
+            "f_error_logs": ("Payment provider rejects our key", "Logs show the payment provider answering '401 invalid API key' on every charge."),
+            "f_connection_pool": ("Customers retry and get charged attempts", "Customers retry over and over, flooding the provider with rejected attempts."),
+            "f_runbook_rollback": ("Rollback requires a credentials check", "The runbook says check which keys are still valid before rolling back a credentials change."),
+            "f_migration_ran": ("The deploy rotated the payment key", "This release switched to a new payment provider key, and the old key was revoked at the provider."),
+            "f_migration_incompatible": ("The old key is dead", "The old key was revoked when the new one was issued, so rolling back the code brings back a key the provider no longer accepts."),
+            "f_ci_skipped": ("Staging uses a different key", "Staging runs on a test key, so nothing exercised the new live key before release."),
+            "f_client_impact": ("Client can't take payments", "The client's customers can't pay, and their support line is filling up."),
+        },
+        "actions": {
+            "a_inspect_metrics": ("Inspect payment metrics", "Check payment success rate and provider error codes."),
+            "a_check_migration_compat": ("Check which keys are valid", "Ask the provider dashboard which keys still work."),
+            "a_apply_forward_fix": ("Deploy the new key everywhere", "Put the new, valid key into every server's config."),
+        },
+        "blocked": {
+            "a_check_migration_compat": "You need to know what changed in the deploy first. Ask your teammate about the release.",
+            "a_apply_rollback": "Rolling back now is unsafe: you haven't checked whether the old key still works.",
+        },
+        "objects": {"metrics_panel": "Payment metrics", "migration_notes": "Key rotation notes"},
+        "objectives": {
+            "o_identify_risk": ("Identify the rollback risk", "Check whether the old key would still work after a rollback."),
+            "o_choose_mitigation": ("Choose a safe mitigation", "Pick a fix that uses a key the provider accepts."),
+        },
+        "questions": {
+            "teammate": [("Did this deploy change any credentials?", "f_migration_ran"), ("Does the old key still work?", "f_migration_incompatible"), ("What would you check first?", None)],
+            "qa": [("Did staging test the live key?", "f_ci_skipped"), ("What would have caught this?", None)],
+        },
+        "say_next_time": {
+            "compat_checked": ("teammate", "Before I roll back, is the old key still valid?"),
+            "right_fix": ("teammate", "The old key is revoked. Can we roll the new key out everywhere instead?"),
+            "update_sent": ("stakeholders", "Impact: card payments failing. Cause: rotated key. Action: new key everywhere. Next update 15 min. Owner: me."),
+        },
+        "tip_risk": "Check whether the old credentials still work before you roll back.",
+        "characters": {
+            "teammate": {
+                "greeting": "Payments went red the minute the deploy finished. Ask me what was in it.",
+                "keywords": {
+                    "f_migration_ran": ["key", "credential", "secret", "rotate", "deploy", "change", "release", "shipped", "config"],
+                    "f_migration_incompatible": ["rollback", "roll back", "revert", "old key", "valid", "revoked", "safe"],
+                },
+            },
+            "qa": {"greeting": "Staging was green. Which tells you something about staging.", "keywords": {"f_ci_skipped": ["test", "staging", "ci", "check", "live", "key"]}},
+        },
+    },
+]
+
+TRACKS["frontend"]["variants"] = [
+    {
+        "id": "service_worker",
+        "title": "Users stuck on a broken cached app",
+        "briefing": (
+            "You are on-call as a {role}. About {minutes} minutes ago a new release of the {service} went "
+            "live. Many users see a blank page at checkout, even after refreshing. Find out why, pick a safe "
+            "fix and keep everyone posted."
+        ),
+        "incident_line": "users see a blank checkout on the {service} since a release {minutes} minutes ago",
+        "facts": {
+            "f_initial_5xx": ("Checkout shows a blank page", "Users on the {service} get a blank checkout page."),
+            "f_error_logs": ("Browsers load an old script", "The error tracker shows 'chunk failed to load': browsers ask for script files that no longer exist."),
+            "f_connection_pool": ("Refreshing doesn't help", "Affected users stay broken after refreshing; only clearing site data fixes it."),
+            "f_runbook_rollback": ("Rollback requires a cache check", "The release runbook says check what users' browsers have cached before rolling back."),
+            "f_migration_ran": ("The release added a service worker", "This release added a service worker that caches the app in users' browsers."),
+            "f_migration_incompatible": ("Rolling back can't reach cached users", "The service worker keeps serving its cached copy, so a server rollback never reaches users who are already stuck."),
+            "f_ci_skipped": ("Tests always start with a fresh browser", "The end-to-end tests run in a clean browser, so they never see a returning visitor's cache."),
+        },
+        "actions": {
+            "a_inspect_metrics": ("Inspect real-user monitoring", "Check error rates for new vs returning visitors."),
+            "a_check_migration_compat": ("Check what browsers have cached", "See what a returning visitor's browser serves after a rollback."),
+            "a_apply_forward_fix": ("Ship a service worker that clears the cache", "Release an updated service worker that deletes the old cache and reloads."),
+        },
+        "blocked": {
+            "a_check_migration_compat": "You need to know what the release changed first. Ask your teammate.",
+            "a_apply_rollback": "Rolling back now is unsafe: you haven't checked what users' browsers have cached.",
+        },
+        "objects": {"metrics_panel": "Real-user monitoring", "migration_notes": "Service worker notes"},
+        "objectives": {
+            "o_identify_risk": ("Identify the rollback risk", "Check whether a rollback reaches users with a cached app."),
+            "o_choose_mitigation": ("Choose a safe mitigation", "Pick a fix that reaches users who are already stuck."),
+        },
+        "questions": {
+            "teammate": [("Did this release change caching?", "f_migration_ran"), ("Would a rollback reach users who are stuck?", "f_migration_incompatible"), ("What would you check first?", None)],
+            "qa": [("Do our tests cover returning visitors?", "f_ci_skipped"), ("What would have caught this?", None)],
+        },
+        "say_next_time": {
+            "compat_checked": ("teammate", "Before I roll back, will it reach users whose browsers cached the app?"),
+            "right_fix": ("teammate", "Rollback can't reach cached users. Can we ship a worker that clears the cache?"),
+            "update_sent": ("stakeholders", "Impact: blank checkout for returning users. Cause: cached app. Action: cache-clearing fix. Next update 15 min. Owner: me."),
+        },
+        "tip_risk": "Check what users' browsers have cached before you roll back.",
+        "characters": {
+            "teammate": {
+                "greeting": "It works on my machine, which is exactly the problem. Ask me what the release changed.",
+                "keywords": {
+                    "f_migration_ran": ["cache", "service worker", "offline", "release", "change", "shipped", "deploy", "pwa"],
+                    "f_migration_incompatible": ["rollback", "roll back", "revert", "reach", "stuck", "safe", "already"],
+                },
+            },
+            "qa": {"greeting": "Our tests pass every time. They also start with a brand-new browser every time.", "keywords": {"f_ci_skipped": ["test", "e2e", "returning", "cache", "browser", "check", "ci"]}},
+        },
+    },
+    {
+        "id": "app_store",
+        "title": "The new app version crashes at checkout",
+        "services": ["Android app", "iOS app", "shopping app", "mobile checkout"],
+        "briefing": (
+            "You are on-call as a {role}. About {minutes} minutes ago a new version of the {service} reached "
+            "users. It crashes when people open checkout. Find out why, pick a safe fix and keep everyone posted."
+        ),
+        "incident_line": "the new {service} version crashes at checkout since it reached users {minutes} minutes ago",
+        "facts": {
+            "f_initial_5xx": ("The app crashes at checkout", "The new {service} version crashes as soon as checkout opens."),
+            "f_error_logs": ("Crash reports point to the new checkout screen", "Crash reports all come from the redesigned checkout screen on older phones."),
+            "f_connection_pool": ("Crashes are concentrated on older phones", "Most crashes come from phones running older OS versions."),
+            "f_runbook_rollback": ("Rollback requires an install check", "The mobile runbook says check what users already have installed before pulling a release."),
+            "f_migration_ran": ("The release shipped a new checkout screen", "This version replaced the checkout screen with a redesigned one."),
+            "f_migration_incompatible": ("You can't un-install an app", "Pulling the store release doesn't remove it from phones that already updated, so they keep crashing."),
+            "f_ci_skipped": ("Older phones weren't in the test run", "The device lab run only covered recent phones this time."),
+        },
+        "actions": {
+            "a_inspect_metrics": ("Inspect crash analytics", "Check crash rate by app version and phone model."),
+            "a_check_migration_compat": ("Check who already updated", "See how many users already installed the new version."),
+            "a_apply_forward_fix": ("Switch the new screen off remotely", "Use remote config to send installed apps back to the old checkout screen."),
+            "a_apply_rollback": ("Pull the release from the stores", "Stop the store rollout and restore the previous version."),
+        },
+        "blocked": {
+            "a_check_migration_compat": "You need to know what the release changed first. Ask your teammate.",
+            "a_apply_rollback": "Pulling the release now is unsafe: you haven't checked who already installed it.",
+        },
+        "objects": {"metrics_panel": "Crash analytics", "migration_notes": "Release notes"},
+        "objectives": {
+            "o_identify_risk": ("Identify the rollback risk", "Check whether pulling the release helps people who already updated."),
+            "o_choose_mitigation": ("Choose a safe mitigation", "Pick a fix that reaches phones that already updated."),
+        },
+        "questions": {
+            "teammate": [("What changed in this app version?", "f_migration_ran"), ("Does pulling the release help people who updated?", "f_migration_incompatible"), ("What would you check first?", None)],
+            "qa": [("Which phones did we test on?", "f_ci_skipped"), ("What would have caught this?", None)],
+        },
+        "say_next_time": {
+            "compat_checked": ("teammate", "Before we pull the release, does that help people who already updated?"),
+            "right_fix": ("teammate", "Pulling it won't fix installed apps. Can we switch the screen off remotely?"),
+            "update_sent": ("stakeholders", "Impact: app crashes at checkout. Cause: new screen. Action: switched off remotely. Next update 15 min. Owner: me."),
+        },
+        "tip_risk": "Check who already installed it before you pull a release.",
+        "characters": {
+            "teammate": {
+                "greeting": "Crash reports went vertical after the release. Ask me what's in this version.",
+                "keywords": {
+                    "f_migration_ran": ["screen", "version", "release", "change", "shipped", "checkout", "redesign", "update"],
+                    "f_migration_incompatible": ["rollback", "roll back", "pull", "revert", "installed", "updated", "safe"],
+                },
+            },
+            "qa": {"greeting": "Ask me which phones were in the device lab this time. You won't like it.", "keywords": {"f_ci_skipped": ["test", "phone", "device", "older", "lab", "check", "ci"]}},
+        },
+    },
+]
+
+TRACKS["data"]["variants"] = [
+    {
+        "id": "timezone",
+        "title": "Daily numbers shifted after a timezone change",
+        "incident_line": "the {service} numbers shifted {pct}% after a pipeline change {minutes} minutes ago",
+        "facts": {
+            "f_error_logs": ("Hourly totals look shifted", "Pipeline logs show hours landing in the wrong day since the last run."),
+            "f_connection_pool": ("Some days double-count hours", "The day of the change counts some hours twice and others not at all."),
+            "f_runbook_rollback": ("Revert requires a partition check", "The data runbook says check which days were already written before reverting a transform."),
+            "f_migration_ran": ("The pipeline switched to UTC", "Last night's change moved all timestamps from local time to UTC."),
+            "f_migration_incompatible": ("Reverting leaves mixed days behind", "Days already written in UTC stay that way, so a plain revert mixes local and UTC days and the numbers stay wrong."),
+            "f_ci_skipped": ("No check compares day totals", "Quality checks look for empty values, not for totals jumping between days."),
+        },
+        "actions": {
+            "a_check_migration_compat": ("Check which days were written in UTC", "Find out which partitions the new code already wrote."),
+            "a_apply_forward_fix": ("Fix the timezone and backfill", "Make every day use one timezone and re-run the affected days."),
+        },
+        "blocked": {
+            "a_check_migration_compat": "You need to know what the pipeline change was first. Ask your teammate.",
+            "a_apply_rollback": "Reverting now is unsafe: you haven't checked which days were already written.",
+        },
+        "objects": {"migration_notes": "Timezone change notes"},
+        "objectives": {
+            "o_identify_risk": ("Identify the revert risk", "Check which days a revert would leave mixed."),
+            "o_choose_mitigation": ("Choose a safe mitigation", "Pick a fix that makes every day consistent."),
+        },
+        "questions": {
+            "teammate": [("Did the pipeline change how it handles time?", "f_migration_ran"), ("Would a revert fix days already written?", "f_migration_incompatible"), ("What would you check first?", None)],
+            "qa": [("Do we check totals between days?", "f_ci_skipped"), ("What would have caught this?", None)],
+        },
+        "say_next_time": {
+            "compat_checked": ("teammate", "Before I revert, which days were already written in UTC?"),
+            "right_fix": ("teammate", "A revert leaves mixed days. Can we fix the timezone and backfill?"),
+            "update_sent": ("stakeholders", "Impact: daily numbers shifted. Cause: timezone change. Action: backfill. Next update 15 min. Owner: me."),
+        },
+        "tip_risk": "Check which days were already written before you revert.",
+        "characters": {
+            "teammate": {
+                "greeting": "The numbers moved overnight, but not where you'd think. Ask me about the change.",
+                "keywords": {
+                    "f_migration_ran": ["time", "timezone", "utc", "date", "change", "pipeline", "release", "shipped"],
+                    "f_migration_incompatible": ["revert", "rollback", "roll back", "already", "written", "days", "safe"],
+                },
+            },
+        },
+    },
+    {
+        "id": "duplicates",
+        "title": "Revenue doubled overnight and nobody believes it",
+        "briefing": (
+            "You are the {role} on duty. The {service} suddenly shows a {pct}% jump, and leadership reviews "
+            "it within the hour. A pipeline change ran {minutes} minutes ago. Find out if the jump is real, "
+            "fix the data safely and tell people which numbers to trust."
+        ),
+        "incident_line": "the {service} shows a sudden {pct}% jump after a pipeline change {minutes} minutes ago",
+        "facts": {
+            "f_error_logs": ("The same events appear twice", "Pipeline logs show many orders arriving twice with the same event id."),
+            "f_connection_pool": ("Row counts jumped overnight", "Yesterday's table has far more rows than orders actually placed."),
+            "f_runbook_rollback": ("Revert requires a source check", "The data runbook says check whether bad rows come from us or the source before reverting."),
+            "f_migration_ran": ("The source started retrying events", "The checkout team changed their event sender to retry on timeouts, so some orders are sent twice."),
+            "f_migration_incompatible": ("Reverting our pipeline won't remove duplicates", "The duplicates come from the source, so reverting our pipeline still loads them twice."),
+            "f_ci_skipped": ("No uniqueness check on event ids", "Quality checks never tested that each event id appears only once."),
+        },
+        "actions": {
+            "a_check_migration_compat": ("Check where duplicates come from", "Compare the raw source events with what the pipeline loaded."),
+            "a_apply_forward_fix": ("Deduplicate and backfill", "Keep one row per event id and re-run the affected days."),
+        },
+        "blocked": {
+            "a_check_migration_compat": "You need to know what changed first. Ask your teammate.",
+            "a_apply_rollback": "Reverting now is unsafe: you haven't checked where the duplicates come from.",
+        },
+        "objects": {"migration_notes": "Source change notes"},
+        "objectives": {
+            "o_identify_risk": ("Identify the revert risk", "Check whether a revert removes the duplicates."),
+            "o_choose_mitigation": ("Choose a safe mitigation", "Pick a fix that removes duplicates at the source."),
+        },
+        "questions": {
+            "teammate": [("Did anything change in the source data?", "f_migration_ran"), ("Would a revert remove the duplicates?", "f_migration_incompatible"), ("What would you check first?", None)],
+            "qa": [("Do we check event ids are unique?", "f_ci_skipped"), ("What would have caught this?", None)],
+        },
+        "say_next_time": {
+            "compat_checked": ("teammate", "Before I revert, are the duplicates coming from us or the source?"),
+            "right_fix": ("teammate", "A revert still loads duplicates. Can we dedupe by event id and backfill?"),
+            "update_sent": ("stakeholders", "Impact: revenue overstated. Cause: duplicate events. Action: dedupe and backfill. Next update 15 min. Owner: me."),
+        },
+        "tip_risk": "Check where bad rows come from before you revert.",
+        "characters": {
+            "teammate": {
+                "greeting": "Great news, revenue doubled. Except it didn't. Ask me what changed.",
+                "keywords": {
+                    "f_migration_ran": ["source", "retry", "duplicate", "twice", "change", "sender", "event", "upstream"],
+                    "f_migration_incompatible": ["revert", "rollback", "roll back", "remove", "still", "safe"],
+                },
+            },
+        },
+    },
+]
+
+TRACKS["product"]["variants"] = [
+    {
+        "id": "promo_code",
+        "title": "The launch promo code doesn't work",
+        "services": ["spring sale", "launch promo", "welcome offer", "loyalty campaign"],
+        "briefing": (
+            "You are the {role} on the launch team. {minutes} minutes ago the {service} email went to every "
+            "customer with a promo code. The code fails at checkout and conversions dropped {pct}%. Figure out "
+            "what happened, choose a safe fix and keep everyone aligned."
+        ),
+        "incident_line": "the {service} code fails at checkout; conversions down {pct}% since the email {minutes} minutes ago",
+        "facts": {
+            "f_error_logs": ("Checkout rejects the code", "Checkout logs show 'code not valid in your region' for most customers."),
+            "f_connection_pool": ("Support is flooded", "Support tickets about the code doubled in the last half hour."),
+            "f_runbook_rollback": ("Pulling a campaign needs a check", "The launch runbook says check who already received a campaign before pulling it."),
+            "f_migration_ran": ("The code was set up for one region only", "The promo code was configured for one region, but the email went to every customer."),
+            "f_migration_incompatible": ("You can't unsend an email", "Turning the campaign off doesn't unsend the email; customers would click a dead link and get even angrier."),
+            "f_ci_skipped": ("Nobody tested the code outside one region", "The launch checklist only tested the code from the home region."),
+        },
+        "actions": {
+            "a_check_migration_compat": ("Check who received the email", "See how many customers already have the code."),
+            "a_apply_forward_fix": ("Make the code valid everywhere", "Change the code's rules so every emailed customer can use it."),
+            "a_apply_rollback": ("Turn the campaign off", "Disable the promo code and its landing page."),
+        },
+        "blocked": {
+            "a_check_migration_compat": "You need to know how the code was set up first. Ask your teammate.",
+            "a_apply_rollback": "Turning it off now is unsafe: you haven't checked who already received the email.",
+        },
+        "objects": {"migration_notes": "Campaign setup notes"},
+        "objectives": {
+            "o_identify_risk": ("Identify the switch-off risk", "Check what turning the campaign off does to people who got the email."),
+            "o_choose_mitigation": ("Choose a safe mitigation", "Pick a fix that works for everyone who received the code."),
+        },
+        "questions": {
+            "teammate": [("How was the promo code set up?", "f_migration_ran"), ("What happens if we turn the campaign off?", "f_migration_incompatible"), ("What would you check first?", None)],
+            "qa": [("Where did we test the code?", "f_ci_skipped"), ("What would have caught this?", None)],
+        },
+        "say_next_time": {
+            "compat_checked": ("teammate", "Before we turn it off, who already got the email?"),
+            "right_fix": ("teammate", "We can't unsend the email. Can we make the code valid everywhere?"),
+            "update_sent": ("stakeholders", "Impact: promo code failing. Cause: region rule. Action: code valid everywhere. Next update 15 min. Owner: me."),
+        },
+        "tip_risk": "Check who already received it before you switch a campaign off.",
+        "characters": {
+            "teammate": {
+                "greeting": "The email went out beautifully. The code, less so. Ask me how it was set up.",
+                "keywords": {
+                    "f_migration_ran": ["code", "promo", "region", "setup", "set up", "rule", "config", "campaign"],
+                    "f_migration_incompatible": ["turn off", "switch off", "campaign off", "pull", "disable", "unsend", "email", "safe"],
+                },
+            },
+            "qa": {"greeting": "We tested the code. From one office. In one country.", "keywords": {"f_ci_skipped": ["test", "region", "country", "checklist", "check", "where"]}},
+        },
+    },
+    {
+        "id": "google_login",
+        "title": "Customers locked out after a new login launch",
+        "services": ["Google sign-in launch", "new login page", "one-tap sign-in", "account redesign"],
+        "briefing": (
+            "You are the {role} on the launch team. {minutes} minutes ago the {service} rolled out to every "
+            "user. Logins dropped {pct}% and support is flooded with locked-out customers. Figure out what "
+            "happened, choose a safe fix and keep everyone aligned."
+        ),
+        "incident_line": "logins dropped {pct}% after the {service} launched {minutes} minutes ago",
+        "facts": {
+            "f_error_logs": ("Password users can't find their way in", "Support tickets say 'I don't have a Google account, how do I log in?'"),
+            "f_connection_pool": ("Password resets are spiking", "Password reset requests are ten times normal, but the reset link leads to the new page too."),
+            "f_runbook_rollback": ("Switch-off needs an account check", "The launch runbook says check which accounts changed before turning a login launch off."),
+            "f_migration_ran": ("The launch hid email login", "The new page shows only 'Continue with Google', and linking converted some accounts to Google-only."),
+            "f_migration_incompatible": ("Switching off strands Google-only accounts", "Turning the launch off brings back email login, but accounts converted to Google-only would then be locked out."),
+            "f_ci_skipped": ("Nobody tested an account without Google", "Launch testing used staff accounts, which all have Google."),
+        },
+        "actions": {
+            "a_check_migration_compat": ("Check which accounts changed", "Find out how many accounts are now Google-only."),
+            "a_apply_forward_fix": ("Bring back email login next to Google", "Show both options on the new login page."),
+            "a_apply_rollback": ("Turn the launch off", "Switch back to the old login page."),
+        },
+        "blocked": {
+            "a_check_migration_compat": "You need to know what the launch changed first. Ask your teammate.",
+            "a_apply_rollback": "Turning it off now is unsafe: you haven't checked which accounts changed.",
+        },
+        "objects": {"migration_notes": "Login launch notes"},
+        "objectives": {
+            "o_identify_risk": ("Identify the switch-off risk", "Check who a switch-off would lock out."),
+            "o_choose_mitigation": ("Choose a safe mitigation", "Pick a fix that lets every customer log in."),
+        },
+        "questions": {
+            "teammate": [("What did the launch change about logging in?", "f_migration_ran"), ("Who would a switch-off lock out?", "f_migration_incompatible"), ("What would you check first?", None)],
+            "qa": [("Did we test an account without Google?", "f_ci_skipped"), ("What would have caught this?", None)],
+        },
+        "say_next_time": {
+            "compat_checked": ("teammate", "Before we switch it off, which accounts are Google-only now?"),
+            "right_fix": ("teammate", "Switching off locks out Google-only accounts. Can we show both login options?"),
+            "update_sent": ("stakeholders", "Impact: logins down. Cause: email login hidden. Action: both options back. Next update 15 min. Owner: me."),
+        },
+        "tip_risk": "Check whose accounts changed before you switch a launch off.",
+        "characters": {
+            "teammate": {
+                "greeting": "Logins fell off a cliff right after the launch. Ask me what we changed.",
+                "keywords": {
+                    "f_migration_ran": ["login", "google", "email", "password", "change", "launch", "hidden", "sign in"],
+                    "f_migration_incompatible": ["turn off", "switch off", "switch-off", "rollback", "roll back", "lock", "google-only", "safe"],
+                },
+            },
+            "qa": {"greeting": "Every test account we have is a staff account. Think about that.", "keywords": {"f_ci_skipped": ["test", "account", "staff", "google", "check", "without"]}},
+        },
+    },
+]

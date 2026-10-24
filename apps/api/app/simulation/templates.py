@@ -138,6 +138,20 @@ COMPANIES = [
 ]
 
 
+def _merge(base: dict[str, Any], over: dict[str, Any]) -> dict[str, Any]:
+    out = dict(base)
+    for k, v in over.items():
+        out[k] = _merge(base[k], v) if isinstance(v, dict) and isinstance(base.get(k), dict) else v
+    return out
+
+
+def _pick_incident(track: dict[str, Any], rng: random.Random, pick: str | None = None) -> tuple[str, dict[str, Any]]:
+    """The track's base incident or one of its variants (tracks.py), merged into a full track."""
+    options = [None, *track.get("variants", [])]
+    variant = rng.choice(options) if pick is None else next(v for v in options if (v["id"] if v else "base") == pick)
+    return ("base", track) if variant is None else (variant["id"], _merge(track, variant))
+
+
 def _fmt(text: str, ctx: dict[str, Any]) -> str:
     return text.format(**ctx)
 
@@ -309,10 +323,11 @@ def build_production_incident(
     role: str = "Junior Backend Developer",
     variation_request: str = "",
     profile_goals: list[str] | None = None,
+    incident: str | None = None,
 ) -> ScenarioBlueprint:
     rng = random.Random(seed)
     track = track_for(role)
-    t = TRACKS[track]
+    incident, t = _pick_incident(TRACKS[track], rng, incident)
     service = rng.choice(t["services"])
     deploy_minutes = rng.choice([6, 9, 12, 15])
     pct = rng.choice([18, 24, 31, 42])
@@ -424,6 +439,7 @@ def build_production_incident(
             "variation": {
                 "seed": seed,
                 "service": service,
+                "incident": incident,
                 "variation_request": variation_request,
             },
         },

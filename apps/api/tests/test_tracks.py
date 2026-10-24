@@ -22,7 +22,7 @@ def test_roles_map_to_tracks():
 
 @pytest.mark.parametrize("track", list(TRACKS))
 def test_every_suggested_question_unlocks_its_fact(track):
-    bp = build_production_incident(seed=7, role=ROLE_FOR_TRACK[track])
+    bp = build_production_incident(seed=7, role=ROLE_FOR_TRACK[track], incident="base")
     assert validate_blueprint(bp).ok
     assert bp.metadata["track"] == track
     state = build_initial_state(bp, "v1")

@@ -24,8 +24,8 @@ _QUESTION_START = re.compile(
 # Status-update checklist: what a stakeholder needs to hear, and a plain-language test for each.
 UPDATE_CHECKS: list[tuple[str, str, re.Pattern[str]]] = [
     ("impact", "Says who/what is affected", re.compile(r"\d+\s*%|impact|customer|user|checkout|order|affect|fail|sign.?up|shopper|revenue|numbers|report", re.I)),
-    ("cause", "Names the likely cause", re.compile(r"cause|migration|deploy|release|schema|column|because|due to|api|field|rename|pipeline|upstream|launch|flag|sms|verification", re.I)),
-    ("action", "Says what was done", re.compile(r"roll(ed)?\s*back|revert|forward.?fix|hotfix|mitigat|fix(ed)?|applied|restor|patch|backfill|optional|turn(ed)?\s*off|pause", re.I)),
+    ("cause", "Names the likely cause", re.compile(r"cause|migration|deploy|release|schema|column|because|due to|api|field|rename|pipeline|upstream|launch|flag|sms|verification|queue|message|format|key|credential|cache|service.?worker|version|screen|timezone|utc|duplicate|promo|code|region|login|google", re.I)),
+    ("action", "Says what was done", re.compile(r"roll(ed)?\s*back|revert|forward.?fix|hotfix|mitigat|fix(ed)?|applied|restor|patch|backfill|optional|turn(ed)?\s*off|pause|dedup|clear|remote|both|valid", re.I)),
     ("next_update", "Commits to a next update time", re.compile(r"next update|update (you|again|in|at|by)|\b\d{1,2}(:\d{2})?\s*(am|pm)\b|\b\d{1,2}:\d{2}\b|in \d+\s*(min|minutes|hour)", re.I)),
     ("owner", "States who owns it", re.compile(r"\bI('m| am| will|'ll)\b|\bowner\b|\bon.?call\b|\bI\b.*(own|lead|handl)", re.I)),
 ]

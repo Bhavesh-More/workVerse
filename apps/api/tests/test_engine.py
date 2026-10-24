@@ -13,7 +13,7 @@ from app.simulation.templates import build_production_incident
 
 
 def _bp():
-    return build_production_incident(seed=11)
+    return build_production_incident(seed=11, incident="base")
 
 
 def test_initial_state_starts_public_only() -> None:
