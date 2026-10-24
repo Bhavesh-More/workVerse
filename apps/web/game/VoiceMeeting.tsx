@@ -7,7 +7,8 @@ import {
   type MessagePayload,
 } from "@elevenlabs/react";
 import { api } from "../lib/api";
-import type { VoiceNpc, VoiceTranscriptEntry } from "../lib/types";
+import { isSignOff } from "../lib/signoff";
+import type { SessionView, VoiceNpc, VoiceTranscriptEntry } from "../lib/types";
 
 export type VoicePhase =
   | "connecting"
@@ -22,7 +23,14 @@ type Props = {
   voiceSessionId: string;
   conversationToken: string;
   contextGrant: string | null;
+  dynamicVariables?: Record<string, string>;
   onEnd: () => void;
+  /** Skip the talk: get what they know and the next step straight away. */
+  onSkip?: () => void;
+  /** Called when a voice turn taught the learner something (the server returns the new session). */
+  onSession?: (session: SessionView) => void;
+  /** Shown once this colleague has told the learner everything: where to go next. */
+  handoff?: { text: string; goLabel: string; onGo: () => void; secs: number } | null;
 };
 
 const PHASE_LABEL: Record<VoicePhase, string> = {
@@ -51,8 +59,18 @@ function VoiceSession({
   voiceSessionId,
   conversationToken,
   contextGrant,
+  dynamicVariables,
   onEnd,
+  onSkip,
+  onSession,
+  handoff,
 }: Props) {
+  const goRef = useRef(handoff?.onGo);
+  const byeRef = useRef(false);
+  const byeTimer = useRef<number | undefined>(undefined);
+  const endRef = useRef<() => void>(() => {});
+  const onSessionRef = useRef(onSession);
+  onSessionRef.current = onSession;
   const [entries, setEntries] = useState<VoiceTranscriptEntry[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [detail, setDetail] = useState<string | null>(null);
@@ -77,6 +95,9 @@ function VoiceSession({
               provider_message_id: id,
               provider_conversation_id: conversationIdRef.current,
             })
+            .then((res) => {
+              if (res.session) onSessionRef.current?.(res.session);
+            })
             .catch(() => {
               /* transcript persistence is best-effort; the server also reconciles */
             });
@@ -90,8 +111,16 @@ function VoiceSession({
     (message: MessagePayload) => {
       const id: string = message.response_id ?? `evt-${message.event_id}`;
       const speaker: "user" | "npc" = message.role === "user" ? "user" : "npc";
-      const text = (message.message || "").trim();
+      // Drop expressive voice tags like "[calm]": they steer the voice, they aren't words.
+      const text = (message.message || "").replace(/\[[a-z][a-z \-]*\]\s*/gi, "").trim();
       if (!text) return;
+      // A goodbye from the colleague closes the call once they've finished saying it; anything the
+      // learner says afterwards cancels that.
+      if (speaker === "npc" && isSignOff(text)) byeRef.current = true;
+      if (speaker === "user") {
+        byeRef.current = false;
+        window.clearTimeout(byeTimer.current);
+      }
       setEntries((prev) => {
         const index = prev.findIndex((entry) => entry.id === id);
         if (index === -1) return [...prev, { id, speaker, text, status: "final" }];
@@ -116,22 +145,41 @@ function VoiceSession({
       const closeCode = "closeCode" in details ? details.closeCode : undefined;
       const closeReason = "closeReason" in details ? details.closeReason : undefined;
       const close = closeCode ?? closeReason;
-      const message =
-        reason === "agent"
-          ? "The character ended the call. Check the agent's LLM/voice configuration."
-          : `Disconnected (${reason}${close ? ` ${close}` : ""}).`;
-      console.warn("[voice] disconnect", details);
-      setDetail(message);
       setPhase("ended");
+      if (reason === "agent") {
+        // The colleague said goodbye and hung up: close the call like the End button would, after a
+        // moment so the last line is saved and seen, and carry on to the next step if there is one.
+        setDetail(`${npc.name.split(" ")[0]} ended the call.`);
+        window.setTimeout(() => {
+          endRef.current();
+          goRef.current?.();
+        }, 1500);
+        return;
+      }
+      console.warn("[voice] disconnect", details);
+      setDetail(`Disconnected (${reason}${close ? ` ${close}` : ""}).`);
     },
     onError: (message, context) => {
       console.error("[voice] error", message, context);
-      setError(message || "The voice connection failed.");
+      // The SDK reports provider-side cut-offs (e.g. credits running out mid-call) as a bare "Unknown error".
+      setError(
+        !message || /unknown error/i.test(message)
+          ? "The voice service ended the call (often because voice credits ran out). You can keep going in text chat."
+          : message,
+      );
       setPhase("error");
     },
     onMessage: handleMessage,
     onModeChange: ({ mode }) => {
       setPhase(mode === "speaking" ? "speaking" : "listening");
+      window.clearTimeout(byeTimer.current);
+      if (mode !== "speaking" && byeRef.current) {
+        byeTimer.current = window.setTimeout(() => {
+          setDetail(`${npc.name.split(" ")[0]} ended the call.`);
+          endRef.current();
+          goRef.current?.();
+        }, 2500);
+      }
     },
   });
 
@@ -150,6 +198,7 @@ function VoiceSession({
         conversationRef.current.startSession({
           conversationToken,
           customLlmExtraBody: contextGrant ? { context_grant: contextGrant } : undefined,
+          dynamicVariables,
         });
       } catch {
         setError("Could not start the voice connection.");
@@ -160,18 +209,24 @@ function VoiceSession({
       cancelled = true;
       clearTimeout(timer);
     };
+    // dynamicVariables are fixed for the call (set when it starts).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [conversationToken, contextGrant]);
 
+  // Stick to the newest line like a chat app, including while a line is still growing.
   useEffect(() => {
-    const node = logRef.current;
-    if (!node) return;
-    const nearBottom = node.scrollHeight - node.scrollTop - node.clientHeight < 80;
-    if (nearBottom) node.scrollTo({ top: node.scrollHeight });
-  }, [entries.length]);
+    const id = requestAnimationFrame(() => {
+      const node = logRef.current;
+      node?.scrollTo({ top: node.scrollHeight, behavior: "smooth" });
+    });
+    return () => cancelAnimationFrame(id);
+  }, [entries, handoff]);
 
   useEffect(() => {
     const timers = timersRef.current;
+    const bye = byeTimer;
     return () => {
+      window.clearTimeout(bye.current);
       timers.forEach((timer) => clearTimeout(timer));
       timers.clear();
     };
@@ -187,8 +242,29 @@ function VoiceSession({
     onEnd();
   }, [conversation, sessionId, voiceSessionId, onEnd]);
 
+  endRef.current = endMeeting;
+  // The handoff countdown reached zero: hang up properly and move on.
+  goRef.current = handoff?.onGo;
+  const autoEnd = handoff != null && handoff.secs <= 0;
+  useEffect(() => {
+    if (!autoEnd) return;
+    endMeeting();
+    goRef.current?.();
+  }, [autoEnd, endMeeting]);
+
   const connected = conversation.status === "connected";
-  const muted = conversation.isMuted;
+  // Only the learner's own Mute button touches the mic. Toggling it on every speaking/listening
+  // flip raced the WebRTC track swap and left the mic dead; "let them finish" is the agents'
+  // server-side setting instead (interruptions off, scripts/create_voice_agents.py).
+  const [userMuted, setUserMuted] = useState(false);
+  useEffect(() => {
+    if (!connected) return;
+    try {
+      conversationRef.current.setMuted(userMuted);
+    } catch {
+      /* disconnected mid-toggle */
+    }
+  }, [connected, userMuted]);
 
   return (
     <div
@@ -249,16 +325,40 @@ function VoiceSession({
         </p>
       )}
 
+      {handoff && (
+        <div className="handoff" role="status" data-testid="voice-handoff" style={{ marginTop: 8 }}>
+          <strong>✓ {npc.name.split(" ")[0]} has told you what they know.</strong>
+          <span className="xsmall">Next: {handoff.text}</span>
+          <div className="chip-row">
+            <button
+              className="btn btn--small"
+              data-testid="voice-handoff-go"
+              onClick={() => {
+                endMeeting();
+                handoff.onGo();
+              }}
+            >
+              {handoff.goLabel} ({handoff.secs}s)
+            </button>
+          </div>
+        </div>
+      )}
+
       <div className="voice-meeting__controls">
+        {onSkip && (
+          <button type="button" className="btn btn--ghost btn--small" data-testid="voice-skip" onClick={onSkip}>
+            Skip ▶ what they know
+          </button>
+        )}
         <button
           type="button"
           className="btn btn--ghost btn--small"
           data-testid="voice-mute"
           disabled={!connected}
-          aria-pressed={muted}
-          onClick={() => conversation.setMuted(!muted)}
+          aria-pressed={userMuted}
+          onClick={() => setUserMuted((v) => !v)}
         >
-          {muted ? "Unmute mic" : "Mute mic"}
+          {userMuted ? "Unmute mic" : "Mute mic"}
         </button>
         <button
           type="button"

@@ -13,6 +13,7 @@ from typing import Any
 from sqlalchemy.exc import IntegrityError
 
 from app.agents.elevenlabs_cloud import ElevenLabsClient
+from app.agents.ollama_cloud import OllamaCloudClient
 from app.core.config import Settings
 from app.core.errors import (
     AIConfigError,
@@ -23,7 +24,10 @@ from app.core.errors import (
 )
 from app.core.voice_grant import issue_grant
 from app.db.repository import Repository
-from app.services.session_service import _load
+from app.services.fact_check import facts_stated
+from app.services.session_service import _load, _persist_pending_events, session_view
+from app.simulation.engine import reveal_facts
+from app.simulation.tracks import gender_of
 
 logger = logging.getLogger(__name__)
 
@@ -52,7 +56,7 @@ async def start_voice_session(
     npc_id: str,
     client_request_id: str | None = None,
 ) -> dict[str, Any]:
-    row, blueprint, _state = await _load(repo, user_id, session_id)
+    row, blueprint, state = await _load(repo, user_id, session_id)
     if row["status"] != "active":
         raise ConflictError("This session is not active.", code="session_not_active")
 
@@ -65,15 +69,10 @@ async def start_voice_session(
         raise AIConfigError(
             "Real-time voice is disabled for this deployment.", code="voice_disabled"
         )
-    agent_id = settings.agent_for_npc(npc_id)
-    if not agent_id or not voice_client.configured:
-        raise AIConfigError(
-            "Voice is not configured. Set ELEVENLABS_API_KEY and an agent id for this character.",
-            code="voice_not_configured",
-        )
+    # Picks the ElevenLabs account (and its agent) that can take the call; raises if none can.
+    token, agent_id = await voice_client.mint_for_npc(npc_id, gender_of(character.name))
 
     voice = await repo.get_active_voice_session(session_id, npc_id)
-    created_here = False
     if voice is None:
         voice = await repo.create_voice_session(
             session_id=session_id,
@@ -82,7 +81,6 @@ async def start_voice_session(
             agent_config_key=agent_id,
             metadata={"client_request_id": client_request_id} if client_request_id else {},
         )
-        created_here = True
         if voice is None:  # lost a race against a concurrent start
             voice = await repo.get_active_voice_session(session_id, npc_id)
             if voice is None:
@@ -91,16 +89,6 @@ async def start_voice_session(
                 )
 
     voice_session_id = str(voice["id"])
-    try:
-        token = await voice_client.create_conversation_token(agent_id)
-    except Exception:
-        if created_here:
-            await repo.set_voice_session_status(
-                voice_session_id, "failed", end_reason="token_mint_failed", ended=True
-            )
-            await repo.session.commit()
-        raise
-
     await repo.set_voice_session_status(voice_session_id, "connecting")
 
     context_grant: str | None = None
@@ -124,7 +112,29 @@ async def start_voice_session(
         "grant_expires_at": grant_expires_at,
         "npc": {"id": character.id, "name": character.name, "role": character.role},
         "greeting": character.greeting,
+        # Filled into the agent prompt's {{shared_facts}} for this call only (never stored on the agent).
+        "dynamic_variables": {"shared_facts": voice_facts(blueprint, state, character.id)},
     }
+
+
+def voice_facts(blueprint: Any, state: Any, character_id: str) -> str:
+    """What this colleague may tell the learner on this call, exact wording and numbers included.
+    Same scope as text chat: only their own facts, and only ones not gated behind an action the learner
+    hasn't done yet. A fact that follows another of their own facts is marked so they share it in order."""
+    character = blueprint.character(character_id)
+    own = {r.fact_id for r in character.disclosure_rules} if character else set()
+    lines: list[str] = []
+    for rule in character.disclosure_rules if character else []:
+        if not all(a in state.actions_done for a in rule.requires_actions):
+            continue
+        if any(f not in state.facts_known and f not in own for f in rule.requires_facts):
+            continue
+        fact = blueprint.fact(rule.fact_id)
+        if fact is None:
+            continue
+        after = [blueprint.fact(f).label for f in rule.requires_facts if f in own and f not in state.facts_known and blueprint.fact(f)]
+        lines.append(f"- {fact.label}: {fact.detail}" + (f" (only after you've told them: {', '.join(after)})" if after else ""))
+    return "\n".join(lines) or "None. You hold no specific facts for this incident; say you don't know or point them to someone else."
 
 
 async def get_voice_session_view(
@@ -165,6 +175,7 @@ async def ingest_transcript_message(
     provider_message_id: str | None = None,
     provider_conversation_id: str | None = None,
     sequence: int | None = None,
+    ai: OllamaCloudClient | None = None,
 ) -> dict[str, Any]:
     voice = await _load_voice_session(repo, user_id, session_id, voice_session_id)
     if voice["status"] in {"ended", "failed", "expired"}:
@@ -196,7 +207,7 @@ async def ingest_transcript_message(
                 turn_id=None,
                 client_turn_id=None,
                 speaker_type="learner" if speaker == "user" else "character",
-                character_id=None if speaker == "user" else str(voice["npc_id"]),
+                character_id=str(voice["npc_id"]),
                 content=clean,
                 modality="voice_transcript",
                 metadata={
@@ -221,7 +232,32 @@ async def ingest_transcript_message(
         await repo.set_voice_session_status(
             str(voice["id"]), "active", provider_conversation_id=provider_conversation_id
         )
-    return {"id": str(row["id"]), "duplicate": False}
+    session = await _learn_from_voice(repo, ai, user_id, session_id, str(voice["npc_id"]), speaker, clean)
+    return {"id": str(row["id"]), "duplicate": False, **({"session": session} if session else {})}
+
+
+async def _learn_from_voice(
+    repo: Repository, ai: OllamaCloudClient | None, user_id: str, session_id: str, npc_id: str, speaker: str, text: str
+) -> dict[str, Any] | None:
+    """A fact counts only once the colleague actually says it. (Unlike text chat, the voice agent has
+    already answered by the time the learner's question arrives here, so keywords in the question
+    would claim facts the colleague never gave.) Returns the new session view, else None."""
+    if speaker != "npc" or ai is None:
+        return None
+    row, blueprint, state = await _load(repo, user_id, session_id, for_update=True)
+    if row["status"] != "active":
+        return None
+    newly, events = reveal_facts(blueprint, state, npc_id, await facts_stated(ai, blueprint, state, npc_id, text))
+    if not newly:
+        return None
+    await _persist_pending_events(repo, session_id, state, events)
+    saved = await repo.save_session_state(
+        session_id=session_id,
+        expected_version=int(row["state_version"]),
+        new_version=state.state_version,
+        state=state.model_dump(),
+    )
+    return session_view(saved, blueprint, state) if saved else None
 
 
 async def end_voice_session(

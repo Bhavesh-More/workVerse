@@ -82,7 +82,7 @@ test.describe("WorkVerse learner journey", () => {
     for (const actionId of [
       "a_inspect_logs",
       "a_check_migration_compat",
-      "a_apply_rollback",
+      "a_apply_forward_fix",
     ]) {
       const resp = waitForApi(page, "/actions");
       // The full action list is visually hidden (keyboard/screen-reader path), so activate it

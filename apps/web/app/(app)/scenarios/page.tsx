@@ -23,7 +23,7 @@ const DIFFICULTIES = [
 
 export default function ScenariosPage() {
   const router = useRouter();
-  const { data: templateList, error: loadError } = useApi("/scenario-templates", api.listTemplates);
+  const { data: templateList, error: loadError, setData: setTemplateList } = useApi("/scenario-templates", api.listTemplates);
   const { data: sessionList } = useApi("/sessions", api.listSessions);
   const templates = templateList?.items ?? (loadError ? [] : null);
   const sessions = sessionList?.items ?? [];
@@ -32,11 +32,30 @@ export default function ScenariosPage() {
   const [busy, setBusy] = useState<string | null>(null);
   const error = startError ?? loadError;
 
-  async function start(slug: string) {
+  // The catalog deals a random incident per card; ask again until this card gets a different one.
+  async function shuffle(slug: string, current?: string) {
+    setBusy(`shuffle:${slug}`);
+    setError(null);
+    try {
+      for (let i = 0; i < 5; i++) {
+        const fresh = (await api.listTemplates()).items.find((x) => x.slug === slug);
+        if (fresh && (fresh.incident !== current || i === 4)) {
+          setTemplateList((list) => list && { ...list, items: list.items.map((x) => (x.slug === slug ? fresh : x)) });
+          break;
+        }
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not shuffle.");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function start(slug: string, incident?: string) {
     setBusy(slug);
     setError(null);
     try {
-      const instance = await api.createInstance({ template_slug: slug, difficulty, mode: "quick" });
+      const instance = await api.createInstance({ template_slug: slug, difficulty, mode: "quick", incident });
       router.push(`/briefing/${instance.scenario_instance_id}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not create the scenario.");
@@ -99,17 +118,59 @@ export default function ScenariosPage() {
                   <h2 className="section-title">{t.title}</h2>
                   <span className="badge">~{t.estimated_minutes} min</span>
                 </div>
-                <p className="small muted">{t.summary}</p>
+                <p className="small muted">{t.story ?? t.summary}</p>
+                {t.you_will && (
+                  <>
+                    <span className="eyebrow" style={{ marginTop: 8 }}>You will</span>
+                    <ul className="list-reset stack stack--sm">
+                      {t.you_will.map((w) => (
+                        <li key={w} className="small row" style={{ gap: 8, alignItems: "baseline", flexWrap: "nowrap" }}>
+                          <span className="dot" aria-hidden="true" /> {w}
+                        </li>
+                      ))}
+                    </ul>
+                  </>
+                )}
+                {t.people && (
+                  <>
+                    <span className="eyebrow" style={{ marginTop: 8 }}>Who you&apos;ll meet</span>
+                    <ul className="list-reset stack stack--sm">
+                      {t.people.map((p) => (
+                        <li key={p.role} className="xsmall">
+                          <strong>{p.role}</strong> <span className="muted">— {p.knows}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </>
+                )}
+                {t.report && (
+                  <p className="xsmall muted" style={{ marginTop: 4 }}>
+                    <span className="mono">Your report →</span> {t.report}
+                  </p>
+                )}
                 <div className="chip-row" style={{ margin: "4px 0 8px" }}>
-                  {t.categories.map((c) => (
+                  {(t.skills ?? t.categories).map((c) => (
                     <span key={c} className="badge">
                       {c.replace(/_/g, " ")}
                     </span>
                   ))}
                 </div>
-                <button className="btn" onClick={() => start(t.slug)} disabled={busy !== null} style={{ alignSelf: "flex-start" }}>
-                  {busy === t.slug ? <span className="busy-dots">Preparing</span> : "Start practice"}
-                </button>
+                <div className="row" style={{ gap: 8 }}>
+                  <button className="btn" onClick={() => start(t.slug, t.incident)} disabled={busy !== null}>
+                    {busy === t.slug ? <span className="busy-dots">Preparing</span> : "Start practice"}
+                  </button>
+                  {t.incident && (
+                    <button
+                      className="btn btn--ghost"
+                      data-testid="shuffle-scenario"
+                      onClick={() => shuffle(t.slug, t.incident)}
+                      disabled={busy !== null}
+                      title="Deal a different incident"
+                    >
+                      {busy === `shuffle:${t.slug}` ? <span className="busy-dots">Shuffling</span> : "⇄ Shuffle"}
+                    </button>
+                  )}
+                </div>
               </div>
             </m.article>
           ))}

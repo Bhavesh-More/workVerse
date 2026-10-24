@@ -16,13 +16,14 @@ from app.agents.ollama_cloud import OllamaCloudClient
 from app.agents.prompts import build_evaluation_messages
 from app.core.errors import AppError
 from app.db.repository import Repository
+from app.evaluation.ledger import build_ledger, conversation_stats, say_next_time
 from app.schemas.ai import EvaluationSuggestion
 from app.schemas.runtime import SimulationState
 from app.schemas.scenario import ScenarioBlueprint
 
 logger = logging.getLogger(__name__)
 
-EVALUATOR_VERSION = "evaluator-v1"
+EVALUATOR_VERSION = "evaluator-v2"
 FORMATIVE_LIMITATION = (
     "This report is formative practice feedback, not a validated predictor of job performance."
 )
@@ -111,16 +112,17 @@ def deterministic_findings(
     findings: list[str] = []
     done = state.actions_done
     asked = sorted({m["character_id"] for m in messages if m["speaker_type"] == "character" and m.get("character_id")})
-    findings.append(f"Learner inspected logs: {'yes' if 'a_inspect_logs' in done else 'no'}")
-    findings.append(f"Learner inspected metrics: {'yes' if 'a_inspect_metrics' in done else 'no'}")
-    findings.append(
-        f"Migration compatibility checked: {'yes' if 'a_check_migration_compat' in done else 'no'}"
-    )
+    labels = {a.id: a.label for a in blueprint.actions}
+    for aid in ("a_inspect_logs", "a_inspect_metrics", "a_check_migration_compat"):
+        findings.append(f"{labels.get(aid, aid)}: {'yes' if aid in done else 'no'}")
     mitigation = state.flags.get("mitigation")
     findings.append(f"Chosen mitigation: {mitigation or 'none applied'}")
     if "a_apply_rollback" in done and "a_check_migration_compat" in done:
         order_ok = done.index("a_check_migration_compat") < done.index("a_apply_rollback")
-        findings.append(f"Rollback applied after compatibility check: {'yes' if order_ok else 'no'}")
+        findings.append(
+            f"{labels.get('a_apply_rollback')} done after {labels.get('a_check_migration_compat')}: "
+            f"{'yes' if order_ok else 'no'}"
+        )
     rejected = [e for e in events if e["event_type"] == "decision_rejected"]
     if rejected:
         reasons = "; ".join(
@@ -217,6 +219,23 @@ def _validate_suggestion(
     return results, warnings
 
 
+def _validate_coaching(
+    suggestion: EvaluationSuggestion, messages: list[dict[str, Any]]
+) -> list[dict[str, str]]:
+    """Keep only rewrites of real learner messages; attach the original words verbatim."""
+    learner = {str(m["id"]): m["content"] for m in messages if m["speaker_type"] == "learner"}
+    out: list[dict[str, str]] = []
+    for c in suggestion.coaching:
+        original = learner.get(str(c.message_id))
+        better = " ".join(c.better.split())[:200]
+        if original is None or not better or str(c.message_id) in {o["message_id"] for o in out}:
+            continue
+        out.append(
+            {"message_id": str(c.message_id), "original": original, "better": better, "why": c.why.strip()[:120]}
+        )
+    return out[:3]
+
+
 def _overall(results: list[dict[str, Any]], scale_max: int) -> float | None:
     scored = [r for r in results if r["status"] == "scored" and r["rating"] is not None]
     if len(scored) < 2:
@@ -238,6 +257,17 @@ async def generate_evaluation(
     deliverables = await repo.list_deliverables(session_id)
     items, index = build_evidence_items(messages, events, deliverables)
     findings = deterministic_findings(blueprint, state, messages, events, deliverables)
+    ledger = build_ledger(blueprint, state, messages, events, deliverables)
+    conversation = conversation_stats(blueprint, messages, deliverables)
+    findings.append(
+        f"Learner spoke {conversation['learner_turns']} turns, avg {conversation['avg_words']} words, "
+        f"{conversation['questions']} questions, {conversation['long_turns']} turns over "
+        f"{conversation['long_turn_words']} words"
+    )
+    for crit, checks in ledger.items():
+        missed = [c["label"] for c in checks if not c["passed"]]
+        if missed:
+            findings.append(f"Ledger {crit} missed: {'; '.join(missed)}")
     summary = (
         f"Session for '{blueprint.title}'. "
         + "; ".join(findings[:4])
@@ -253,7 +283,7 @@ async def generate_evaluation(
                 max_tokens=1600,
             )
             suggestion = EvaluationSuggestion.model_validate(data)
-            model_name = None
+            model_name = getattr(ai, "model_name", None)
         except AppError as exc:
             warnings.append(f"Evaluator model error: {exc.code}")
             logger.warning("evaluation_model_error", extra={"event": exc.code})
@@ -282,7 +312,13 @@ async def generate_evaluation(
         report_summary=suggestion.summary or summary,
         limitations=[FORMATIVE_LIMITATION, *suggestion.limitations],
         validation_warnings=warnings,
-        report_metadata={"findings": findings},
+        report_metadata={
+            "findings": findings,
+            "ledger": ledger,
+            "conversation": conversation,
+            "coaching": _validate_coaching(suggestion, messages),
+            "say_next_time": say_next_time(ledger, blueprint),
+        },
     )
     for result in results:
         item_row = await repo.insert_evaluation_item(
@@ -339,8 +375,14 @@ async def evaluation_view(
                 ],
             }
         )
+    meta = evaluation_row.get("report_metadata") or {}
     return {
         "id": str(evaluation_row["id"]),
+        "findings": meta.get("findings", []),
+        "ledger": meta.get("ledger", {}),
+        "conversation": meta.get("conversation"),
+        "coaching": meta.get("coaching", []),
+        "say_next_time": meta.get("say_next_time", []),
         "session_id": str(evaluation_row["session_id"]),
         "status": evaluation_row["status"],
         "rubric_version": evaluation_row["rubric_version"],

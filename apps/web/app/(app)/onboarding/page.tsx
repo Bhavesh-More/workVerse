@@ -7,6 +7,7 @@ import { api } from "../../../lib/api";
 import { LEVELS, toggle } from "../../../lib/practice";
 import type { Profile } from "../../../lib/types";
 import { AuthShell, FormError } from "../../../components/AuthShell";
+import { RoleSelect, toolsFor } from "../../../components/RoleSelect";
 
 const GOALS = [
   "production debugging",
@@ -16,7 +17,6 @@ const GOALS = [
   "code review",
   "system design",
 ];
-const STACK = ["Python", "FastAPI", "PostgreSQL", "Docker", "TypeScript", "React", "Git", "AWS"];
 const STEP_TITLES = ["Where you're headed", "What you want to practise", "A little background"];
 
 function ChipToggle({ value, on, onClick }: { value: string; on: boolean; onClick: () => void }) {
@@ -87,7 +87,15 @@ export default function OnboardingPage() {
       </div>
       <div className="field">
         <label htmlFor="tr">Target role</label>
-        <input id="tr" className="input" value={targetRole} onChange={(e) => setTargetRole(e.target.value)} />
+        <RoleSelect
+          id="tr"
+          value={targetRole}
+          onChange={(role) => {
+            setTargetRole(role);
+            // Keep only picked tools that still apply to the new role.
+            setStack((prev) => prev.filter((t) => toolsFor(role).includes(t)));
+          }}
+        />
         <span className="field__hint">The job you&apos;re aiming for — your first one counts.</span>
       </div>
       <div className="field">
@@ -116,8 +124,9 @@ export default function OnboardingPage() {
         <span className="field__label" id="stack-label">
           Tools you know (or are learning)
         </span>
+        <span className="field__hint">Picked for {targetRole.trim() || "your role"}.</span>
         <div className="chip-row" role="group" aria-labelledby="stack-label">
-          {STACK.map((s) => (
+          {toolsFor(targetRole).map((s) => (
             <ChipToggle key={s} value={s} on={stack.includes(s)} onClick={() => setStack(toggle(stack, s))} />
           ))}
         </div>

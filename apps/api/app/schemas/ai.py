@@ -30,10 +30,19 @@ class CriterionSuggestion(BaseModel):
     counterevidence: list[EvidenceSuggestion] = Field(default_factory=list)
 
 
+class CoachingSuggestion(BaseModel):
+    """A shorter, more human rewrite of one thing the learner actually said."""
+
+    message_id: str
+    better: str
+    why: str = ""
+
+
 class EvaluationSuggestion(BaseModel):
     summary: str = ""
     criteria: list[CriterionSuggestion] = Field(default_factory=list)
     limitations: list[str] = Field(default_factory=list)
+    coaching: list[CoachingSuggestion] = Field(default_factory=list)
 
 
 class ScenarioNarrative(BaseModel):

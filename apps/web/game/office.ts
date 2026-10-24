@@ -142,6 +142,16 @@ export function createOfficeGame(parent: HTMLElement, options: OfficeOptions): P
         Phaser.Input.Keyboard.Key
       >;
       this.input.keyboard!.on("keydown-E", () => this.interact());
+      // Keys aren't captured (so chat inputs still get them), which also let arrows/space scroll the page
+      // while walking. Block just that default, unless the learner is typing or on a control.
+      const stopScroll = (e: KeyboardEvent) => {
+        if (!["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", " "].includes(e.key)) return;
+        if ((e.target as HTMLElement | null)?.closest?.("input, textarea, select, button, [contenteditable='true'], [role='slider']")) return;
+        e.preventDefault();
+      };
+      window.addEventListener("keydown", stopScroll);
+      this.events.once(Phaser.Scenes.Events.DESTROY, () => window.removeEventListener("keydown", stopScroll));
+      this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => window.removeEventListener("keydown", stopScroll));
 
       this.lastLocation = this.locationAt(this.player.x, this.player.y);
       options.onLocationChange(this.lastLocation);

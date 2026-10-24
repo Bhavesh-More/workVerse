@@ -223,7 +223,27 @@ def apply_disclosure(
     character_id: str,
     message: str,
 ) -> tuple[list[str], list[PendingEvent]]:
-    facts = match_disclosures(blueprint, state, character_id, message)
+    return reveal_facts(blueprint, state, character_id, match_disclosures(blueprint, state, character_id, message))
+
+
+def disclosable_now(blueprint: ScenarioBlueprint, state: SimulationState, character_id: str) -> list[str]:
+    """Facts this character may share right now that the learner doesn't know yet."""
+    character = blueprint.character(character_id)
+    if character is None:
+        return []
+    return [
+        r.fact_id
+        for r in character.disclosure_rules
+        if r.fact_id not in state.facts_known
+        and all(a in state.actions_done for a in r.requires_actions)
+        and all(f in state.facts_known for f in r.requires_facts)
+    ]
+
+
+def reveal_facts(
+    blueprint: ScenarioBlueprint, state: SimulationState, character_id: str, facts: list[str], via: str = "conversation"
+) -> tuple[list[str], list[PendingEvent]]:
+    """Record that ``character_id`` told the learner these facts (fact events + objective updates)."""
     events: list[PendingEvent] = []
     newly: list[str] = []
     for fact_id in facts:
@@ -235,7 +255,7 @@ def apply_disclosure(
                     event_type="fact_discovered",
                     actor_type="character",
                     actor_id=character_id,
-                    payload={"fact_id": fact_id, "via": "conversation"},
+                    payload={"fact_id": fact_id, "via": via},
                 )
             )
         # A character aware of a fact retains it.

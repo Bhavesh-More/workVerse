@@ -16,7 +16,7 @@ from app.simulation.engine import (
     build_initial_state,
     completion_status,
 )
-from app.simulation.navigation import resolve_navigation
+from app.simulation.navigation import character_done, resolve_navigation
 
 logger = logging.getLogger(__name__)
 MAX_DELIVERABLE_CHARS = 100_000
@@ -72,6 +72,8 @@ def session_view(row: dict[str, Any], blueprint: Any, state: SimulationState) ->
         "available_locations": [loc.id for loc in blueprint.locations],
         "world": world_view(blueprint, state),
         "navigation": resolve_navigation(blueprint, state),
+        # Colleagues who have told the learner everything they hold; the UI hands the learner on from them.
+        "characters_done": [c.id for c in blueprint.characters if character_done(blueprint, state, c)],
         "completion": completion_status(blueprint, state),
         "completed": bool(state.completed),
     }
@@ -241,7 +243,15 @@ async def apply_world_action(
             },
             state_version_after=int(row["state_version"]),
         )
-        await repo.set_session_status(session_id, row["status"])
+        # Keep the bumped event counter (state_version unchanged) and commit now: the error
+        # below rolls the request back, and the evaluator needs to see blocked unsafe attempts.
+        await repo.save_session_state(
+            session_id=session_id,
+            expected_version=int(row["state_version"]),
+            new_version=int(row["state_version"]),
+            state=state.model_dump(),
+        )
+        await repo.session.commit()
         raise ValidationAppError(
             result.reason or "Action not allowed.",
             code="action_rejected",
@@ -305,6 +315,14 @@ async def apply_world_action(
             "completed_objective_ids": result.completed_objective_ids,
             "flags": state.flags,
         },
+        # What this tool shows, for the findings popup: only facts the learner now knows (so re-opening
+        # a tool shows the same findings again) plus which tool it was, to pick the popup's look.
+        "findings": [
+            {"id": f.id, "label": f.label, "detail": f.detail, "new": f.id in result.newly_discovered_fact_ids}
+            for fid in (action.effects.reveal_fact_ids if action else [])
+            if fid in state.facts_known and (f := blueprint.fact(fid)) is not None
+        ],
+        "tool": {"id": action.target_id, "label": action.label} if action and action.target_id else None,
         "events": persisted,
         "session": session_view(saved, blueprint, state),
     }
@@ -372,3 +390,29 @@ async def _evaluation_view(repo: Repository, evaluation_row: dict[str, Any], blu
     from app.evaluation.evaluator import evaluation_view
 
     return await evaluation_view(repo, evaluation_row, blueprint)
+
+
+async def skip_character(*, repo: Repository, user_id: str, session_id: str, character_id: str) -> dict[str, Any]:
+    """"Skip to what they know": the colleague hands over every fact they may share right now, without
+    the conversation. Logged with via="skipped" so the debrief can tell asked from skipped."""
+    from app.simulation.engine import disclosable_now, reveal_facts
+
+    row, blueprint, state = await _load(repo, user_id, session_id, for_update=True)
+    if row["status"] != "active":
+        raise ConflictError("This session is not active.", code="session_not_active")
+    if blueprint.character(character_id) is None:
+        raise NotFoundError("Character not found.")
+    newly, events = reveal_facts(
+        blueprint, state, character_id, disclosable_now(blueprint, state, character_id), via="skipped"
+    )
+    if newly:
+        await _persist_pending_events(repo, session_id, state, events)
+        row = await repo.save_session_state(
+            session_id=session_id,
+            expected_version=int(row["state_version"]),
+            new_version=state.state_version,
+            state=state.model_dump(),
+        )
+        if row is None:
+            raise ConflictError("The session changed; try again.", code="session_version_conflict")
+    return {"revealed": newly, "session": session_view(row, blueprint, state)}

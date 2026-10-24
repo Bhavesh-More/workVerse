@@ -41,6 +41,7 @@ const ROUTE_DATA: Record<string, [string, () => Promise<unknown>][]> = {
     ["/progress/competencies", api.competencies],
   ],
   "/profile": [["/me", api.getMe]],
+  "/sessions": [["/sessions", api.listSessions]],
 };
 
 export function prefetchRoute(href: string) {

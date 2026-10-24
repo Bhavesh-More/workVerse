@@ -8,6 +8,7 @@ import { api, peek, revalidate } from "../../../lib/api";
 import { useAuth } from "../../../lib/auth";
 import { LEVELS, splitList } from "../../../lib/practice";
 import type { Profile } from "../../../lib/types";
+import { RoleSelect } from "../../../components/RoleSelect";
 
 export default function ProfilePage() {
   const { user } = useAuth();
@@ -142,7 +143,7 @@ export default function ProfilePage() {
             </div>
             <div className="field">
               <label htmlFor="tr">Target role</label>
-              <input id="tr" className="input" value={profile.target_role ?? ""} onChange={(e) => setProfile({ ...profile, target_role: e.target.value })} />
+              <RoleSelect id="tr" value={profile.target_role ?? ""} onChange={(role) => setProfile({ ...profile, target_role: role })} />
             </div>
             <div className="field">
               <label htmlFor="lvl">Experience level</label>

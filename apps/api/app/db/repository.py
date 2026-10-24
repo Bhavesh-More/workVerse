@@ -18,6 +18,9 @@ def _row(result: Any) -> dict[str, Any] | None:
     return dict(mapping) if mapping else None
 
 
+_VERSION_CACHE: dict[str, dict[str, Any]] = {}
+
+
 def _rows(result: Any) -> list[dict[str, Any]]:
     return [dict(m) for m in result.mappings().all()]
 
@@ -220,11 +223,21 @@ class Repository:
         )  # type: ignore[return-value]
 
     async def get_scenario_version(self, version_id: str) -> dict[str, Any] | None:
-        return _row(
-            await self.session.execute(
-                text("select * from public.scenario_versions where id = :id"), {"id": version_id}
+        # Versions are immutable once inserted, and the row carries the whole blueprint (seconds
+        # to fetch over a slow link), so cache it per process.
+        # ponytail: unbounded per-process dict; one row per scenario instance, add an LRU if it grows.
+        key = str(version_id)
+        cached = _VERSION_CACHE.get(key)
+        if cached is None:
+            cached = _row(
+                await self.session.execute(
+                    text("select * from public.scenario_versions where id = :id"), {"id": key}
+                )
             )
-        )
+            if cached is None:
+                return None
+            _VERSION_CACHE[key] = cached
+        return dict(cached)
 
     async def next_version_number(self, template_id: str) -> int:
         row = _row(

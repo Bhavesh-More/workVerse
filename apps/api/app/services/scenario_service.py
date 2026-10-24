@@ -2,17 +2,26 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import random
 from typing import Any
 
 from app.agents.ollama_cloud import OllamaCloudClient
+from app.agents.role_cards import NEEDS_FROM_LEARNER
 from app.core.errors import NotFoundError, ValidationAppError
 from app.db.repository import Repository
 from app.schemas.runtime import SimulationState
 from app.schemas.scenario import ActionDefinition, ScenarioBlueprint
 from app.simulation.engine import is_action_available
-from app.simulation.templates import TEMPLATE_CATALOG, TEMPLATE_SLUG, build_production_incident
+from app.simulation.templates import (
+    TEMPLATE_CATALOG,
+    TEMPLATE_SLUG,
+    _pick_incident,
+    _portrait,
+    build_production_incident,
+)
+from app.simulation.tracks import TRACKS, gender_of, track_for
 from app.simulation.validation import validate_blueprint
 
 logger = logging.getLogger(__name__)
@@ -21,7 +30,9 @@ VALIDATOR_VERSION = "validator-v1"
 PROMPT_VERSION = "prompts-v1"
 
 
-def _precondition_reason(blueprint: ScenarioBlueprint, state: SimulationState, action: ActionDefinition) -> str | None:
+def _precondition_reason(
+    blueprint: ScenarioBlueprint, state: SimulationState, action: ActionDefinition
+) -> str | None:
     for cond in action.preconditions:
         met = False
         if cond.kind == "fact_known":
@@ -35,6 +46,25 @@ def _precondition_reason(blueprint: ScenarioBlueprint, state: SimulationState, a
         if not met:
             return cond.failure_message
     return None
+
+
+def _profile(blueprint: ScenarioBlueprint, char_id: str, name: str) -> dict[str, Any] | None:
+    """Intro-card profile; scenarios generated before profiles existed fall back to their track's."""
+    stored = blueprint.metadata.get("profiles", {}).get(char_id)
+    needs = NEEDS_FROM_LEARNER.get(char_id, "")
+    if stored:
+        return {"gender": gender_of(name), **stored, "needs": needs}
+    track = TRACKS.get(blueprint.metadata.get("track", "backend"), TRACKS["backend"])
+    slot = track["characters"].get(char_id)
+    if not slot:
+        return None
+    return {
+        **slot["profile"],
+        "portrait": _portrait(name),
+        "knows": track["people_knows"].get(char_id, ""),
+        "gender": gender_of(name),
+        "needs": needs,
+    }
 
 
 def world_view(blueprint: ScenarioBlueprint, state: SimulationState) -> dict[str, Any]:
@@ -72,6 +102,8 @@ def world_view(blueprint: ScenarioBlueprint, state: SimulationState) -> dict[str
                 "sprite": c.sprite,
                 "location_id": c.location_id,
                 "greeting": c.greeting,
+                "profile": _profile(blueprint, c.id, c.name),
+                "questions": blueprint.metadata.get("questions", {}).get(c.id, []),
             }
             for c in blueprint.characters
         ],
@@ -88,12 +120,49 @@ async def ensure_seed_templates(repo: Repository) -> None:
         await repo.ensure_template(entry["slug"], entry["title"], entry["summary"], entry)
 
 
-async def list_catalog(repo: Repository) -> list[dict[str, Any]]:
+_CATALOG_EXTRAS = ("story", "you_will", "people", "skills", "report")
+
+
+def _track_copy(role: str | None) -> dict[str, Any]:
+    """Card copy re-told for the learner's role track, for a randomly picked incident type.
+
+    The card sends `incident` back when the learner starts, so the session is the one the card showed.
+    """
+    incident, t = _pick_incident(TRACKS[track_for(role or "")], random.Random())
+    ctx = {"role": role or "new hire", "service": t["services"][0], "pct": 24, "minutes": 10}
+    return {
+        "title": t["title"],
+        "summary": t["briefing"].format(**ctx),
+        "story": t["briefing"].format(**ctx),
+        "track": track_for(role or ""),
+        "incident": incident,
+        "track_label": t["label"],
+        "people": [
+            {"role": c["role"], "knows": t["people_knows"][cid]}
+            for cid, c in t["characters"].items()
+        ],
+    }
+
+
+async def list_catalog(repo: Repository, role: str | None = None) -> list[dict[str, Any]]:
     rows = await repo.list_templates()
-    if rows:
-        return rows
-    await ensure_seed_templates(repo)
-    return await repo.list_templates()
+    if not rows:
+        await ensure_seed_templates(repo)
+        rows = await repo.list_templates()
+    # Descriptive copy lives in code so it updates without re-seeding the database.
+    by_slug = {entry["slug"]: entry for entry in TEMPLATE_CATALOG}
+    return [
+        {
+            **row,
+            **{
+                k: by_slug[row["slug"]][k]
+                for k in _CATALOG_EXTRAS
+                if k in by_slug.get(row["slug"], {})
+            },
+            **(_track_copy(role) if row["slug"] == TEMPLATE_SLUG else {}),
+        }
+        for row in rows
+    ]
 
 
 def _build_blueprint(
@@ -104,8 +173,10 @@ def _build_blueprint(
     role: str,
     variation_request: str,
     profile_goals: list[str] | None,
+    incident: str | None = None,
 ) -> ScenarioBlueprint:
     return build_production_incident(
+        incident=incident,
         seed=seed,
         difficulty=difficulty,
         mode=mode,
@@ -126,6 +197,7 @@ async def create_instance(
     difficulty: str = "standard",
     learning_objectives: list[str] | None = None,
     variation_request: str = "",
+    incident: str | None = None,
 ) -> dict[str, Any]:
     template = await repo.get_template_by_slug(template_slug)
     if template is None:
@@ -135,7 +207,9 @@ async def create_instance(
         raise NotFoundError("Scenario template not found.")
 
     role = (profile or {}).get("target_role") or "Junior Software Engineer"
-    profile_goals = list(learning_objectives or []) or list((profile or {}).get("career_goals") or [])
+    profile_goals = list(learning_objectives or []) or list(
+        (profile or {}).get("career_goals") or []
+    )
     seed = random.randint(1, 2_000_000_000)
 
     blueprint = _build_blueprint(
@@ -145,11 +219,12 @@ async def create_instance(
         role=role,
         variation_request=variation_request,
         profile_goals=profile_goals,
+        incident=incident,
     )
 
-    # Scenario generation is deterministic so a session can start immediately. The hosted
-    # model is reserved for dialogue and evaluation (the latency-sensitive path).
-    generator_model: str | None = None
+    # The incident mechanics stay deterministic (and validated); Ollama only writes a short,
+    # profile-aware story around them, and the session starts without it if it's slow or off.
+    generator_model = ai.model_name if await personalize(ai, blueprint, profile) else None
 
     report = validate_blueprint(blueprint)
     if not report.ok:
@@ -161,6 +236,7 @@ async def create_instance(
             role=role,
             variation_request=variation_request,
             profile_goals=profile_goals,
+            incident=incident,
         )
         report = validate_blueprint(blueprint)
         if not report.ok:
@@ -208,6 +284,83 @@ async def create_instance(
     }
 
 
+# Words that would hint at the hidden cause or fix; a story containing one is thrown away.
+_SPOILERS = (
+    "migration",
+    "schema",
+    "database",
+    "column",
+    "rollback",
+    "roll back",
+    "revert",
+    "canary",
+    "test",
+    "pipeline",
+    "cache",
+    "config",
+    "flag",
+    "bug",
+    "root cause",
+    "fix",
+    "because",
+    "caused",
+)
+
+
+async def personalize(
+    ai: OllamaCloudClient, blueprint: ScenarioBlueprint, profile: dict[str, Any] | None
+) -> bool:
+    """Ask Ollama for a 2-sentence company story fitted to the learner. True if one was applied."""
+    if not ai.configured:
+        return False
+    setting = blueprint.metadata["setting"]
+    p = profile or {}
+    incident = blueprint.initial_state.get("incident", {})
+    ask = (
+        f"Learner: wants to be a {blueprint.role}; experience: {p.get('experience_level') or 'beginner'}; "
+        f"goals: {', '.join(p.get('career_goals') or []) or 'not given'}.\n"
+        f"Company: {setting['company']}, {setting['product']}. Today's problem: {incident.get('label')} "
+        f"affecting {incident.get('service')}.\n"
+        'Return JSON {"company": "...", "product": "...", "story": "..."}. You may rename the company and '
+        "product to suit the learner's interests (keep it a business where customers buy or sign up). "
+        "story: two short sentences, under 45 words, about who the customers are and why today matters "
+        "(a sale, a launch, a big client). Do not say or guess what went wrong technically, or how to fix it. "
+        "No numbers, no names of people."
+    )
+    try:
+        out = await asyncio.wait_for(
+            ai.chat_json(
+                [
+                    {
+                        "role": "system",
+                        "content": "You write short, realistic workplace scenario settings.",
+                    },
+                    {"role": "user", "content": ask},
+                ],
+                max_tokens=200,
+            ),
+            timeout=8,
+        )
+    except Exception:  # noqa: BLE001 - any failure keeps the deterministic setting
+        logger.info("scenario_personalize_skipped")
+        return False
+    company, product, story = (
+        str(out.get(k) or "").strip()[:limit]
+        for k, limit in (("company", 40), ("product", 80), ("story", 300))
+    )
+    if not story or any(w in story.lower() for w in _SPOILERS) or any(ch.isdigit() for ch in story):
+        return False
+    old = f"You work at {setting['company']}, {setting['product']}. "
+    setting.update(
+        company=company or setting["company"], product=product or setting["product"], story=story
+    )
+    blueprint.briefing = (
+        f"You work at {setting['company']}, {setting['product']}. {story} "
+        + blueprint.briefing.removeprefix(old)
+    )
+    return True
+
+
 def _empty_state(blueprint: ScenarioBlueprint, version_id: str) -> SimulationState:
     from app.simulation.engine import build_initial_state
 
@@ -228,6 +381,39 @@ def prebrief(blueprint: ScenarioBlueprint) -> dict[str, Any]:
             "Use the quick-action panel to interact without walking",
             "Open a character to chat at any time",
         ],
+        "incident": blueprint.initial_state.get("incident", {}),
+        "people": [
+            {
+                "id": c.id,
+                "name": c.name,
+                "role": c.role,
+                "location": next(
+                    (loc.name for loc in blueprint.locations if loc.id == c.location_id),
+                    c.location_id,
+                ),
+                "knows_about": bool(c.disclosure_rules),
+                "knows": (_profile(blueprint, c.id, c.name) or {}).get("knows"),
+                "profile": _profile(blueprint, c.id, c.name),
+            }
+            for c in blueprint.characters
+        ],
+        "assessed": [
+            {
+                "id": c.id,
+                "name": c.name,
+                "description": c.description,
+                "great": c.anchors.get("4", ""),
+            }
+            for c in blueprint.rubric.criteria
+        ],
+        "tips": [
+            "Talk like you would on a real call: one short question at a time.",
+            "Ask before you act — the people around you hold facts the consoles don't.",
+            blueprint.metadata.get(
+                "tip_risk", "Check that a rollback is safe before you press it."
+            ),
+            "Your status update should say impact, cause, action, next update time and owner.",
+        ],
     }
 
 
@@ -247,7 +433,9 @@ async def get_instance(repo: Repository, user_id: str, instance_id: str) -> dict
     }
 
 
-async def load_blueprint(repo: Repository, version_id: str) -> tuple[ScenarioBlueprint, dict[str, Any]]:
+async def load_blueprint(
+    repo: Repository, version_id: str
+) -> tuple[ScenarioBlueprint, dict[str, Any]]:
     row = await repo.get_scenario_version(version_id)
     if row is None:
         raise NotFoundError("Scenario version not found.")

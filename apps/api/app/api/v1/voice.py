@@ -71,10 +71,12 @@ async def ingest_voice_message(
     repo: Repo,
     session_id: str,
     voice_session_id: str,
+    ai: AIDep,
     body: VoiceMessageRequest = Body(...),
 ) -> dict:
     return await voice_service.ingest_transcript_message(
         repo=repo,
+        ai=ai,
         user_id=principal.user_id,
         session_id=session_id,
         voice_session_id=voice_session_id,
@@ -162,7 +164,11 @@ async def _bridge_context(
         )
 
 
+# ElevenLabs Custom LLM treats the Server URL as an OpenAI-style base URL; accept the bare path
+# and the /chat/completions forms so either dashboard entry works.
 @router.post("/voice/llm")
+@router.post("/voice/llm/chat/completions")
+@router.post("/voice/llm/v1/chat/completions")
 async def voice_llm_bridge(request: Request, settings: SettingsDep, ai: AIDep) -> StreamingResponse:
     voice_llm.verify_bridge_secret(settings, request.headers)
 

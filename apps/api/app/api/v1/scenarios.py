@@ -13,7 +13,8 @@ router = APIRouter(tags=["scenarios"])
 
 @router.get("/scenario-templates")
 async def list_templates(principal: CurrentUser, repo: Repo) -> dict:
-    rows = await scenario_service.list_catalog(repo)
+    profile = await repo.get_profile(principal.user_id)
+    rows = await scenario_service.list_catalog(repo, role=(profile or {}).get("target_role"))
     return {
         "items": [
             {
@@ -26,6 +27,11 @@ async def list_templates(principal: CurrentUser, repo: Repo) -> dict:
                 "supported_modes": r["supported_modes"],
                 "estimated_minutes": r["estimated_minutes"],
                 "difficulty_options": ["introductory", "standard", "challenging"],
+                **{
+                    k: r[k]
+                    for k in ("story", "you_will", "people", "skills", "report", "track", "track_label", "incident")
+                    if k in r
+                },
             }
             for r in rows
         ]
@@ -46,6 +52,7 @@ async def create_instance(
         mode=body.mode,
         difficulty=body.difficulty,
         learning_objectives=body.learning_objectives,
+        incident=body.incident,
         variation_request=body.variation_request,
     )
 

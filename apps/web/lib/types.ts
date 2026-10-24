@@ -13,6 +13,20 @@ export type WorldAction = {
   locked_reason: string | null;
 };
 
+export type CharacterProfile = {
+  years: number;
+  personality: string;
+  traits: string[];
+  power: string;
+  weakness: string;
+  stats: Record<string, number>;
+  portrait: string;
+  gender?: "male" | "female";
+  /** What this colleague expects from the learner (shown next to the chat). */
+  needs?: string;
+  knows: string;
+};
+
 export type WorldCharacter = {
   id: string;
   name: string;
@@ -20,6 +34,8 @@ export type WorldCharacter = {
   sprite: string;
   location_id: string;
   greeting: string;
+  profile?: CharacterProfile | null;
+  questions?: { q: string; fact: string | null }[];
 };
 
 export type WorldObject = {
@@ -86,6 +102,8 @@ export type SessionView = {
   available_locations: string[];
   world: WorldView;
   navigation: NavigationTarget | null;
+  /** Colleagues who have told the learner everything they hold. */
+  characters_done?: string[];
   completion: CompletionStatus;
   completed: boolean;
 };
@@ -99,6 +117,10 @@ export type Prebrief = {
   objectives: string[];
   competency_goals: string[];
   controls: string[];
+  incident?: Record<string, unknown>;
+  people?: { id: string; name: string; role: string; location: string; knows_about: boolean; knows?: string | null; profile?: CharacterProfile | null }[];
+  assessed?: { id: string; name: string; description: string; great: string }[];
+  tips?: string[];
 };
 
 export type ScenarioInstance = {
@@ -121,6 +143,15 @@ export type ScenarioTemplate = {
   supported_modes: string[];
   estimated_minutes: number;
   difficulty_options: string[];
+  story?: string;
+  you_will?: string[];
+  track?: string;
+  track_label?: string;
+  /** Incident type this card shows; sent back when starting so the session matches. */
+  incident?: string;
+  people?: { role: string; knows: string }[];
+  skills?: string[];
+  report?: string;
 };
 
 export type SuggestedAction = {
@@ -149,6 +180,9 @@ export type ActionResponse = {
   state_delta: Record<string, unknown>;
   events: { id: string; type: string }[];
   session: SessionView;
+  /** Facts this tool shows (only ones the learner knows), for the findings popup. */
+  findings?: { id: string; label: string; detail: string; new: boolean }[];
+  tool?: { id: string; label: string } | null;
 };
 
 export type TranscriptMessage = {
@@ -182,8 +216,63 @@ export type EvaluationItem = {
   evidence: EvidenceRef[];
 };
 
+export type LedgerCheck = {
+  id: string;
+  label: string;
+  passed: boolean;
+  source_type: "message" | "event" | "deliverable" | null;
+  source_id: string | null;
+  detail: string;
+};
+
+export type ConversationTurn = {
+  message_id: string;
+  character_id: string | null;
+  words: number;
+  question: boolean;
+  long: boolean;
+  modality: string;
+};
+
+export type ConversationStats = {
+  turns: ConversationTurn[];
+  people: {
+    character_id: string;
+    name: string;
+    learner_words: number;
+    npc_words: number;
+    learner_turns: number;
+    npc_turns: number;
+  }[];
+  learner_turns: number;
+  questions: number;
+  question_ratio: number;
+  avg_words: number;
+  median_words: number;
+  long_turns: number;
+  npc_avg_words: number;
+  long_turn_words: number;
+};
+
+export type Coaching = { message_id: string; original: string; better: string; why: string };
+
+export type SayNextTime = { check: string; to: string; say: string };
+
+export type SimEvent = {
+  id: string;
+  sequence_number: number;
+  event_type: string;
+  payload: Record<string, unknown>;
+  created_at: string | null;
+};
+
 export type Evaluation = {
   id: string;
+  findings: string[];
+  ledger: Record<string, LedgerCheck[]>;
+  conversation: ConversationStats | null;
+  coaching: Coaching[];
+  say_next_time: SayNextTime[];
   session_id: string;
   status: string;
   rubric_version: string;
@@ -251,6 +340,8 @@ export type VoiceSessionStart = {
   connection_type: string;
   conversation_token: string;
   context_grant: string | null;
+  /** Per-call values for the agent prompt, e.g. {{shared_facts}}: what this colleague may tell you. */
+  dynamic_variables?: Record<string, string>;
   grant_expires_at: number | null;
   npc: VoiceNpc;
   greeting: string;

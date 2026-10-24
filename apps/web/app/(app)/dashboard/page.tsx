@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { m } from "framer-motion";
@@ -44,6 +44,21 @@ export default function DashboardPage() {
   const active = sessions.find((s) => s.status === "active");
   const strongest = strongestCriterion(trends);
   const firstTime = progress !== undefined && progress.sessions.length === 0;
+  const [creating, setCreating] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
+
+  // A fresh scenario (random company + incident) straight to its briefing, like Practice → Start.
+  async function createNew() {
+    setCreating(true);
+    setCreateError(null);
+    try {
+      const instance = await api.createInstance({ template_slug: "production-incident", mode: "quick" });
+      router.push(`/briefing/${instance.scenario_instance_id}`);
+    } catch (e) {
+      setCreateError(e instanceof Error ? e.message : "Could not create a new session.");
+      setCreating(false);
+    }
+  }
 
   return (
     <main className="app-main">
@@ -115,9 +130,19 @@ export default function DashboardPage() {
               <p className="small muted">
                 {active.title} · {active.difficulty}
               </p>
-              <Link className="btn" href={`/session/${active.id}`} style={{ alignSelf: "flex-start" }} onMouseEnter={preloadGame} onFocus={preloadGame}>
-                Resume session <span className="arrow" aria-hidden="true">→</span>
-              </Link>
+              <div className="row" style={{ gap: 8 }}>
+                <Link className="btn" href={`/session/${active.id}`} onMouseEnter={preloadGame} onFocus={preloadGame}>
+                  Resume session <span className="arrow" aria-hidden="true">→</span>
+                </Link>
+                <button className="btn btn--ghost" data-testid="create-new-session" onClick={createNew} disabled={creating}>
+                  {creating ? <span className="busy-dots">Creating</span> : "+ Create new"}
+                </button>
+              </div>
+              {createError && (
+                <p className="xsmall" role="alert" style={{ color: "var(--color-ember)" }}>
+                  {createError}
+                </p>
+              )}
             </div>
           ) : (
             <div className="card stack">
@@ -164,9 +189,12 @@ export default function DashboardPage() {
         </m.div>
 
         <m.section variants={item}>
-          <h2 className="section-title" style={{ marginBottom: 12 }}>
-            Recent sessions
-          </h2>
+          <div className="row between" style={{ marginBottom: 12 }}>
+            <h2 className="section-title">Recent sessions</h2>
+            <Link className="text-link small" href="/sessions">
+              View all →
+            </Link>
+          </div>
           <div className="card" style={{ paddingBlock: 6 }}>
             {!sessionList ? (
               <div className="stack stack--sm" style={{ padding: "14px 0" }} aria-label="Loading sessions">

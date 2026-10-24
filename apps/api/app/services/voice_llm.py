@@ -166,7 +166,16 @@ def build_voice_messages(
         bounded,
         latest_user,
         list(newly_revealed_fact_ids or []),
+        voice=True,
     )
+
+
+_MARKDOWN = str.maketrans("", "", "*#`_>|")
+
+
+def spoken(delta: str) -> str:
+    """Drop markdown symbols the model may still emit; they would be read aloud or garble TTS."""
+    return delta.translate(_MARKDOWN)
 
 
 def sse_chunk(content: str, model: str) -> str:
@@ -205,7 +214,9 @@ async def stream_response(
     """Yield an ElevenLabs-compatible SSE stream. Always terminates with ``data: [DONE]``."""
     try:
         async for delta in ai.stream_chat(messages, model=model, max_tokens=max_tokens):
-            yield sse_chunk(delta, model or "workverse")
+            text = spoken(delta)
+            if text:
+                yield sse_chunk(text, model or "workverse")
     except Exception as exc:  # noqa: BLE001 - translate to a safe SSE error, never leak internals
         logger.warning("voice_llm_stream_error", extra={"event": type(exc).__name__})
         yield sse_error("The language model is temporarily unavailable.")

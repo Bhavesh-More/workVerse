@@ -8,10 +8,12 @@ import { useAuth } from "../lib/auth";
 import { clearCache } from "../lib/api";
 import { prefetchRoute } from "../lib/useApi";
 import { Avatar } from "./Avatar";
+import { SoundToggles } from "./Sound";
 
 const NAV = [
   { href: "/dashboard", label: "Dashboard", icon: "grid" },
   { href: "/scenarios", label: "Practice", icon: "target" },
+  { href: "/sessions", label: "Sessions", icon: "clock" },
   { href: "/progress", label: "Progress", icon: "chart" },
   { href: "/profile", label: "Profile", icon: "user" },
 ];
@@ -46,6 +48,13 @@ function Icon({ name }: { name: string }) {
         <circle cx="12" cy="12" r="9" />
         <circle cx="12" cy="12" r="4" />
         <circle cx="12" cy="12" r="0.6" fill="currentColor" />
+      </svg>
+    );
+  if (name === "clock")
+    return (
+      <svg {...common} aria-hidden="true">
+        <circle cx="12" cy="12" r="9" />
+        <path d="M12 7v5l3 2" />
       </svg>
     );
   if (name === "chart")
@@ -188,6 +197,7 @@ export function Sidebar() {
       </nav>
 
       <div className="sidebar__foot">
+        {!collapsed && <SoundToggles />}
         <Link href="/profile" className="sidebar__user" title={name}>
           <span className="sidebar__avatar">
             <Avatar imageUrl={user?.imageUrl} name={name} size={collapsed ? 34 : 38} />

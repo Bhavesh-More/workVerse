@@ -16,7 +16,14 @@ import {
   buildGuideSteps,
   destinationLabel,
   nextObjective as findNextObjective,
+  suggestedQuestions,
+  wordCount,
 } from "../../../../lib/practice";
+import { duckMusic, play } from "../../../../lib/sfx";
+import { SoundToggles } from "../../../../components/Sound";
+import { ShiftComplete } from "../../../../components/ShiftComplete";
+import { ToolPopup, type ToolView } from "../../../../components/ToolPopup";
+import { TeamIntro } from "../../../../components/TeamIntro";
 
 // Browser-only SDK; never evaluated during SSR.
 const VoiceMeeting = dynamic(
@@ -29,12 +36,27 @@ type VoiceStartState = {
   voiceSessionId: string;
   conversationToken: string;
   contextGrant: string | null;
+  dynamicVariables?: Record<string, string>;
 };
 
 function statusBadge(status: string) {
   if (status === "completed") return "badge badge--ok";
   if (status === "active") return "badge badge--active";
   return "badge";
+}
+
+/** Numbers for the end-of-shift slideshow, from what the page already has. */
+function shiftStats(session: SessionView, messages: TranscriptMessage[]) {
+  const talks = new Map<string, number>();
+  for (const msg of messages) {
+    if (msg.speaker_type === "learner" && msg.character_id) talks.set(msg.character_id, (talks.get(msg.character_id) ?? 0) + 1);
+  }
+  const first = messages.find((msg) => msg.created_at)?.created_at;
+  return {
+    facts: session.facts_known,
+    talks: [...talks].map(([id, count]) => ({ id, count })),
+    seconds: first ? Math.max(0, Math.round((Date.now() - Date.parse(first)) / 1000)) : 0,
+  };
 }
 
 export default function SessionPage() {
@@ -66,6 +88,11 @@ export default function SessionPage() {
   const [navStatus, setNavStatus] = useState<NavigationStatus>("idle");
   const [pendingText, setPendingText] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
+  // Fade the background music out while a live voice meeting is running.
+  useEffect(() => {
+    duckMusic(Boolean(voice));
+    return () => duckMusic(false);
+  }, [voice]);
   const completedIds = useRef<Set<string> | null>(null);
   const interactionLocked = useRef(false);
   const voicePending = useRef(false);
@@ -89,9 +116,14 @@ export default function SessionPage() {
     if (nearCharacter) preloadVoice();
   }, [nearCharacter]);
 
+  // Chat sticks to the newest message, like any chat app (after layout, so new bubbles are measured).
   useEffect(() => {
-    transcriptRef.current?.scrollTo({ top: transcriptRef.current.scrollHeight, behavior: "smooth" });
-  }, [messages.length, pendingText]);
+    const id = requestAnimationFrame(() => {
+      const log = transcriptRef.current;
+      log?.scrollTo({ top: log.scrollHeight, behavior: "smooth" });
+    });
+    return () => cancelAnimationFrame(id);
+  }, [messages.length, pendingText, activeCharacter]);
 
   // Celebrate each objective the moment the server marks it complete (not on first load).
   useEffect(() => {
@@ -101,7 +133,10 @@ export default function SessionPage() {
     completedIds.current = done;
     if (!prev) return;
     const fresh = session.objectives.find((o) => done.has(o.id) && !prev.has(o.id));
-    if (fresh) setToast(fresh.label);
+    if (fresh) {
+      setToast(fresh.label);
+      play("objective");
+    }
   }, [session]);
 
   useEffect(() => {
@@ -134,6 +169,9 @@ export default function SessionPage() {
 
   const actionsByObject = useMemo(() => groupActionsByObject(actions), [actions]);
 
+  const [toolView, setToolView] = useState<ToolView | null>(null);
+  const closeTool = useCallback(() => setToolView(null), []);
+
   const runAction = useCallback(
     async (action: WorldAction, payload?: Record<string, unknown>) => {
       if (!session) return;
@@ -150,13 +188,23 @@ export default function SessionPage() {
         setSession(res.session);
         setMessages((await api.transcript(sessionId)).items);
         const newly = res.state_delta?.newly_discovered_fact_ids as string[] | undefined;
-        if (newly?.length) setNotice(`New information: ${newly.join(", ")}`);
+        (res.findings ?? []).forEach((f) => toolFactIds.current.add(f.id));
+        if (res.tool && action.action_type === "inspect") {
+          // Inspecting a tool opens it: the findings show inside a pixel window styled like the tool.
+          setToolView({ ...res.tool, findings: res.findings ?? [], service: String(res.session.incident?.service ?? "") || undefined });
+          if (newly?.length) play("discover");
+        } else if (newly?.length) {
+          const labels = newly.map((id) => res.session.facts_known.find((f) => f.id === id)?.label ?? id);
+          setNotice(`New information: ${labels.join(" · ")}`);
+          play("discover");
+        }
       } catch (e) {
         if (e instanceof ApiError && e.status === 409) {
           await load();
           setError("The session changed; state refreshed. Try again.");
         } else {
           setError(e instanceof ApiError ? e.message : "Action failed.");
+          play("error");
         }
       } finally {
         setBusy(false);
@@ -191,37 +239,149 @@ export default function SessionPage() {
     [actionsByObject, runAction],
   );
 
-  const openCharacter = useCallback((characterId: string) => {
-    setActiveCharacter(characterId);
-    gameRef.current?.focusCharacter(characterId);
-  }, []);
+  // Profile cards: "all" (team intro) or one colleague's id. `afterIntro` runs when it closes.
+  const [intro, setIntro] = useState<string | null>(null);
+  const afterIntro = useRef<(() => void) | null>(null);
+  const met = useRef<Set<string> | null>(null);
+  const metKey = `wv-met-${sessionId}`;
+  const metSet = useCallback(() => {
+    if (!met.current) {
+      try {
+        met.current = new Set(JSON.parse(sessionStorage.getItem(metKey) ?? "[]") as string[]);
+      } catch {
+        met.current = new Set();
+      }
+    }
+    return met.current;
+  }, [metKey]);
+  const markMet = useCallback(
+    (id: string) => {
+      const seen = metSet().add(id);
+      try {
+        sessionStorage.setItem(metKey, JSON.stringify([...seen]));
+      } catch {
+        // storage blocked: remembered for this page only
+      }
+    },
+    [metKey, metSet],
+  );
+  /** First time meeting someone: show their card, then carry on with `then`. */
+  const meetFirst = useCallback(
+    (id: string, then: () => void) => {
+      const hasProfile = characters.some((c) => c.id === id && c.profile);
+      if (!hasProfile || metSet().has(id)) return then();
+      afterIntro.current = then;
+      setIntro(id);
+    },
+    [characters, metSet],
+  );
+
+  const openCharacter = useCallback(
+    (characterId: string) => {
+      setActiveCharacter(characterId);
+      gameRef.current?.focusCharacter(characterId);
+      meetFirst(characterId, () => {});
+    },
+    [meetFirst],
+  );
+
+  // Handoff: when the colleague you're talking to has told you everything they hold, point at the next
+  // step; if that's another person, switch the chat to them after a short, cancellable countdown.
+  const [handoff, setHandoff] = useState<{ from: string; to: string | null; secs: number } | null>(null);
+  const doneBefore = useRef<Set<string> | null>(null);
+  const navBefore = useRef<SessionView["navigation"]>(null);
+  // Whoever the learner is talking to right now: the voice call wins over the open chat.
+  const talkingTo = voice?.npc.id ?? activeCharacter;
+  useEffect(() => {
+    if (!session) return;
+    const nav = session.navigation;
+    const done = new Set(session.characters_done ?? []);
+    const before = doneBefore.current;
+    const prevNav = navBefore.current;
+    doneBefore.current = done;
+    navBefore.current = nav;
+    if (!before || !talkingTo) return;
+    const atThem = (n: SessionView["navigation"]) => n?.target_type === "character" && n.target_id === talkingTo;
+    // Hand on when they've told you everything, or as soon as the step you came to them for is done
+    // (e.g. you only needed the impact from the manager: the path has moved on to the logs).
+    const toldAll = done.has(talkingTo) && !before.has(talkingTo);
+    const stepDone = atThem(prevNav) && !atThem(nav);
+    if (!toldAll && !stepDone) return;
+    const to = nav?.target_type === "character" && nav.target_id !== talkingTo ? nav.target_id : null;
+    setHandoff({ from: talkingTo, to, secs: 6 });
+  }, [session, talkingTo]);
+  useEffect(() => {
+    // Counts down to switching chat to the next person, or (in a call) to ending the call;
+    // paused while the "told you" box is open so there's time to read it.
+    if (!handoff || toolView || (!handoff.to && !voice)) return;
+    if (handoff.secs <= 0) {
+      if (voice) return; // the call ends itself at 0 (VoiceMeeting), then runs onGo
+      openCharacter(handoff.to!);
+      setHandoff(null);
+      return;
+    }
+    const t = setTimeout(() => setHandoff((h) => h && { ...h, secs: h.secs - 1 }), 1000);
+    return () => clearTimeout(t);
+  }, [handoff, voice, toolView, openCharacter]);
+  useEffect(() => {
+    // Picking someone else yourself cancels the handoff.
+    setHandoff((h) => (h && h.from !== talkingTo ? null : h));
+  }, [talkingTo]);
+
+  // Facts a colleague tells you (typed or spoken) pop up as a dialogue box, like tool findings do.
+  // Facts from tools are skipped here: the tool's own window already showed them.
+  const factsBefore = useRef<Set<string> | null>(null);
+  const toolFactIds = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    if (!session) return;
+    const known = session.facts_known;
+    const before = factsBefore.current;
+    factsBefore.current = new Set(known.map((f) => f.id));
+    if (!before) return;
+    const fresh = known.filter((f) => !before.has(f.id) && !toolFactIds.current.has(f.id));
+    const who = characters.find((c) => c.id === talkingTo);
+    if (!fresh.length || !who) return;
+    setToolView({ id: "dialogue", label: who.name, portrait: who.profile?.portrait, from: who.id, findings: fresh.map((f) => ({ ...f, new: true })) });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- runs per session update; speaker read at that moment
+  }, [session]);
 
   const startVoiceMeeting = useCallback(
     async (characterId: string) => {
       if (interactionLocked.current || voicePending.current) return;
+      if (!metSet().has(characterId) && characters.some((c) => c.id === characterId && c.profile)) {
+        meetFirst(characterId, () => void startVoiceMeetingRef.current(characterId));
+        return;
+      }
       const npc = characters.find((c) => c.id === characterId);
       if (!npc) return;
       voicePending.current = true;
       setVoiceError(null);
-      setNotice(null);
+      setNotice(`Calling ${npc.name}…`); // instant feedback; the token round trip can take a while
+      play("call");
       try {
         if (!navigator.mediaDevices?.getUserMedia) {
           throw new Error("Microphone access is not available in this browser.");
         }
-        // Explain-then-request: this runs inside the E-key user gesture.
-        await navigator.mediaDevices.getUserMedia({ audio: true });
-        const res = await api.startVoiceSession(sessionId, {
-          npc_id: characterId,
-          client_request_id: crypto.randomUUID(),
-        });
+        // Mic permission (inside the E-key gesture) and the server token run in parallel.
+        const [stream, res] = await Promise.all([
+          navigator.mediaDevices.getUserMedia({ audio: true }),
+          api.startVoiceSession(sessionId, {
+            npc_id: characterId,
+            client_request_id: crypto.randomUUID(),
+          }),
+        ]);
+        stream.getTracks().forEach((t) => t.stop()); // permission check only; the SDK opens its own
+        setNotice(null);
         interactionLocked.current = true;
         setVoice({
           npc: res.npc,
           voiceSessionId: res.voice_session_id,
           conversationToken: res.conversation_token,
           contextGrant: res.context_grant,
+          dynamicVariables: res.dynamic_variables,
         });
       } catch (e) {
+        setNotice(null);
         const denied = e instanceof DOMException && e.name === "NotAllowedError";
         setVoiceError(
           denied
@@ -236,8 +396,25 @@ export default function SessionPage() {
         voicePending.current = false;
       }
     },
-    [characters, sessionId],
+    [characters, sessionId, meetFirst, metSet],
   );
+  const startVoiceMeetingRef = useRef(startVoiceMeeting);
+  useEffect(() => {
+    startVoiceMeetingRef.current = startVoiceMeeting;
+  }, [startVoiceMeeting]);
+
+  // Q near a colleague opens their profile card (E talks).
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key.toLowerCase() !== "q" || e.repeat || !nearCharacter || intro || voice) return;
+      const el = document.activeElement;
+      if (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || (el as HTMLElement).isContentEditable)) return;
+      if (!characters.some((c) => c.id === nearCharacter && c.profile)) return;
+      setIntro(nearCharacter);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [nearCharacter, intro, voice, characters]);
 
   const endVoiceMeeting = useCallback(async () => {
     interactionLocked.current = false;
@@ -245,11 +422,62 @@ export default function SessionPage() {
     await load();
   }, [load]);
 
-  const sendMessage = useCallback(async () => {
-    if (!session || !activeCharacter || !chatInput.trim()) return;
+  // Hang up the current call properly (server record too), e.g. when a popup's "Next" is chosen.
+  const hangUp = useCallback(async () => {
+    if (!voice) return;
+    api.endVoiceSession(sessionId, voice.voiceSessionId, "user_ended").catch(() => {});
+    await endVoiceMeeting();
+  }, [voice, sessionId, endVoiceMeeting]);
+
+  // Where to go after a colleague has told you something: always shown with the "told you" box.
+  const routeFrom = (from?: string): ToolView["next"] => {
+    const nav = session?.navigation;
+    const leave = () => {
+      setHandoff(null);
+      void hangUp();
+    };
+    const call = voice ? "End call · " : "";
+    if (!nav) return { text: "Everything's covered: send your status update and complete the shift.", label: `${call}OK`, onGo: leave };
+    const step = nav.action_label ?? nav.objective_label;
+    if (nav.target_type === "character" && nav.target_id !== from) {
+      const c = characters.find((x) => x.id === nav.target_id);
+      return {
+        text: `${step}: talk to ${c?.name ?? "them"}${c ? `, the ${c.role}` : ""}.`,
+        label: `${call}Talk to ${c?.name.split(" ")[0] ?? "them"}`,
+        onGo: () => {
+          leave();
+          openCharacter(nav.target_id!);
+        },
+      };
+    }
+    if (nav.target_type === "character") return { text: `${step}: keep talking to them.`, label: "Keep going", onGo: () => {} };
+    const where = session.world.locations.find((l) => l.id === nav.location_id)?.name;
+    return { text: `${step}${where ? ` in the ${where}` : ""}. Follow the arrow in the office.`, label: `${call}Go there`, onGo: leave };
+  };
+
+  // "Skip to what they know": the colleague hands it all over, then the box shows it with the next step.
+  const skipTo = useCallback(
+    async (characterId: string) => {
+      try {
+        const res = await api.skipCharacter(sessionId, characterId);
+        setSession(res.session);
+        if (!res.revealed.length) {
+          const who = characters.find((c) => c.id === characterId);
+          if (who) setToolView({ id: "dialogue", label: who.name, portrait: who.profile?.portrait, from: who.id, findings: [] });
+        }
+      } catch (e) {
+        setError(e instanceof Error ? e.message : "Could not skip.");
+      }
+    },
+    [sessionId, characters],
+  );
+
+  const sendMessage = useCallback(async (override?: string) => {
+    const text = (override ?? chatInput).trim();
+    if (!session || !activeCharacter || !text) return;
     setSending(true);
     setError(null);
-    const text = chatInput.trim();
+    play("send");
     setChatInput("");
     setPendingText(text);
     try {
@@ -260,8 +488,21 @@ export default function SessionPage() {
         message: text,
       });
       setSession(res.session);
-      setMessages((await api.transcript(sessionId)).items);
+      // The reply is in the response; append locally instead of refetching the transcript.
+      const at = new Date().toISOString();
+      const base = { session_id: sessionId, character_id: res.character_id, modality: "text", status: "final", created_at: at };
+      setMessages((prev) =>
+        prev.some((m) => m.id === res.assistant_message_id)
+          ? prev
+          : [
+              ...prev,
+              { ...base, id: `local-${res.turn_id}`, sequence_number: prev.length + 1, speaker_type: "learner", content: text },
+              { ...base, id: res.assistant_message_id, sequence_number: prev.length + 2, speaker_type: "character", content: res.message },
+            ],
+      );
+      play(res.newly_discovered_facts.length ? "discover" : "receive");
     } catch (e) {
+      play("error");
       if (e instanceof ApiError && e.status === 409) {
         await load();
         setError("The session changed; state refreshed. Please resend.");
@@ -275,6 +516,7 @@ export default function SessionPage() {
     }
   }, [session, activeCharacter, chatInput, sessionId, load]);
 
+  const [shiftDone, setShiftDone] = useState(false);
   const finish = useCallback(
     async (force: boolean) => {
       if (!session) return;
@@ -282,7 +524,8 @@ export default function SessionPage() {
       setError(null);
       try {
         await api.complete(sessionId, { expected_state_version: session.state_version, force });
-        router.push(`/session/${sessionId}/debrief`);
+        router.prefetch(`/session/${sessionId}/debrief`);
+        setShiftDone(true); // the end card's button (or Esc/Enter) goes on to the debrief
       } catch (e) {
         setError(e instanceof ApiError ? e.message : "Could not complete the session.");
         setBusy(false);
@@ -290,6 +533,61 @@ export default function SessionPage() {
     },
     [session, sessionId, router],
   );
+
+  // Silence coaching: if the learner hasn't typed 8s after opening a chat or getting a reply,
+  // surface what they could say. Any typing or a new message resets the timer.
+  const [idleHint, setIdleHint] = useState(false);
+  useEffect(() => {
+    if (!activeCharacter || chatInput || sending) return;
+    const t = window.setTimeout(() => {
+      setIdleHint(true);
+      play("pop");
+    }, 8000);
+    return () => {
+      window.clearTimeout(t);
+      setIdleHint(false);
+    };
+  }, [activeCharacter, chatInput, sending, messages.length]);
+
+  // Stuck detector: 20s with no key/pointer input and no chat open → show the next step.
+  const [stuck, setStuck] = useState(false);
+  const lastInput = useRef(0);
+  const stuckShown = useRef(false);
+  useEffect(() => {
+    lastInput.current = Date.now();
+    const bump = () => {
+      lastInput.current = Date.now();
+      stuckShown.current = false;
+      setStuck(false);
+    };
+    const tick = window.setInterval(() => {
+      if (stuckShown.current || Date.now() - lastInput.current < 20000) return;
+      stuckShown.current = true;
+      setStuck(true);
+      play("pop");
+    }, 2000);
+    window.addEventListener("keydown", bump);
+    window.addEventListener("pointerdown", bump);
+    return () => {
+      window.clearInterval(tick);
+      window.removeEventListener("keydown", bump);
+      window.removeEventListener("pointerdown", bump);
+    };
+  }, []);
+
+  // "Meet the team" intro: once per session on first load.
+  const hasProfiles = characters.some((c) => c.profile);
+  useEffect(() => {
+    if (!hasProfiles) return;
+    const key = `wv-intro-${sessionId}`;
+    try {
+      if (sessionStorage.getItem(key)) return;
+      sessionStorage.setItem(key, "1");
+    } catch {
+      // storage blocked: still show it once for this mount
+    }
+    setIntro("all");
+  }, [hasProfiles, sessionId]);
 
   if (!session && !error) return <SimSkeleton />;
   if (!session) {
@@ -310,10 +608,15 @@ export default function SessionPage() {
   }
 
   const incident = session.incident as Record<string, unknown>;
-  const activeName = characters.find((c) => c.id === activeCharacter)?.name;
+  const activeChar = characters.find((c) => c.id === activeCharacter);
+  const activeName = activeChar?.name;
+  const activeFirst = activeName?.split(" ")[0] ?? "They";
+  const activeProfile = activeChar?.profile;
   const chatMessages = activeCharacter
-    ? messages.filter((msg) => (msg.speaker_type === "learner" && !msg.character_id) || msg.character_id === activeCharacter)
+    ? messages.filter((msg) => msg.character_id === activeCharacter)
     : [];
+  const draftWords = wordCount(chatInput);
+  const suggestions = activeCharacter ? suggestedQuestions(session, activeCharacter) : [];
   const currentStep = guideSteps[Math.min(guideIndex, guideSteps.length - 1)];
   const doneCount = session.objectives.filter((o) => o.status === "completed").length;
   const nextObjective = findNextObjective(session.objectives);
@@ -342,6 +645,12 @@ export default function SessionPage() {
           </div>
         </div>
         <div className="row" style={{ gap: 8 }}>
+          <SoundToggles />
+          {hasProfiles && (
+            <button className="btn btn--ghost btn--small" onClick={() => setIntro("all")} title="Replay the team intro">
+              Meet the team
+            </button>
+          )}
           <span className={statusBadge(session.status)}>
             <span className={`dot${live ? " dot--live" : " dot--idle"}`} aria-hidden="true" />
             {session.status}
@@ -361,6 +670,30 @@ export default function SessionPage() {
         </div>
       </div>
 
+      {toolView && <ToolPopup tool={toolView.id === "dialogue" ? { ...toolView, next: routeFrom(toolView.from) } : toolView} onClose={closeTool} />}
+      {shiftDone && (
+        <ShiftComplete
+          characters={characters}
+          objectives={session.objectives}
+          title={String(incident.summary ?? "")}
+          stats={shiftStats(session, messages)}
+          onDone={() => router.push(`/session/${sessionId}/debrief`)}
+        />
+      )}
+      {intro && (
+        <TeamIntro
+          characters={characters}
+          title={String(incident.summary ?? "")}
+          only={intro === "all" ? undefined : intro}
+          onSeen={markMet}
+          onDone={() => {
+            setIntro(null);
+            const then = afterIntro.current;
+            afterIntro.current = null;
+            then?.();
+          }}
+        />
+      )}
       <div className="sim-full__body">
         <div className="sim-full__game">
           <PhaserGame
@@ -391,6 +724,12 @@ export default function SessionPage() {
                   {nearCharacter
                     ? `to talk to ${characters.find((c) => c.id === nearCharacter)?.name ?? prompt}`
                     : `to interact with ${prompt}`}
+                  {nearCharacter && characters.some((c) => c.id === nearCharacter && c.profile) && (
+                    <>
+                      {" · "}
+                      <span className="kbd">Q</span> profile card
+                    </>
+                  )}
                 </span>
               </m.div>
             )}
@@ -453,7 +792,31 @@ export default function SessionPage() {
               voiceSessionId={voice.voiceSessionId}
               conversationToken={voice.conversationToken}
               contextGrant={voice.contextGrant}
+              dynamicVariables={voice.dynamicVariables}
               onEnd={endVoiceMeeting}
+              onSkip={() => void skipTo(voice.npc.id)}
+              onSession={setSession}
+              handoff={
+                handoff && handoff.from === voice.npc.id
+                  ? handoff.to
+                    ? {
+                        secs: handoff.secs,
+                        text: `talk to ${characters.find((c) => c.id === handoff.to)?.name}.`,
+                        goLabel: `End call · talk to ${characters.find((c) => c.id === handoff.to)?.name.split(" ")[0]}`,
+                        onGo: () => {
+                          const to = handoff.to!;
+                          setHandoff(null);
+                          openCharacter(to);
+                        },
+                      }
+                    : {
+                        secs: handoff.secs,
+                        text: `${navigation?.action_label ?? navigation?.objective_label ?? "check the guide"} — follow the arrow in the office.`,
+                        goLabel: "End call · go there",
+                        onGo: () => setHandoff(null),
+                      }
+                  : null
+              }
             />
           )}
 
@@ -632,6 +995,34 @@ export default function SessionPage() {
             )}
           </AnimatePresence>
 
+          <AnimatePresence>
+            {stuck && !activeCharacter && !voice && nextStep && (
+              <m.div
+                key="stuck"
+                className="stuck-card"
+                role="status"
+                initial={{ opacity: 0, y: 24, scale: 0.92 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: 16, scale: 0.96 }}
+                transition={{ type: "spring", stiffness: 360, damping: 24 }}
+              >
+                <span className="eyebrow">Stuck? Next step</span>
+                <strong>{nextStep.title}</strong>
+                <span className="small">{nextStep.body}</span>
+                <div className="row" style={{ gap: 8 }}>
+                  {nextStep.character && (
+                    <button className="btn btn--small" onClick={() => openCharacter(nextStep.character!)}>
+                      Talk to them
+                    </button>
+                  )}
+                  <button className="btn btn--ghost btn--small" onClick={() => setGuideOn(true)}>
+                    Show guide
+                  </button>
+                </div>
+              </m.div>
+            )}
+          </AnimatePresence>
+
           <button className={`btn guide-toggle${guideOn ? " btn--ghost" : ""}`} style={guideOn ? { background: "var(--color-paper)" } : undefined} onClick={() => setGuideOn((v) => !v)}>
             {guideOn ? "Hide guide" : "Need help? Show guide"}
           </button>
@@ -651,10 +1042,11 @@ export default function SessionPage() {
             )}
           </AnimatePresence>
 
-          <section className="card stack stack--sm">
-            <h2 className="section-title" style={{ fontSize: 18 }}>
-              What you know
-            </h2>
+          <details className="card panel" open>
+            <summary className="panel__head">
+              <h2 className="section-title">What you know</h2>
+              <span className="panel__count">{session.facts_known.length}</span>
+            </summary>
             {session.facts_known.length === 0 ? (
               <p className="xsmall muted">Nothing confirmed yet. Ask around and check the evidence.</p>
             ) : (
@@ -675,7 +1067,7 @@ export default function SessionPage() {
                 </AnimatePresence>
               </ul>
             )}
-          </section>
+          </details>
 
           <section className="sr-only" aria-label="All available actions">
             <h2 className="section-title">Workplace actions</h2>
@@ -701,15 +1093,16 @@ export default function SessionPage() {
           </section>
 
           {actions.some((a) => a.id === "a_send_status_update" && a.ready) && (
-            <m.section
-              className="card stack stack--sm"
+            <m.details
+              className="card panel"
+              open
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               style={{ borderColor: "var(--color-ink)" }}
             >
-              <h2 className="section-title" style={{ fontSize: 18 }}>
-                Stakeholder update
-              </h2>
+              <summary className="panel__head">
+                <h2 className="section-title">Stakeholder update</h2>
+              </summary>
               <p className="xsmall muted">Cover impact, cause, action taken, next update time and owner.</p>
               <label className="sr-only" htmlFor="status-update">
                 Stakeholder update
@@ -736,15 +1129,15 @@ export default function SessionPage() {
                   Send status update
                 </button>
               </div>
-            </m.section>
+            </m.details>
           )}
 
-          <section className="card stack stack--sm" style={{ minHeight: 260 }}>
-            <div className="row between">
-              <h2 className="section-title" style={{ fontSize: 18 }}>
-                {activeName ? `Chat · ${activeName}` : "Conversation"}
-              </h2>
-              <div className="row" style={{ gap: 6 }}>
+          <details className="card panel panel--chat" open>
+            <summary className="panel__head">
+              <h2 className="section-title">{activeName ? `Chat · ${activeName}` : "Conversation"}</h2>
+            </summary>
+            <div className="stack stack--sm">
+              <div className="row" style={{ gap: 6, flexWrap: "wrap" }}>
                 {characters.map((c) => (
                   <button
                     key={c.id}
@@ -758,7 +1151,42 @@ export default function SessionPage() {
                   </button>
                 ))}
               </div>
-            </div>
+            {activeChar && (
+              <button className="btn btn--ghost btn--small" data-testid="chat-skip" style={{ alignSelf: "flex-start" }} onClick={() => void skipTo(activeChar.id)}>
+                Skip ▶ what {activeChar.name.split(" ")[0]} knows + next step
+              </button>
+            )}
+            {activeProfile && activeChar && (
+              <div className="who-card">
+                {/* eslint-disable-next-line @next/next/no-img-element -- local SVG */}
+                <img src={activeProfile.portrait} alt="" />
+                <div className="who-card__id">
+                  <strong>{activeChar.name}</strong>
+                  <span>{activeChar.role}</span>
+                  <p>{activeProfile.personality}</p>
+                </div>
+                <button
+                  className="btn btn--ghost btn--small who-card__more"
+                  onClick={() => setIntro(activeChar.id)}
+                  aria-label={`${activeChar.name}'s profile card`}
+                  title="Profile card (Q)"
+                >
+                  ⓘ
+                </button>
+                <dl className="who-card__split">
+                  <div>
+                    <dt>{activeFirst} can tell you</dt>
+                    <dd>{activeProfile.knows}</dd>
+                  </div>
+                  {activeProfile.needs && (
+                    <div>
+                      <dt>{activeFirst} needs from you</dt>
+                      <dd>{activeProfile.needs}</dd>
+                    </div>
+                  )}
+                </dl>
+              </div>
+            )}
             {!activeCharacter ? (
               <p className="xsmall muted">Pick a colleague above and ask a question — or walk up to them and press E to talk out loud.</p>
             ) : (
@@ -793,6 +1221,101 @@ export default function SessionPage() {
                     </>
                   )}
                 </div>
+                <AnimatePresence>
+                  {handoff && (
+                    <m.div
+                      key="handoff"
+                      className="handoff"
+                      role="status"
+                      data-testid="handoff"
+                      initial={{ opacity: 0, transform: "translateY(8px) scale(0.97)" }}
+                      animate={{ opacity: 1, transform: "translateY(0px) scale(1)" }}
+                      exit={{ opacity: 0, transform: "translateY(4px) scale(0.98)" }}
+                      transition={{ duration: 0.22, ease: [0.23, 1, 0.32, 1] }}
+                    >
+                      <strong>✓ {characters.find((c) => c.id === handoff.from)?.name.split(" ")[0]} has told you what they know.</strong>
+                      {handoff.to ? (
+                        <>
+                          <span className="xsmall">
+                            Next: talk to {characters.find((c) => c.id === handoff.to)?.name}
+                            {voice ? " after this call." : ` — switching in ${handoff.secs}s…`}
+                          </span>
+                          <div className="chip-row">
+                            <button className="btn btn--small" data-testid="handoff-go" onClick={() => { const to = handoff.to!; setHandoff(null); openCharacter(to); }}>
+                              Talk to {characters.find((c) => c.id === handoff.to)?.name.split(" ")[0]} now
+                            </button>
+                            <button className="btn btn--ghost btn--small" data-testid="handoff-stay" onClick={() => setHandoff(null)}>
+                              Stay here
+                            </button>
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <span className="xsmall">
+                            Next: {navigation?.action_label ?? navigation?.objective_label ?? "check the guide"}
+                            {navigation?.location_id && ` in the ${session.world.locations.find((l) => l.id === navigation.location_id)?.name ?? "office"}`}
+                            {" "}— follow the arrow in the office.
+                          </span>
+                          <div className="chip-row">
+                            <button className="btn btn--ghost btn--small" data-testid="handoff-stay" onClick={() => setHandoff(null)}>
+                              Got it
+                            </button>
+                          </div>
+                        </>
+                      )}
+                    </m.div>
+                  )}
+                  {idleHint && suggestions.length > 0 && !handoff && (
+                    <m.div
+                      key="coach"
+                      className="coach-nudge"
+                      role="status"
+                      initial={{ opacity: 0, y: 14, scale: 0.94, filter: "blur(4px)" }}
+                      animate={{ opacity: 1, y: 0, scale: 1, filter: "blur(0px)" }}
+                      exit={{ opacity: 0, y: 8, scale: 0.97 }}
+                      transition={{ type: "spring", stiffness: 380, damping: 26 }}
+                    >
+                      <span className="coach-nudge__spark" aria-hidden="true" />
+                      <strong>{activeName} is waiting for you.</strong>
+                      <span className="xsmall">Not sure what to ask {activeFirst}? Tap one:</span>
+                      <div className="chip-row">
+                        {suggestions.slice(0, 2).map((q, i) => (
+                          <m.button
+                            key={q}
+                            className="chip chip--glow"
+                            data-sfx="none"
+                            disabled={sending}
+                            initial={{ opacity: 0, x: -10 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            transition={{ delay: 0.12 + i * 0.08 }}
+                            onClick={() => sendMessage(q)}
+                          >
+                            {q}
+                          </m.button>
+                        ))}
+                      </div>
+                    </m.div>
+                  )}
+                </AnimatePresence>
+                {suggestions.length > 0 && !idleHint && (
+                  <div className="stack stack--sm" aria-label="Suggested questions">
+                    <span className="xsmall muted">Ask {activeFirst} (short questions get real answers):</span>
+                    <div className="chip-row">
+                      {suggestions.map((q) => (
+                        <button
+                          key={q}
+                          className="chip"
+                          data-testid="suggested-question"
+                          disabled={sending}
+                          data-sfx="none"
+                          onClick={() => sendMessage(q)}
+                        >
+                          {q}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
                 <div className="chat-compose">
                   <label className="sr-only" htmlFor="chat-input">
                     Message {activeName}
@@ -801,7 +1324,7 @@ export default function SessionPage() {
                     id="chat-input"
                     className="textarea"
                     data-testid="chat-input"
-                    placeholder="Ask a question…"
+                    placeholder={`Message ${activeFirst}…`}
                     value={chatInput}
                     onChange={(e) => setChatInput(e.target.value)}
                     onKeyDown={(e) => {
@@ -811,16 +1334,22 @@ export default function SessionPage() {
                       }
                     }}
                   />
-                  <button className="btn" data-testid="chat-send" onClick={sendMessage} disabled={sending || !chatInput.trim()}>
+                  <button className="btn" data-sfx="none" data-testid="chat-send" onClick={() => sendMessage()} disabled={sending || !chatInput.trim()}>
                     Send
                   </button>
                 </div>
+                {draftWords > 30 && (
+                  <p className="xsmall" style={{ color: "var(--color-ember)" }} role="status">
+                    {draftWords} words — colleagues talk in short turns. Try one question at a time.
+                  </p>
+                )}
                 <p className="xsmall muted">
                   <span className="kbd">Enter</span> to send · <span className="kbd">Shift</span>+<span className="kbd">Enter</span> for a new line
                 </p>
               </>
             )}
-          </section>
+            </div>
+          </details>
         </aside>
       </div>
     </div>

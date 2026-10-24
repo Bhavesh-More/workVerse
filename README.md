@@ -64,6 +64,10 @@ used only as the PostgreSQL database, and internal profile rows are keyed by a `
    psql "$DATABASE_URL" -f supabase/migrations/0003_voice_sessions.sql
    ```
 
+   Use a plain `postgresql://` URL (drop `+asyncpg`). The files are safe to re-run. If
+   `db.<ref>.supabase.co` doesn't resolve (it is IPv6-only), use the IPv4 session pooler instead:
+   `postgresql://postgres.<ref>:<password>@aws-0-<region>.pooler.supabase.com:5432/postgres`.
+
 4. Sync the Python environment:
 
    ```sh
@@ -118,6 +122,7 @@ feed the evidence-grounded debrief. The browser never receives any provider key.
 
 ## Documentation
 
+- **What's new (Evidence Ledger, coaching, charts, SFX, bug fixes): `docs/IMPROVEMENTS.md`** — start here.
 - Design system: `../workverse-ai-docs/docs/DESIGN.md` (calm editorial, JetBrains Mono, grid).
 - Supplied product/architecture docs: `../workverse-ai-docs/`.
 - Known limitations and decisions: `docs/LIMITATIONS.md`.

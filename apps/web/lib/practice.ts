@@ -9,39 +9,50 @@ import type {
 
 export type GuideStep = { title: string; body: string; room?: string; character?: string };
 
-/** Ordered coaching steps for what the learner still has to do in the incident scenario. */
+/** Ordered coaching steps for what the learner still has to do. Wording comes from the
+ *  session (character names/roles, action labels), so it fits every role track. */
 export function buildGuideSteps(session: SessionView): GuideStep[] {
   const done = (id: string) => session.objectives.find((o) => o.id === id)?.status === "completed";
   const knows = (id: string) => session.facts_known.some((f) => f.id === id);
+  const who = (id: string, fallback: string) => {
+    const c = session.world.characters.find((x) => x.id === id);
+    return c ? `${c.name} (${c.role})` : fallback;
+  };
+  const act = (id: string, fallback: string) => session.world.actions.find((a) => a.id === id)?.label ?? fallback;
+  const room = session.world.locations.find((l) => l.id === "engineering_workspace")?.name ?? "the workspace";
+  const tryAsking = (id: string) => {
+    const q = suggestedQuestions(session, id)[0];
+    return q ? ` Try: “${q}”` : "";
+  };
   const steps: GuideStep[] = [];
   if (!done("o_establish_impact"))
     steps.push({
       title: "Establish the impact",
-      body: "Open the chat with your manager and ask what the customer impact and reporting deadline are.",
+      body: `Open the chat with ${who("manager", "your manager")} and ask how bad it is and when they need an update.${tryAsking("manager")}`,
       character: "manager",
     });
   if (!knows("f_migration_ran"))
     steps.push({
-      title: "Find out what shipped",
-      body: "Ask your engineering teammate whether the deployment included a database migration.",
+      title: "Find out what changed",
+      body: `Ask ${who("teammate", "your teammate")} what changed right before this started.${tryAsking("teammate")}`,
       character: "teammate",
     });
   if (!done("o_gather_evidence"))
     steps.push({
       title: "Investigate evidence",
-      body: "Walk to the engineering workspace and inspect the application logs (walk up to the console and press E, or click it).",
+      body: `Walk to the ${room} and use “${act("a_inspect_logs", "Inspect the logs")}” (walk up and press E, or click it).`,
       room: "engineering_workspace",
     });
   if (!done("o_identify_risk"))
     steps.push({
-      title: "Check rollback safety",
-      body: "Open the migration notes and check whether the migration is compatible before reverting.",
+      title: "Check it's safe to undo",
+      body: `Before undoing anything, use “${act("a_check_migration_compat", "Check compatibility")}”.`,
       room: "engineering_workspace",
     });
   if (!done("o_choose_mitigation"))
     steps.push({
-      title: "Mitigate safely",
-      body: "At the deployment console, choose your mitigation — roll back or apply the forward fix.",
+      title: "Fix it safely",
+      body: `Undoing won't fix this change. Choose “${act("a_apply_forward_fix", "Apply the forward fix")}” instead of “${act("a_apply_rollback", "Roll back")}”.`,
       room: "engineering_workspace",
     });
   if (!done("o_communicate"))
@@ -126,4 +137,44 @@ export function toggle<T>(list: T[], value: T): T[] {
 /** Split a comma-separated field into trimmed, non-empty, de-duplicated entries. */
 export function splitList(text: string): string[] {
   return [...new Set(text.split(",").map((s) => s.trim()).filter(Boolean))];
+}
+
+// Short, human-sized openers per colleague. `fact` = what the question tends to unlock;
+// ones whose fact is already known drop to the back so suggestions stay useful.
+const QUESTIONS: Record<string, { q: string; fact?: string }[]> = {
+  manager: [
+    { q: "How many customers are affected?", fact: "f_business_impact" },
+    { q: "When do you need an update from me?", fact: "f_reporting_deadline" },
+    { q: "I'll own this. Anything I should know?" },
+  ],
+  teammate: [
+    { q: "Did this deploy include a migration?", fact: "f_migration_ran" },
+    { q: "Is a rollback safe with that migration?", fact: "f_migration_incompatible" },
+    { q: "What would you check first?" },
+  ],
+  qa: [
+    { q: "Did CI run the integration tests?", fact: "f_ci_skipped" },
+    { q: "What would have caught this?" },
+  ],
+  client_pm: [
+    { q: "Which of your workflows are blocked?", fact: "f_client_impact" },
+    { q: "We're on it — can I update you in 15 minutes?" },
+  ],
+  coworker: [{ q: "Seen anything odd this morning?" }],
+};
+
+/** Up to three short questions to ask this colleague, unknown-fact ones first.
+ *  The scenario supplies role-specific questions; QUESTIONS is the fallback for older sessions. */
+export function suggestedQuestions(session: SessionView, characterId: string): string[] {
+  const known = new Set(session.facts_known.map((f) => f.id));
+  const fromScenario = session.world?.characters.find((c) => c.id === characterId)?.questions;
+  const list = fromScenario?.length ? fromScenario.map((x) => ({ q: x.q, fact: x.fact ?? undefined })) : (QUESTIONS[characterId] ?? []);
+  return [...list.filter((x) => !x.fact || !known.has(x.fact)), ...list.filter((x) => x.fact && known.has(x.fact))]
+    .slice(0, 3)
+    .map((x) => x.q);
+}
+
+/** Word count used for the "keep it short" nudge; matches the backend's rough tokenizer. */
+export function wordCount(text: string): number {
+  return (text.match(/[A-Za-z0-9']+/g) ?? []).length;
 }

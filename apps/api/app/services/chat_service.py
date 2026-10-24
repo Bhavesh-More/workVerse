@@ -10,8 +10,9 @@ from app.agents.prompts import build_character_messages, build_intent_messages
 from app.core.errors import ConflictError, NotFoundError, ValidationAppError
 from app.db.repository import Repository
 from app.schemas.ai import IntentInterpretation
+from app.services.fact_check import facts_stated
 from app.services.session_service import _load, _persist_pending_events, session_view
-from app.simulation.engine import apply_disclosure
+from app.simulation.engine import apply_disclosure, reveal_facts
 
 logger = logging.getLogger(__name__)
 
@@ -34,6 +35,14 @@ ACTION_HINTS = (
     "deploy",
     "runbook",
     "metrics",
+    "pipeline",
+    "backfill",
+    "patch",
+    "flag",
+    "turn off",
+    "release",
+    "checklist",
+    "playbook",
 )
 
 
@@ -99,7 +108,7 @@ async def handle_turn(
             turn_id=client_turn_id,
             client_turn_id=client_turn_id,
             speaker_type="learner",
-            character_id=None,
+            character_id=character_id,
             content=message[:MAX_CONTEXT_CHARS],
             modality=modality,
             metadata={},
@@ -114,7 +123,7 @@ async def handle_turn(
         blueprint, state, character, recent_messages, message, newly_revealed
     )
 
-    result = await ai.chat(prompt, max_tokens=320, temperature=0.7)
+    result = await ai.chat(prompt, max_tokens=160, temperature=0.7)
 
     # Persist assistant message
     seq = await repo.next_message_sequence(session_id)
@@ -133,6 +142,13 @@ async def handle_turn(
             "completion_tokens": result.completion_tokens,
         },
     )
+
+    # Facts the colleague volunteered in the reply count too, not only ones the question keyed.
+    told, told_events = reveal_facts(
+        blueprint, state, character_id, await facts_stated(ai, blueprint, state, character_id, result.content)
+    )
+    newly_revealed += told
+    disclosure_events += told_events
 
     state.active_character_id = character_id
     persisted = await _persist_pending_events(repo, session_id, state, disclosure_events)
@@ -164,7 +180,8 @@ async def handle_turn(
 def _to_model_messages(messages: list[dict[str, Any]], character_id: str) -> list[dict[str, str]]:
     out: list[dict[str, str]] = []
     for m in messages:
-        if m["speaker_type"] == "learner":
+        # Only this character's thread: questions asked to someone else were never heard here.
+        if m["speaker_type"] == "learner" and m.get("character_id") == character_id:
             out.append({"role": "user", "content": m["content"][:MAX_CONTEXT_CHARS]})
         elif m["speaker_type"] == "character" and m.get("character_id") == character_id:
             out.append({"role": "assistant", "content": m["content"][:MAX_CONTEXT_CHARS]})

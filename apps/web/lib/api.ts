@@ -8,6 +8,7 @@ import type {
   ScenarioTemplate,
   SessionSummary,
   SessionView,
+  SimEvent,
   TranscriptMessage,
   TurnResponse,
   VoiceSessionStart,
@@ -60,9 +61,23 @@ async function request<T>(path: string, opts: RequestOptions = {}): Promise<T> {
     });
   };
 
-  let res: Response;
+  // On a flaky connection, retry requests that are safe to repeat: reads, and writes carrying a
+  // client_*_id the server dedupes on (turns, actions, voice start).
+  const retryable =
+    (opts.method ?? "GET") === "GET" ||
+    (typeof opts.body === "object" && opts.body !== null && Object.keys(opts.body).some((k) => /^client_\w+_id$/.test(k)));
+  let res: Response | undefined;
+  for (let attempt = 0; !res; attempt += 1) {
+    try {
+      res = await doFetch();
+    } catch {
+      if (opts.signal?.aborted || !retryable || attempt >= 2) {
+        throw new ApiError(0, "network_error", "Could not reach the WorkVerse API. Check your connection and try again.");
+      }
+      await new Promise((r) => setTimeout(r, 700 * (attempt + 1)));
+    }
+  }
   try {
-    res = await doFetch();
     // A freshly signed-in Clerk session may not expose a token for a brief moment; retry.
     for (let attempt = 0; attempt < 3 && res.status === 401; attempt += 1) {
       await new Promise((r) => setTimeout(r, 400));
@@ -147,6 +162,7 @@ export const api = {
     mode?: string;
     difficulty?: string;
     variation_request?: string;
+    incident?: string;
   }) => request<ScenarioInstance>("/scenario-instances", { method: "POST", body }),
 
   getInstance: (instanceId: string) =>
@@ -185,11 +201,17 @@ export const api = {
   transcript: (sessionId: string) =>
     request<{ items: TranscriptMessage[] }>(`/sessions/${sessionId}/transcript`),
 
+  events: (sessionId: string) => request<{ items: SimEvent[] }>(`/sessions/${sessionId}/events`),
+
   complete: (sessionId: string, body: { expected_state_version?: number; force?: boolean }) =>
     request<{ status: string; evaluation: Evaluation }>(`/sessions/${sessionId}/complete`, {
       method: "POST",
       body,
     }),
+
+  /** Skip the conversation: the colleague hands over what they may share now (logged as skipped). */
+  skipCharacter: (sessionId: string, characterId: string) =>
+    request<{ revealed: string[]; session: SessionView }>(`/sessions/${sessionId}/characters/${characterId}/skip`, { method: "POST" }),
 
   getEvaluation: (sessionId: string) =>
     request<Evaluation>(`/sessions/${sessionId}/evaluation`),
@@ -223,7 +245,7 @@ export const api = {
       provider_conversation_id?: string | null;
     },
   ) =>
-    request<{ id: string; duplicate: boolean }>(
+    request<{ id: string; duplicate: boolean; session?: SessionView }>(
       `/sessions/${sessionId}/voice-sessions/${voiceSessionId}/messages`,
       { method: "POST", body },
     ),

@@ -100,6 +100,8 @@ def test_elevenlabs_base_url_must_be_hosted_https() -> None:
 def test_conversation_token_minted() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         assert request.headers["xi-api-key"] == "test-key"
+        if request.url.path == "/v1/user/subscription":
+            return httpx.Response(200, json={"character_count": 0, "character_limit": 10000})
         assert request.url.params["agent_id"] == "agent_x"
         return httpx.Response(200, json={"token": "conv-token-123"})
 
@@ -191,7 +193,7 @@ def test_verify_bridge_secret_accepts_documented_forms() -> None:
     with pytest.raises(AuthError):
         voice_llm.verify_bridge_secret(settings, {})
     with pytest.raises(AIConfigError):
-        voice_llm.verify_bridge_secret(Settings(), {"authorization": "Bearer x"})
+        voice_llm.verify_bridge_secret(Settings(voice_llm_bridge_secret=""), {"authorization": "Bearer x"})
 
 
 def test_validate_bridge_request_limits() -> None:
@@ -250,6 +252,16 @@ def test_voice_llm_bridge_endpoint(monkeypatch: pytest.MonkeyPatch) -> None:
             assert ok.headers["content-type"].startswith("text/event-stream")
             assert "Hello" in ok.text
             assert ok.text.rstrip().endswith("data: [DONE]")
+
+            # ElevenLabs may append /chat/completions to the Server URL; both forms must route here.
+            for path in ("/api/v1/voice/llm/chat/completions", "/api/v1/voice/llm/v1/chat/completions"):
+                alias = client.post(
+                    path,
+                    headers={"Authorization": "Bearer bridge-secret"},
+                    json={"messages": [{"role": "user", "content": "hi"}], "elevenlabs_extra_body": {"context_grant": "tok"}},
+                )
+                assert alias.status_code == 200, path
+                assert "Hello" in alias.text
     finally:
         app.dependency_overrides.clear()
         get_settings.cache_clear()
@@ -265,10 +277,10 @@ class _FakeVoice:
         self.configured = True
         self.fail = fail
 
-    async def create_conversation_token(self, agent_id: str) -> str:
+    async def mint_for_npc(self, npc_id: str, gender: str | None = None) -> tuple[str, str]:
         if self.fail:
             raise AIConfigError("nope", code="voice_provider_auth")
-        return "token-abc"
+        return "token-abc", "agent_x"
 
 
 class _FakeRepo:
@@ -453,7 +465,7 @@ def test_start_voice_session_rejects_bad_inputs() -> None:
         )
 
 
-def test_token_failure_marks_session_failed() -> None:
+def test_token_failure_creates_no_voice_session() -> None:
     repo = _FakeRepo()
     with pytest.raises(AIConfigError):
         asyncio.run(
@@ -466,8 +478,7 @@ def test_token_failure_marks_session_failed() -> None:
                 npc_id="manager",
             )
         )
-    assert next(iter(repo.voices.values()))["status"] == "failed"
-    assert repo.committed == 1
+    assert repo.voices == {}  # the token is minted first, so a failed start leaves nothing behind
 
 
 def test_ingest_transcript_deduplicates() -> None:
@@ -550,3 +561,27 @@ def test_prompt_disclosure_still_uses_server_rules() -> None:
     assert character is not None
     msgs = build_character_messages(BLUEPRINT, state, character, [], "impact?", newly)
     assert any("Business impact" in m["content"] for m in msgs)
+
+
+def test_voice_prompt_uses_role_card_and_spoken_rules() -> None:
+    state = _state()
+    manager = BLUEPRINT.character("manager")
+    assert manager is not None
+    msgs = voice_llm.build_voice_messages(BLUEPRINT, state, manager, [{"role": "user", "content": "update?"}])
+    system = msgs[0]["content"]
+    assert "one question at a time" in system.lower()
+    assert "No markdown, no lists" in system
+    assert "Never solve the problem" in system
+    # nothing the manager hasn't been granted: the teammate's deploy fact stays out of the prompt
+    everything = " ".join(m["content"] for m in msgs)
+    migration = BLUEPRINT.fact("f_migration_ran")
+    assert migration is not None and migration.detail not in everything
+    # text chat uses the same role card but chat-length rules, not spoken ones
+    chat = build_character_messages(BLUEPRINT, state, manager, [], "update?", [])
+    assert "Never solve the problem" in chat[0]["content"]
+    assert "No markdown, no lists" not in chat[0]["content"]
+    assert "Never ask the learner for the customer impact" in chat[0]["content"]
+
+
+def test_spoken_strips_markdown() -> None:
+    assert voice_llm.spoken("**Impact** is `high`") == "Impact is high"
