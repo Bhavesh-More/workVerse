@@ -1,5 +1,4 @@
 import pytest
-
 from app.simulation.engine import apply_disclosure, build_initial_state
 from app.simulation.templates import build_production_incident
 from app.simulation.tracks import TRACKS, track_for

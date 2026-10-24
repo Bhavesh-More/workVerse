@@ -12,7 +12,12 @@ from app.db.repository import Repository
 from app.schemas.runtime import SimulationState
 from app.schemas.scenario import ActionDefinition, ScenarioBlueprint
 from app.simulation.engine import is_action_available
-from app.simulation.templates import TEMPLATE_CATALOG, TEMPLATE_SLUG, build_production_incident
+from app.simulation.templates import (
+    TEMPLATE_CATALOG,
+    TEMPLATE_SLUG,
+    _portrait,
+    build_production_incident,
+)
 from app.simulation.tracks import TRACKS, track_for
 from app.simulation.validation import validate_blueprint
 
@@ -36,6 +41,18 @@ def _precondition_reason(blueprint: ScenarioBlueprint, state: SimulationState, a
         if not met:
             return cond.failure_message
     return None
+
+
+def _profile(blueprint: ScenarioBlueprint, char_id: str, name: str) -> dict[str, Any] | None:
+    """Intro-card profile; scenarios generated before profiles existed fall back to their track's."""
+    stored = blueprint.metadata.get("profiles", {}).get(char_id)
+    if stored:
+        return stored
+    track = TRACKS.get(blueprint.metadata.get("track", "backend"), TRACKS["backend"])
+    slot = track["characters"].get(char_id)
+    if not slot:
+        return None
+    return {**slot["profile"], "portrait": _portrait(name), "knows": track["people_knows"].get(char_id, "")}
 
 
 def world_view(blueprint: ScenarioBlueprint, state: SimulationState) -> dict[str, Any]:
@@ -73,7 +90,7 @@ def world_view(blueprint: ScenarioBlueprint, state: SimulationState) -> dict[str
                 "sprite": c.sprite,
                 "location_id": c.location_id,
                 "greeting": c.greeting,
-                "profile": blueprint.metadata.get("profiles", {}).get(c.id),
+                "profile": _profile(blueprint, c.id, c.name),
                 "questions": blueprint.metadata.get("questions", {}).get(c.id, []),
             }
             for c in blueprint.characters
@@ -265,8 +282,8 @@ def prebrief(blueprint: ScenarioBlueprint) -> dict[str, Any]:
                 "role": c.role,
                 "location": next((loc.name for loc in blueprint.locations if loc.id == c.location_id), c.location_id),
                 "knows_about": bool(c.disclosure_rules),
-                "knows": blueprint.metadata.get("profiles", {}).get(c.id, {}).get("knows"),
-                "profile": blueprint.metadata.get("profiles", {}).get(c.id),
+                "knows": (_profile(blueprint, c.id, c.name) or {}).get("knows"),
+                "profile": _profile(blueprint, c.id, c.name),
             }
             for c in blueprint.characters
         ],
