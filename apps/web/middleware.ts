@@ -6,7 +6,7 @@ const isPublicRoute = createRouteMatcher([
   "/login(.*)",
   "/signup(.*)",
   // Dev-only animation preview; the page itself 404s in production.
-  ...(process.env.NODE_ENV === "production" ? [] : ["/intro-preview"]),
+  ...(process.env.NODE_ENV === "production" ? [] : ["/intro-preview", "/tool-preview"]),
 ]);
 
 export default clerkMiddleware(async (auth, req) => {

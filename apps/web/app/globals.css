@@ -2526,3 +2526,67 @@ blockquote {
   .px-window { font-size: 18px; }
   .px-footer { flex-direction: column; align-items: stretch; }
 }
+
+/* ---- Shift complete: end card in the team-intro style ---- */
+.sc { cursor: default; }
+.sc.is-shaking .sc__body { animation: ti-shake 0.34s cubic-bezier(0.36, 0.07, 0.19, 0.97) both; }
+.sc__slash {
+  position: absolute;
+  inset: -10% -20%;
+  z-index: 3;
+  pointer-events: none;
+  background: linear-gradient(90deg, transparent 30%, var(--color-ink) 30% 34%, var(--color-ember) 34% 66%, var(--color-highlight-yellow) 66% 70%, transparent 70%);
+}
+.sc__body {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: 22px;
+  padding: 56px 24px 72px;
+  overflow-y: auto;
+}
+.sc__title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 500;
+  font-size: clamp(44px, 8vw, 120px);
+  line-height: 0.9;
+  letter-spacing: -0.02em;
+  text-align: center;
+  color: var(--color-highlight-yellow);
+  text-shadow: 5px 5px 0 var(--color-ember), 10px 10px 0 rgba(0, 0, 0, 0.5);
+}
+.sc__title > span { display: inline-block; }
+.sc__objectives {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+  font-family: var(--font-mono);
+  font-size: 14px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.sc__objectives li { display: flex; align-items: center; gap: 10px; }
+.sc__check {
+  display: inline-grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  background: var(--color-ember);
+  color: var(--color-ink);
+  font-weight: 700;
+  border: 2px solid var(--color-paper);
+}
+.sc__team { transform: scale(0.82); margin: -14px 0; }
+@media (max-width: 760px) {
+  .sc__team { display: none; }
+  .sc__objectives { font-size: 12px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .sc.is-shaking .sc__body { animation: none; }
+}

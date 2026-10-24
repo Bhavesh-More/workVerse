@@ -373,3 +373,14 @@ show a pixel chart plus alerts; the **deploy console** shows release stages; the
 open as a document. It lists only facts you now know (re-opening a tool shows them again; new ones are
 marked NEW). Close with **Got it**, Esc or Enter.
 Code: `apps/web/components/ToolPopup.tsx`; the server adds `findings` + `tool` to action responses.
+
+## 22. Anime "Shift complete" end card
+
+When you finish a shift (the **Complete** button), an end card plays in the same style as the team intro:
+letterbox bars and speed lines, an orange slash wipe, **SHIFT COMPLETE** slamming in letter by letter
+with a screen shake, each finished objective stamped ✓ (with a stamp sound), your team's cards fanning in,
+and an **INCIDENT RESOLVED** stamp, with the action soundtrack. **See your debrief →** (or Esc/Enter) goes on.
+
+Dev previews (no sign-in, not in production): `http://localhost:3000/intro-preview?end=1` for the end card,
+`http://localhost:3000/tool-preview?tool=log_viewer` (or `metrics_panel`, `deploy_console`, `runbook`) for the tool popups.
+Code: `apps/web/components/ShiftComplete.tsx`.

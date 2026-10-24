@@ -21,6 +21,7 @@ import {
 } from "../../../../lib/practice";
 import { duckMusic, play } from "../../../../lib/sfx";
 import { SoundToggles } from "../../../../components/Sound";
+import { ShiftComplete } from "../../../../components/ShiftComplete";
 import { ToolPopup, type ToolView } from "../../../../components/ToolPopup";
 import { TeamIntro } from "../../../../components/TeamIntro";
 
@@ -417,6 +418,7 @@ export default function SessionPage() {
     }
   }, [session, activeCharacter, chatInput, sessionId, load]);
 
+  const [shiftDone, setShiftDone] = useState(false);
   const finish = useCallback(
     async (force: boolean) => {
       if (!session) return;
@@ -424,7 +426,8 @@ export default function SessionPage() {
       setError(null);
       try {
         await api.complete(sessionId, { expected_state_version: session.state_version, force });
-        router.push(`/session/${sessionId}/debrief`);
+        router.prefetch(`/session/${sessionId}/debrief`);
+        setShiftDone(true); // the end card's button (or Esc/Enter) goes on to the debrief
       } catch (e) {
         setError(e instanceof ApiError ? e.message : "Could not complete the session.");
         setBusy(false);
@@ -570,6 +573,14 @@ export default function SessionPage() {
       </div>
 
       {toolView && <ToolPopup tool={toolView} onClose={closeTool} />}
+      {shiftDone && (
+        <ShiftComplete
+          characters={characters}
+          objectives={session.objectives}
+          title={String(incident.summary ?? "")}
+          onDone={() => router.push(`/session/${sessionId}/debrief`)}
+        />
+      )}
       {intro && (
         <TeamIntro
           characters={characters}
