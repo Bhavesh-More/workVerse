@@ -311,6 +311,9 @@ were confused whether to answer or investigate.
   colleague lines and suggested questions change.
 - The **Practice** page card already shows the incident you'll get: the card picks it, and the
   **Start** button sends its id (`incident`) so the session matches. A refreshed page may deal a new one.
+- **⇄ Shuffle** on the card deals a different incident without starting anything.
+- *Troubleshooting:* if the card never changes, an old API server may still be running. Run
+  `lsof -nP -iTCP:8000 -sTCP:LISTEN`: there should be only your `uvicorn --reload` processes.
 - Add your own: append to `TRACKS["<track>"]["variants"]` at the bottom of
   `apps/api/app/simulation/tracks.py`; list only the text that changes.
   `tests/test_incident_variants.py` checks that every type builds, passes validation and that each

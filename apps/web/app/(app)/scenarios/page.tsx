@@ -23,7 +23,7 @@ const DIFFICULTIES = [
 
 export default function ScenariosPage() {
   const router = useRouter();
-  const { data: templateList, error: loadError } = useApi("/scenario-templates", api.listTemplates);
+  const { data: templateList, error: loadError, setData: setTemplateList } = useApi("/scenario-templates", api.listTemplates);
   const { data: sessionList } = useApi("/sessions", api.listSessions);
   const templates = templateList?.items ?? (loadError ? [] : null);
   const sessions = sessionList?.items ?? [];
@@ -31,6 +31,25 @@ export default function ScenariosPage() {
   const [startError, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
   const error = startError ?? loadError;
+
+  // The catalog deals a random incident per card; ask again until this card gets a different one.
+  async function shuffle(slug: string, current?: string) {
+    setBusy(`shuffle:${slug}`);
+    setError(null);
+    try {
+      for (let i = 0; i < 5; i++) {
+        const fresh = (await api.listTemplates()).items.find((x) => x.slug === slug);
+        if (fresh && (fresh.incident !== current || i === 4)) {
+          setTemplateList((list) => list && { ...list, items: list.items.map((x) => (x.slug === slug ? fresh : x)) });
+          break;
+        }
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not shuffle.");
+    } finally {
+      setBusy(null);
+    }
+  }
 
   async function start(slug: string, incident?: string) {
     setBusy(slug);
@@ -136,9 +155,22 @@ export default function ScenariosPage() {
                     </span>
                   ))}
                 </div>
-                <button className="btn" onClick={() => start(t.slug, t.incident)} disabled={busy !== null} style={{ alignSelf: "flex-start" }}>
-                  {busy === t.slug ? <span className="busy-dots">Preparing</span> : "Start practice"}
-                </button>
+                <div className="row" style={{ gap: 8 }}>
+                  <button className="btn" onClick={() => start(t.slug, t.incident)} disabled={busy !== null}>
+                    {busy === t.slug ? <span className="busy-dots">Preparing</span> : "Start practice"}
+                  </button>
+                  {t.incident && (
+                    <button
+                      className="btn btn--ghost"
+                      data-testid="shuffle-scenario"
+                      onClick={() => shuffle(t.slug, t.incident)}
+                      disabled={busy !== null}
+                      title="Deal a different incident"
+                    >
+                      {busy === `shuffle:${t.slug}` ? <span className="busy-dots">Shuffling</span> : "⇄ Shuffle"}
+                    </button>
+                  )}
+                </div>
               </div>
             </m.article>
           ))}
