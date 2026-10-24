@@ -1,6 +1,6 @@
 """Shared helpers for the ElevenLabs setup scripts. The API key is read from apps/api/.env and never printed.
 
-Set ELEVENLABS_ACCOUNT=2 to work on the second account (ELEVENLABS_API_KEY_2 / ELEVENLABS_AGENT_MAP_2).
+Set ELEVENLABS_ACCOUNT=2 (or 3) to work on another account (ELEVENLABS_API_KEY_2 / ELEVENLABS_AGENT_MAP_2, ...).
 """
 
 from __future__ import annotations

@@ -122,6 +122,10 @@ class Settings(BaseSettings):
     elevenlabs_api_key_2: str = ""
     elevenlabs_agent_id_2: str = ""
     elevenlabs_agent_map_2: str = "{}"
+    # Third account, tried after the second.
+    elevenlabs_api_key_3: str = ""
+    elevenlabs_agent_id_3: str = ""
+    elevenlabs_agent_map_3: str = "{}"
     # Shared secret configured in the ElevenLabs Custom LLM secret store; authenticates
     # requests from ElevenLabs to our OpenAI-compatible bridge endpoint.
     voice_llm_bridge_secret: str = ""
@@ -180,6 +184,7 @@ class Settings(BaseSettings):
         accounts = [
             (self.elevenlabs_api_key, self.elevenlabs_agent_map, self.elevenlabs_agent_id),
             (self.elevenlabs_api_key_2, self.elevenlabs_agent_map_2, self.elevenlabs_agent_id_2),
+            (self.elevenlabs_api_key_3, self.elevenlabs_agent_map_3, self.elevenlabs_agent_id_3),
         ]
         return [(key.strip(), _agent_mapping(m, d)) for key, m, d in accounts if key.strip()]
 

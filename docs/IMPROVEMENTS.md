@@ -497,3 +497,16 @@ open. Now the app spots goodbye lines itself (`apps/web/lib/signoff.ts`: "bye", 
 finishes saying one, the call closes 2.5 seconds later and moves on to the next step. If you speak in
 those seconds it stays open. The agents' instruction to hang up after goodbye was also made stricter
 (both ElevenLabs accounts updated, settings only).
+
+## 32. A third ElevenLabs account in the rotation
+
+Calls now try up to three ElevenLabs accounts in order (1 → 2 → 3), skipping any that is out of credits,
+rate-limited or failing (credit check before each call, section 20).
+- Settings in `apps/api/.env` (never committed): `ELEVENLABS_API_KEY_3`, `ELEVENLABS_AGENT_MAP_3`
+  (written by the script), optional `ELEVENLABS_AGENT_ID_3`.
+- Account 3 was set up like account 2: the 6 cast voices added from the library
+  (`ELEVENLABS_ACCOUNT=3 uv run --project .. python add_library_voices.py` in `apps/api/scripts`) and
+  the 8 agents created with the facts slot and hang-up tool
+  (`ELEVENLABS_ACCOUNT=3 uv run python scripts/create_voice_agents.py`). Both are free (no credits).
+- Status when added: free plan, 10,000 credits. Account 1 is out of credits until its reset, so calls
+  currently go to account 2, then 3.

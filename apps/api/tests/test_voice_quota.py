@@ -47,3 +47,18 @@ def test_call_moves_to_second_account_when_first_is_out_of_credits():
     client._client = httpx.AsyncClient(base_url="https://api.test", transport=httpx.MockTransport(handler))
     assert asyncio.run(client.mint_for_npc("manager", "female")) == ("tok-k2", "a2")
     assert seen == [("k2", "a2")]
+
+
+def test_third_account_is_tried_after_the_second():
+    from app.core.config import Settings
+
+    s = Settings(
+        _env_file=None,
+        elevenlabs_api_key="k1",
+        elevenlabs_agent_map='{"manager":"a1"}',
+        elevenlabs_api_key_2="k2",
+        elevenlabs_agent_map_2='{"manager":"a2"}',
+        elevenlabs_api_key_3="k3",
+        elevenlabs_agent_map_3='{"manager":"a3"}',
+    )
+    assert [(k, m["manager"]) for k, m in s.elevenlabs_accounts] == [("k1", "a1"), ("k2", "a2"), ("k3", "a3")]
