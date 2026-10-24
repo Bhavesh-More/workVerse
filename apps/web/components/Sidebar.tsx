@@ -13,6 +13,7 @@ import { SoundToggles } from "./Sound";
 const NAV = [
   { href: "/dashboard", label: "Dashboard", icon: "grid" },
   { href: "/scenarios", label: "Practice", icon: "target" },
+  { href: "/sessions", label: "Sessions", icon: "clock" },
   { href: "/progress", label: "Progress", icon: "chart" },
   { href: "/profile", label: "Profile", icon: "user" },
 ];
@@ -47,6 +48,13 @@ function Icon({ name }: { name: string }) {
         <circle cx="12" cy="12" r="9" />
         <circle cx="12" cy="12" r="4" />
         <circle cx="12" cy="12" r="0.6" fill="currentColor" />
+      </svg>
+    );
+  if (name === "clock")
+    return (
+      <svg {...common} aria-hidden="true">
+        <circle cx="12" cy="12" r="9" />
+        <path d="M12 7v5l3 2" />
       </svg>
     );
   if (name === "chart")

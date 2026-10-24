@@ -2590,3 +2590,11 @@ blockquote {
 @media (prefers-reduced-motion: reduce) {
   .sc.is-shaking .sc__body { animation: none; }
 }
+
+/* Previous sessions list */
+.session-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 12px 16px; }
+.session-row__main { display: grid; gap: 2px; flex: 1; min-width: 200px; text-align: left; background: none; border: 0; padding: 0; color: inherit; font: inherit; cursor: pointer; }
+.session-row__title { font-weight: 600; }
+@media (hover: hover) and (pointer: fine) {
+  .session-row__main:hover .session-row__title { text-decoration: underline; }
+}

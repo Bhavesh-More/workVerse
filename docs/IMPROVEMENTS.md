@@ -384,3 +384,13 @@ and an **INCIDENT RESOLVED** stamp, with the action soundtrack. **See your debri
 Dev previews (no sign-in, not in production): `http://localhost:3000/intro-preview?end=1` for the end card,
 `http://localhost:3000/tool-preview?tool=log_viewer` (or `metrics_panel`, `deploy_console`, `runbook`) for the tool popups.
 Code: `apps/web/components/ShiftComplete.tsx`.
+
+## 23. Create new + Previous sessions page
+
+- **Dashboard:** next to **Resume session** there's **+ Create new**. It deals a fresh scenario (random
+  company and incident) and opens its briefing; your in-progress session stays where it was.
+- **Sessions** (new sidebar link, also **View all →** under *Recent sessions*) lists every session, newest first.
+  - **Finished** session → click opens its **report**.
+  - **Unfinished** session → click (or **Start new**) starts a **new** session of that scenario with a
+    fresh incident. **Resume** next to it continues the old one instead.
+- Code: `apps/web/app/(app)/sessions/page.tsx` (uses the existing `/sessions/{id}/retry` API).
