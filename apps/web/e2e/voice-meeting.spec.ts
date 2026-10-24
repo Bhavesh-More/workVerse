@@ -1,5 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import { clerk, setupClerkTestingToken } from "@clerk/testing/playwright";
+import { markOnboarded, testUser } from "./users";
 
 /**
  * Verifies the real browser path for starting a voice meeting:
@@ -19,21 +20,8 @@ test.use({
 });
 
 async function signInAndEnterOffice(page: Page, request: Page["request"]): Promise<void> {
-  const email = `e2e-voice${Date.now()}@gmail.com`;
-  const password = "WorkVerse!234";
-
-  const created = await request.post("https://api.clerk.com/v1/users", {
-    headers: { Authorization: `Bearer ${process.env.CLERK_SECRET_KEY}` },
-    data: { email_address: [email], password, skip_password_checks: true },
-  });
-  expect(created.ok()).toBeTruthy();
-  const userId = (await created.json()).id;
-  const ticketRes = await request.post("https://api.clerk.com/v1/sign_in_tokens", {
-    headers: { Authorization: `Bearer ${process.env.CLERK_SECRET_KEY}` },
-    data: { user_id: userId, expires_in_seconds: 3600 },
-  });
-  expect(ticketRes.ok()).toBeTruthy();
-  const ticket = (await ticketRes.json()).token;
+  const user = await testUser(request, { preferEmail: `e2e-voice${Date.now()}@gmail.com`, fresh: true });
+  const ticket = user.ticket;
 
   await page.goto("/login"); // Clerk loads only on app routes, not the landing page
   await setupClerkTestingToken({ page });
@@ -46,6 +34,7 @@ async function signInAndEnterOffice(page: Page, request: Page["request"]): Promi
   await page.getByRole("button", { name: "Next", exact: true }).click();
   await page.getByRole("button", { name: "Enter WorkVerse" }).click();
   await expect(page).toHaveURL(/\/dashboard/, { timeout: 60_000 });
+  markOnboarded(user);
 
   await page.goto("/scenarios");
   await page.getByRole("button", { name: "standard", exact: true }).click();

@@ -11,7 +11,7 @@ const STATE = path.join("node_modules", ".cache", "e2e-users.json");
 const auth = () => ({ Authorization: `Bearer ${process.env.CLERK_SECRET_KEY}` });
 
 type ClerkUser = { id: string; email_addresses: { email_address: string }[] };
-type State = { owners: string[] };
+type State = { owners: string[]; onboarded?: string[] };
 
 function load(): State {
   try {
@@ -46,6 +46,13 @@ async function ticketFor(request: APIRequestContext, userId: string): Promise<st
 
 export type TestUser = { id: string; email: string; ticket: string; reused: boolean };
 
+/** Record that this learner account finished onboarding (can't be "first-time" again). */
+export function markOnboarded(user: TestUser) {
+  const s = load();
+  s.onboarded = [...new Set([...(s.onboarded ?? []), user.id])];
+  save(s);
+}
+
 /** Record that this account now owns a company (so later runs don't pick it as a fresh owner). */
 export function markOwner(user: TestUser) {
   const s = load();
@@ -57,7 +64,7 @@ export function markOwner(user: TestUser) {
  * A test account. `owner: true` means it will create a company, so it must never have owned one.
  * `preferEmail` creates that address when quota allows (useful for readable mail in mailpit).
  */
-export async function testUser(request: APIRequestContext, opts: { owner?: boolean; preferEmail?: string; clerkTestEmail?: boolean } = {}): Promise<TestUser> {
+export async function testUser(request: APIRequestContext, opts: { owner?: boolean; preferEmail?: string; clerkTestEmail?: boolean; fresh?: boolean } = {}): Promise<TestUser> {
   const state = load();
   const users = await listUsers(request);
   if (users.length < 98 && opts.preferEmail) {
@@ -76,6 +83,8 @@ export async function testUser(request: APIRequestContext, opts: { owner?: boole
     if (!emails.length || !emails.every((e) => e.startsWith("e2e"))) return false; // never touch real people
     if (usedThisRun.has(u.id) || state.owners.includes(u.id)) return false;
     if (opts.clerkTestEmail && !emails.some((e) => e.includes("+clerk_test@"))) return false;
+    // A first-time learner: never onboarded (learner-journey accounts all were; candidates weren't).
+    if (opts.fresh && ((state.onboarded ?? []).includes(u.id) || emails.some((e) => /^e2e\d+@/.test(e)))) return false;
     // Accounts created as company owners by earlier runs (before this pool existed).
     if (opts.owner && emails.some((e) => /^e2e-(company|world|editor|iso-[ab]|default|play)-\d+@/.test(e))) return false;
     return true;

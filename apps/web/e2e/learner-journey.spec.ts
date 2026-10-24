@@ -1,5 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import { clerk, setupClerkTestingToken } from "@clerk/testing/playwright";
+import { markOnboarded, testUser } from "./users";
 
 const API = "http://localhost:8000";
 
@@ -28,27 +29,12 @@ test.describe("WorkVerse learner journey", () => {
     page,
     request,
   }) => {
-    const email = `e2e${Date.now()}@gmail.com`;
-    const password = "WorkVerse!234";
-
-    // Create a Clerk user via the Backend API, then sign in with a one-time ticket so the
-    // test does not depend on email/OTP delivery.
-    const created = await request.post("https://api.clerk.com/v1/users", {
-      headers: { Authorization: `Bearer ${process.env.CLERK_SECRET_KEY}` },
-      data: { email_address: [email], password, skip_password_checks: true },
-    });
-    expect(created.ok()).toBeTruthy();
-    const userId = (await created.json()).id;
-    const ticketRes = await request.post("https://api.clerk.com/v1/sign_in_tokens", {
-      headers: { Authorization: `Bearer ${process.env.CLERK_SECRET_KEY}` },
-      data: { user_id: userId, expires_in_seconds: 3600 },
-    });
-    expect(ticketRes.ok()).toBeTruthy();
-    const ticket = (await ticketRes.json()).token;
-
+    // A test account (reused when the Clerk dev instance is at its user cap), signed in with a
+    // one-time ticket so the test doesn't depend on email/OTP delivery.
+    const user = await testUser(request, { preferEmail: `e2e${Date.now()}@gmail.com`, fresh: true });
     await page.goto("/login"); // Clerk loads only on app routes, not the landing page
     await setupClerkTestingToken({ page });
-    await clerk.signIn({ page, signInParams: { strategy: "ticket", ticket } });
+    await clerk.signIn({ page, signInParams: { strategy: "ticket", ticket: user.ticket } });
 
     // First-time users are routed through onboarding before the dashboard.
     await page.goto("/dashboard");
@@ -59,6 +45,7 @@ test.describe("WorkVerse learner journey", () => {
     await page.getByRole("button", { name: "Next", exact: true }).click();
     await page.getByRole("button", { name: "Enter WorkVerse" }).click();
     await expect(page).toHaveURL(/\/dashboard/, { timeout: 60_000 });
+    markOnboarded(user);
 
     // --- catalogue ---
     await page.goto("/scenarios");

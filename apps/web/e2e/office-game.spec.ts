@@ -1,5 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import { clerk, setupClerkTestingToken } from "@clerk/testing/playwright";
+import { markOnboarded, testUser } from "./users";
 
 /**
  * The office game as a signed-in learner sees it.
@@ -39,19 +40,11 @@ test("signed-in learner: office assets load, the player walks, and colleagues an
   page.on("pageerror", (e) => errors.push(e.message));
 
   const auth = { Authorization: `Bearer ${process.env.CLERK_SECRET_KEY}` };
-  const created = await request.post(`${CLERK}/users`, {
-    headers: auth,
-    data: { email_address: [`e2e-office${Date.now()}@gmail.com`], password: "WorkVerse!234", skip_password_checks: true },
-  });
-  expect(created.ok()).toBeTruthy();
-  const userId = (await created.json()).id as string;
+  const user = await testUser(request, { preferEmail: `e2e-office${Date.now()}@gmail.com`, fresh: true });
+  const userId = user.id;
 
   try {
-    const ticketRes = await request.post(`${CLERK}/sign_in_tokens`, {
-      headers: auth,
-      data: { user_id: userId, expires_in_seconds: 3600 },
-    });
-    const ticket = (await ticketRes.json()).token;
+    const ticket = user.ticket;
     await page.goto("/login");
     await setupClerkTestingToken({ page });
     await clerk.signIn({ page, signInParams: { strategy: "ticket", ticket } });
@@ -70,6 +63,7 @@ test("signed-in learner: office assets load, the player walks, and colleagues an
     await page.getByRole("button", { name: "Next", exact: true }).click();
     await page.getByRole("button", { name: "Enter WorkVerse" }).click();
     await expect(page).toHaveURL(/\/dashboard/, { timeout: 60_000 });
+    markOnboarded(user);
 
     await page.goto("/scenarios");
     await page.getByRole("button", { name: "standard", exact: true }).click();
@@ -133,6 +127,7 @@ test("signed-in learner: office assets load, the player walks, and colleagues an
 
     expect(errors.join("\n")).not.toMatch(ASSET_ERRORS);
   } finally {
-    await request.delete(`${CLERK}/users/${userId}`, { headers: auth });
+    // Only remove an account this run created; reused test accounts stay for later runs.
+    if (!user.reused) await request.delete(`${CLERK}/users/${userId}`, { headers: auth });
   }
 });
