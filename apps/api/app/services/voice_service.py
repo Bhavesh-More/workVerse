@@ -66,15 +66,10 @@ async def start_voice_session(
         raise AIConfigError(
             "Real-time voice is disabled for this deployment.", code="voice_disabled"
         )
-    agent_id = settings.agent_for_npc(npc_id, gender_of(character.name))
-    if not agent_id or not voice_client.configured:
-        raise AIConfigError(
-            "Voice is not configured. Set ELEVENLABS_API_KEY and an agent id for this character.",
-            code="voice_not_configured",
-        )
+    # Picks the ElevenLabs account (and its agent) that can take the call; raises if none can.
+    token, agent_id = await voice_client.mint_for_npc(npc_id, gender_of(character.name))
 
     voice = await repo.get_active_voice_session(session_id, npc_id)
-    created_here = False
     if voice is None:
         voice = await repo.create_voice_session(
             session_id=session_id,
@@ -83,7 +78,6 @@ async def start_voice_session(
             agent_config_key=agent_id,
             metadata={"client_request_id": client_request_id} if client_request_id else {},
         )
-        created_here = True
         if voice is None:  # lost a race against a concurrent start
             voice = await repo.get_active_voice_session(session_id, npc_id)
             if voice is None:
@@ -92,16 +86,6 @@ async def start_voice_session(
                 )
 
     voice_session_id = str(voice["id"])
-    try:
-        token = await voice_client.create_conversation_token(agent_id)
-    except Exception:
-        if created_here:
-            await repo.set_voice_session_status(
-                voice_session_id, "failed", end_reason="token_mint_failed", ended=True
-            )
-            await repo.session.commit()
-        raise
-
     await repo.set_voice_session_status(voice_session_id, "connecting")
 
     context_grant: str | None = None

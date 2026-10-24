@@ -342,3 +342,25 @@ changed…). Once you know **all** of them, that colleague's job is done:
 - Colleagues with no facts (the friendly coworker) never trigger it.
 - Code: `character_done()` / `next_step_hint()` in `apps/api/app/simulation/navigation.py`, the
   `characters_done` field in the session view, the handoff card in the session page; test `tests/test_handoff.py`.
+
+## 20. Voice keeps working when credits run out
+
+**Problem:** a call stopped after a minute with "Server error: Unknown error". The real reason (from
+ElevenLabs' call record) was *"This request exceeds your quota limit"*: the free plan's 10,000 monthly
+credits were used up. A call costs about **11 credits per second**, so a free account covers ~15 minutes a month.
+
+**What changed:**
+- **Credit check before every call.** If an account has less than one minute's worth left, it isn't used.
+- **Two ElevenLabs accounts, automatic switch.** `apps/api/.env` (never committed) holds
+  `ELEVENLABS_API_KEY` + `ELEVENLABS_AGENT_MAP` for account 1 and `ELEVENLABS_API_KEY_2` +
+  `ELEVENLABS_AGENT_MAP_2` for account 2. Each call tries account 1, and if it's out of credits, rate limited
+  or its key fails, uses account 2 instead (each account has its own copy of the 8 agents).
+- **Plain error messages.** If every account is out of credits, the app says so and suggests text chat;
+  a call cut off mid-way now says the voice service ended it (often credits) instead of "Unknown error".
+
+**Set up another account:** put its key in `.env` as `ELEVENLABS_API_KEY_2`, then from `apps/api/scripts`:
+```bash
+ELEVENLABS_ACCOUNT=2 uv run --project .. python add_library_voices.py   # adds the 6 cast voices (free)
+ELEVENLABS_ACCOUNT=2 uv run --project .. python create_voice_agents.py  # creates the 8 agents, writes ELEVENLABS_AGENT_MAP_2
+```
+Code: `mint_for_npc()` in `apps/api/app/agents/elevenlabs_cloud.py`; tests in `tests/test_voice_quota.py`.

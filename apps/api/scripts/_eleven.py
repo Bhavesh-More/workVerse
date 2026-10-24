@@ -1,20 +1,26 @@
-"""Shared helpers for the ElevenLabs setup scripts. The API key is read from apps/api/.env and never printed."""
+"""Shared helpers for the ElevenLabs setup scripts. The API key is read from apps/api/.env and never printed.
+
+Set ELEVENLABS_ACCOUNT=2 to work on the second account (ELEVENLABS_API_KEY_2 / ELEVENLABS_AGENT_MAP_2).
+"""
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 import httpx
 
 API = "https://api.elevenlabs.io"
 ENV = Path(__file__).resolve().parents[1] / ".env"
+_n = os.environ.get("ELEVENLABS_ACCOUNT", "1").strip()
+SUFFIX = "" if _n in ("", "1") else f"_{_n}"  # .env names for this account: ELEVENLABS_API_KEY{SUFFIX}, ...
 
 
 def api_key() -> str:
     for line in ENV.read_text().splitlines():
-        if line.startswith("ELEVENLABS_API_KEY="):
+        if line.startswith(f"ELEVENLABS_API_KEY{SUFFIX}="):
             return line.split("=", 1)[1].strip()
-    raise SystemExit("ELEVENLABS_API_KEY is missing from apps/api/.env")
+    raise SystemExit(f"ELEVENLABS_API_KEY{SUFFIX} is missing from apps/api/.env")
 
 
 def client() -> httpx.Client:

@@ -46,6 +46,24 @@ def _clerk_domain(publishable_key: str) -> str | None:
         return None
 
 
+def _agent_mapping(agent_map: str, default_agent: str) -> dict[str, str]:
+    mapping: dict[str, str] = {}
+    try:
+        parsed = json.loads(agent_map or "{}")
+        if isinstance(parsed, dict):
+            mapping = {str(k): str(v) for k, v in parsed.items() if isinstance(v, str) and v.strip()}
+    except (json.JSONDecodeError, TypeError):
+        mapping = {}
+    if default_agent.strip():
+        mapping.setdefault("*", default_agent.strip())
+    return mapping
+
+
+def pick_agent(agents: dict[str, str], npc_id: str, gender: str | None = None) -> str | None:
+    """Most specific match wins: "client_pm:male", then "client_pm", then the default "*"."""
+    return (gender and agents.get(f"{npc_id}:{gender}")) or agents.get(npc_id) or agents.get("*")
+
+
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=(".env", "apps/api/.env"),
@@ -100,6 +118,10 @@ class Settings(BaseSettings):
     elevenlabs_base_url: str = "https://api.elevenlabs.io"
     elevenlabs_agent_id: str = ""  # default agent used for any NPC without a specific mapping
     elevenlabs_agent_map: str = "{}"  # JSON: {"manager": "agent_...", "teammate": "agent_..."}
+    # Optional second account (its own key and agents); calls move to it when the first can't take them.
+    elevenlabs_api_key_2: str = ""
+    elevenlabs_agent_id_2: str = ""
+    elevenlabs_agent_map_2: str = "{}"
     # Shared secret configured in the ElevenLabs Custom LLM secret store; authenticates
     # requests from ElevenLabs to our OpenAI-compatible bridge endpoint.
     voice_llm_bridge_secret: str = ""
@@ -150,32 +172,25 @@ class Settings(BaseSettings):
     @property
     def elevenlabs_agents(self) -> dict[str, str]:
         """Internal NPC-id -> agent-id mapping, plus the default under key ``*``."""
-        mapping: dict[str, str] = {}
-        try:
-            parsed = json.loads(self.elevenlabs_agent_map or "{}")
-            if isinstance(parsed, dict):
-                mapping = {
-                    str(k): str(v) for k, v in parsed.items() if isinstance(v, str) and v.strip()
-                }
-        except (json.JSONDecodeError, TypeError):
-            mapping = {}
-        if self.elevenlabs_agent_id.strip():
-            mapping.setdefault("*", self.elevenlabs_agent_id.strip())
-        return mapping
+        return _agent_mapping(self.elevenlabs_agent_map, self.elevenlabs_agent_id)
+
+    @property
+    def elevenlabs_accounts(self) -> list[tuple[str, dict[str, str]]]:
+        """(api key, agent mapping) per configured ElevenLabs account, in the order calls try them."""
+        accounts = [
+            (self.elevenlabs_api_key, self.elevenlabs_agent_map, self.elevenlabs_agent_id),
+            (self.elevenlabs_api_key_2, self.elevenlabs_agent_map_2, self.elevenlabs_agent_id_2),
+        ]
+        return [(key.strip(), _agent_mapping(m, d)) for key, m, d in accounts if key.strip()]
 
     def agent_for_npc(self, npc_id: str, gender: str | None = None) -> str | None:
         """Most specific match wins: "client_pm:male", then "client_pm", then the default "*"."""
-        agents = self.elevenlabs_agents
-        return (gender and agents.get(f"{npc_id}:{gender}")) or agents.get(npc_id) or agents.get("*")
+        return pick_agent(self.elevenlabs_agents, npc_id, gender)
 
     @property
     def voice_configured(self) -> bool:
         """True when the server can mint an ElevenLabs conversation token for some NPC."""
-        return bool(
-            self.voice_enabled
-            and self.elevenlabs_api_key.strip()
-            and (self.elevenlabs_agent_id.strip() or self.elevenlabs_agents)
-        )
+        return self.voice_enabled and any(agents for _, agents in self.elevenlabs_accounts)
 
     @property
     def voice_llm_bridge_configured(self) -> bool:

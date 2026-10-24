@@ -2,6 +2,7 @@
 
     uv run python scripts/create_voice_agents.py --dry-run   # print the payloads, no API calls
     uv run python scripts/create_voice_agents.py             # create missing agents + write ELEVENLABS_AGENT_MAP
+    ELEVENLABS_ACCOUNT=2 uv run python scripts/create_voice_agents.py   # same on the second account (_2 vars)
 
 Agent prompts hold only the role card (behaviour), never scenario facts: those reach the model per
 turn through the Custom LLM bridge. Agents that already exist (same name) are reused, not duplicated.
@@ -56,11 +57,12 @@ def payload(slot: str, gender: str, label: str, first: str) -> dict:
 
 
 def write_env_map(mapping: dict[str, str]) -> None:
-    from _eleven import ENV
+    from _eleven import ENV, SUFFIX
 
+    var = f"ELEVENLABS_AGENT_MAP{SUFFIX}"
     text = ENV.read_text()
-    line = "ELEVENLABS_AGENT_MAP=" + json.dumps(mapping, separators=(",", ":"))
-    text = re.sub(r"^ELEVENLABS_AGENT_MAP=.*$", line, text, flags=re.M) if re.search(r"^ELEVENLABS_AGENT_MAP=", text, flags=re.M) else text.rstrip("\n") + "\n" + line + "\n"
+    line = f"{var}=" + json.dumps(mapping, separators=(",", ":"))
+    text = re.sub(rf"^{var}=.*$", line, text, flags=re.M) if re.search(rf"^{var}=", text, flags=re.M) else text.rstrip("\n") + "\n" + line + "\n"
     ENV.write_text(text)
 
 
@@ -92,7 +94,9 @@ def main() -> None:
             conf = {"conversation": {"client_events": CLIENT_EVENTS}, "agent": {"first_message": first, "prompt": {"prompt": prompt_for(slot)}}}
             http.patch(f"/v1/convai/agents/{mapping[key]}", json={"conversation_config": conf})
     write_env_map(mapping)
-    print("ELEVENLABS_AGENT_MAP updated in apps/api/.env")
+    from _eleven import SUFFIX
+
+    print(f"ELEVENLABS_AGENT_MAP{SUFFIX} updated in apps/api/.env")
 
 
 if __name__ == "__main__":

@@ -126,7 +126,12 @@ function VoiceSession({
     },
     onError: (message, context) => {
       console.error("[voice] error", message, context);
-      setError(message || "The voice connection failed.");
+      // The SDK reports provider-side cut-offs (e.g. credits running out mid-call) as a bare "Unknown error".
+      setError(
+        !message || /unknown error/i.test(message)
+          ? "The voice service ended the call (often because voice credits ran out). You can keep going in text chat."
+          : message,
+      );
       setPhase("error");
     },
     onMessage: handleMessage,

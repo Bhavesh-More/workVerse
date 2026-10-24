@@ -100,6 +100,8 @@ def test_elevenlabs_base_url_must_be_hosted_https() -> None:
 def test_conversation_token_minted() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         assert request.headers["xi-api-key"] == "test-key"
+        if request.url.path == "/v1/user/subscription":
+            return httpx.Response(200, json={"character_count": 0, "character_limit": 10000})
         assert request.url.params["agent_id"] == "agent_x"
         return httpx.Response(200, json={"token": "conv-token-123"})
 
@@ -275,10 +277,10 @@ class _FakeVoice:
         self.configured = True
         self.fail = fail
 
-    async def create_conversation_token(self, agent_id: str) -> str:
+    async def mint_for_npc(self, npc_id: str, gender: str | None = None) -> tuple[str, str]:
         if self.fail:
             raise AIConfigError("nope", code="voice_provider_auth")
-        return "token-abc"
+        return "token-abc", "agent_x"
 
 
 class _FakeRepo:
@@ -463,7 +465,7 @@ def test_start_voice_session_rejects_bad_inputs() -> None:
         )
 
 
-def test_token_failure_marks_session_failed() -> None:
+def test_token_failure_creates_no_voice_session() -> None:
     repo = _FakeRepo()
     with pytest.raises(AIConfigError):
         asyncio.run(
@@ -476,8 +478,7 @@ def test_token_failure_marks_session_failed() -> None:
                 npc_id="manager",
             )
         )
-    assert next(iter(repo.voices.values()))["status"] == "failed"
-    assert repo.committed == 1
+    assert repo.voices == {}  # the token is minted first, so a failed start leaves nothing behind
 
 
 def test_ingest_transcript_deduplicates() -> None:

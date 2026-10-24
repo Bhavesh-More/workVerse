@@ -10,11 +10,15 @@ from __future__ import annotations
 
 import logging
 import time
+from datetime import UTC, datetime
 
 import httpx
 
-from app.core.config import Settings
-from app.core.errors import AIConfigError, AITimeoutError, RateLimitError, UpstreamError
+from app.core.config import Settings, pick_agent
+from app.core.errors import AIConfigError, AITimeoutError, AppError, RateLimitError, UpstreamError
+
+# Calls cost about 11 credits a second; don't start one with less than a minute left.
+MIN_CALL_CREDITS = 600
 
 logger = logging.getLogger(__name__)
 
@@ -39,11 +43,57 @@ class ElevenLabsClient:
 
     @property
     def configured(self) -> bool:
-        return bool(self._settings.elevenlabs_api_key.strip())
+        return bool(self._settings.elevenlabs_accounts)
 
-    async def create_conversation_token(self, agent_id: str) -> str:
+    async def _ensure_credits(self, client: httpx.AsyncClient, headers: dict[str, str]) -> None:
+        """Refuse to start a call the account can't pay for; ElevenLabs would cut it off mid-sentence
+        with a bare "Unknown error". Best effort: if the check itself fails, the call goes ahead."""
+        try:
+            resp = await client.get("/v1/user/subscription", headers=headers)
+            sub = resp.json() if resp.status_code == 200 else {}
+        except (httpx.HTTPError, ValueError):
+            return
+        used, limit = sub.get("character_count"), sub.get("character_limit")
+        if not isinstance(used, int) or not isinstance(limit, int) or limit - used >= MIN_CALL_CREDITS:
+            return
+        reset = sub.get("next_character_count_reset_unix")
+        when = f" They reset on {datetime.fromtimestamp(reset, UTC):%d %B}." if isinstance(reset, int) else ""
+        raise AIConfigError(
+            f"Voice calls are paused: this month's ElevenLabs voice credits are used up.{when} "
+            "You can keep going in text chat.",
+            code="voice_quota_exhausted",
+        )
+
+    async def mint_for_npc(self, npc_id: str, gender: str | None = None) -> tuple[str, str]:
+        """(token, agent id) from the first account that can take the call.
+
+        Accounts are tried in order (ELEVENLABS_API_KEY, then ELEVENLABS_API_KEY_2); one that is out
+        of credits, rate limited, rejects its key or errors is skipped, and the last error is raised
+        only if none works. Each account has its own agents, so the agent id comes with the token.
+        """
+        last: Exception | None = None
+        for index, (key, agents) in enumerate(self._settings.elevenlabs_accounts, start=1):
+            agent_id = pick_agent(agents, npc_id, gender)
+            if not agent_id:
+                continue
+            try:
+                token = await self.create_conversation_token(agent_id, api_key=key)
+            except AppError as exc:
+                logger.warning("elevenlabs_account_skipped", extra={"account": index, "code": exc.code})
+                last = exc
+                continue
+            if index > 1:
+                logger.info("elevenlabs_account_rotated", extra={"account": index})
+            return token, agent_id
+        raise last or AIConfigError(
+            "Voice is not configured. Set ELEVENLABS_API_KEY and an agent id for this character.",
+            code="voice_not_configured",
+        )
+
+    async def create_conversation_token(self, agent_id: str, *, api_key: str | None = None) -> str:
         """Return a short-lived conversation token for WebRTC, or raise a typed error."""
-        if not self.configured:
+        api_key = (api_key or self._settings.elevenlabs_api_key).strip()
+        if not api_key:
             raise AIConfigError(
                 "Voice is not configured. Set ELEVENLABS_API_KEY on the server to enable it.",
                 code="voice_not_configured",
@@ -54,7 +104,8 @@ class ElevenLabsClient:
                 code="voice_not_configured",
             )
         client = await self._get_client()
-        headers = {"xi-api-key": self._settings.elevenlabs_api_key, "Accept": "application/json"}
+        headers = {"xi-api-key": api_key, "Accept": "application/json"}
+        await self._ensure_credits(client, headers)
         started = time.perf_counter()
         try:
             resp = await client.get(
