@@ -488,3 +488,12 @@ longer unlocks the 24% fact, its popup, or "has told you what they know". (`says
   hands over everything they can share right now, the box shows it, and the Next line points you on.
   Skips are logged as `via: "skipped"` (not "asked"), so the debrief can tell the difference.
   API: `POST /v1/sessions/{id}/characters/{character_id}/skip`.
+
+## 31. The call closes when the colleague says goodbye
+
+The voice model doesn't always use its hang-up tool, so after "Alright, talk at eleven." the call stayed
+open. Now the app spots goodbye lines itself (`apps/web/lib/signoff.ts`: "bye", "talk at/soon/later",
+"I'll wait for your update", "good luck"…, but not lines ending in a question). When the colleague
+finishes saying one, the call closes 2.5 seconds later and moves on to the next step. If you speak in
+those seconds it stays open. The agents' instruction to hang up after goodbye was also made stricter
+(both ElevenLabs accounts updated, settings only).

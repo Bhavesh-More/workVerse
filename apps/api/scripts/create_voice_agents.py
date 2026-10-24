@@ -40,8 +40,8 @@ def prompt_for(slot: str) -> str:
         "Facts you can share on this call (exact, use these words and numbers; anything else you don't know):\n"
         "{{shared_facts}}\n\n"
         "When they ask about one of these, tell them plainly and say the numbers and times exactly. "
-        "When the conversation is wrapped up (they say thanks, bye, or that they're good), say one short goodbye "
-        "and then use the end_call tool."
+        "When the conversation is wrapped up (they say no, thanks, bye, or that they're good), say one short goodbye "
+        "and call the end_call tool in that same turn. Never wait for a reply after saying goodbye."
     )
 
 

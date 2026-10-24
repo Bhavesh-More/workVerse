@@ -7,6 +7,7 @@ import {
   type MessagePayload,
 } from "@elevenlabs/react";
 import { api } from "../lib/api";
+import { isSignOff } from "../lib/signoff";
 import type { SessionView, VoiceNpc, VoiceTranscriptEntry } from "../lib/types";
 
 export type VoicePhase =
@@ -65,6 +66,8 @@ function VoiceSession({
   handoff,
 }: Props) {
   const goRef = useRef(handoff?.onGo);
+  const byeRef = useRef(false);
+  const byeTimer = useRef<number | undefined>(undefined);
   const endRef = useRef<() => void>(() => {});
   const onSessionRef = useRef(onSession);
   onSessionRef.current = onSession;
@@ -111,6 +114,13 @@ function VoiceSession({
       // Drop expressive voice tags like "[calm]": they steer the voice, they aren't words.
       const text = (message.message || "").replace(/\[[a-z][a-z \-]*\]\s*/gi, "").trim();
       if (!text) return;
+      // A goodbye from the colleague closes the call once they've finished saying it; anything the
+      // learner says afterwards cancels that.
+      if (speaker === "npc" && isSignOff(text)) byeRef.current = true;
+      if (speaker === "user") {
+        byeRef.current = false;
+        window.clearTimeout(byeTimer.current);
+      }
       setEntries((prev) => {
         const index = prev.findIndex((entry) => entry.id === id);
         if (index === -1) return [...prev, { id, speaker, text, status: "final" }];
@@ -162,6 +172,14 @@ function VoiceSession({
     onMessage: handleMessage,
     onModeChange: ({ mode }) => {
       setPhase(mode === "speaking" ? "speaking" : "listening");
+      window.clearTimeout(byeTimer.current);
+      if (mode !== "speaking" && byeRef.current) {
+        byeTimer.current = window.setTimeout(() => {
+          setDetail(`${npc.name.split(" ")[0]} ended the call.`);
+          endRef.current();
+          goRef.current?.();
+        }, 2500);
+      }
     },
   });
 
@@ -206,7 +224,9 @@ function VoiceSession({
 
   useEffect(() => {
     const timers = timersRef.current;
+    const bye = byeTimer;
     return () => {
+      window.clearTimeout(bye.current);
       timers.forEach((timer) => clearTimeout(timer));
       timers.clear();
     };
