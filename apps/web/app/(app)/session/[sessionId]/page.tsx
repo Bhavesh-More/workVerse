@@ -36,6 +36,7 @@ type VoiceStartState = {
   voiceSessionId: string;
   conversationToken: string;
   contextGrant: string | null;
+  dynamicVariables?: Record<string, string>;
 };
 
 function statusBadge(status: string) {
@@ -377,6 +378,7 @@ export default function SessionPage() {
           voiceSessionId: res.voice_session_id,
           conversationToken: res.conversation_token,
           contextGrant: res.context_grant,
+          dynamicVariables: res.dynamic_variables,
         });
       } catch (e) {
         setNotice(null);
@@ -740,6 +742,7 @@ export default function SessionPage() {
               voiceSessionId={voice.voiceSessionId}
               conversationToken={voice.conversationToken}
               contextGrant={voice.contextGrant}
+              dynamicVariables={voice.dynamicVariables}
               onEnd={endVoiceMeeting}
               onSession={setSession}
               handoff={

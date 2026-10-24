@@ -22,6 +22,7 @@ type Props = {
   voiceSessionId: string;
   conversationToken: string;
   contextGrant: string | null;
+  dynamicVariables?: Record<string, string>;
   onEnd: () => void;
   /** Called when a voice turn taught the learner something (the server returns the new session). */
   onSession?: (session: SessionView) => void;
@@ -55,10 +56,13 @@ function VoiceSession({
   voiceSessionId,
   conversationToken,
   contextGrant,
+  dynamicVariables,
   onEnd,
   onSession,
   handoff,
 }: Props) {
+  const goRef = useRef(handoff?.onGo);
+  const endRef = useRef<() => void>(() => {});
   const onSessionRef = useRef(onSession);
   onSessionRef.current = onSession;
   const [entries, setEntries] = useState<VoiceTranscriptEntry[]>([]);
@@ -128,13 +132,19 @@ function VoiceSession({
       const closeCode = "closeCode" in details ? details.closeCode : undefined;
       const closeReason = "closeReason" in details ? details.closeReason : undefined;
       const close = closeCode ?? closeReason;
-      const message =
-        reason === "agent"
-          ? "The character ended the call. Check the agent's LLM/voice configuration."
-          : `Disconnected (${reason}${close ? ` ${close}` : ""}).`;
-      console.warn("[voice] disconnect", details);
-      setDetail(message);
       setPhase("ended");
+      if (reason === "agent") {
+        // The colleague said goodbye and hung up: close the call like the End button would, after a
+        // moment so the last line is saved and seen, and carry on to the next step if there is one.
+        setDetail(`${npc.name.split(" ")[0]} ended the call.`);
+        window.setTimeout(() => {
+          endRef.current();
+          goRef.current?.();
+        }, 1500);
+        return;
+      }
+      console.warn("[voice] disconnect", details);
+      setDetail(`Disconnected (${reason}${close ? ` ${close}` : ""}).`);
     },
     onError: (message, context) => {
       console.error("[voice] error", message, context);
@@ -167,6 +177,7 @@ function VoiceSession({
         conversationRef.current.startSession({
           conversationToken,
           customLlmExtraBody: contextGrant ? { context_grant: contextGrant } : undefined,
+          dynamicVariables,
         });
       } catch {
         setError("Could not start the voice connection.");
@@ -177,6 +188,8 @@ function VoiceSession({
       cancelled = true;
       clearTimeout(timer);
     };
+    // dynamicVariables are fixed for the call (set when it starts).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [conversationToken, contextGrant]);
 
   // Stick to the newest line like a chat app, including while a line is still growing.
@@ -206,8 +219,8 @@ function VoiceSession({
     onEnd();
   }, [conversation, sessionId, voiceSessionId, onEnd]);
 
+  endRef.current = endMeeting;
   // The handoff countdown reached zero: hang up properly and move on.
-  const goRef = useRef(handoff?.onGo);
   goRef.current = handoff?.onGo;
   const autoEnd = handoff != null && handoff.secs <= 0;
   useEffect(() => {

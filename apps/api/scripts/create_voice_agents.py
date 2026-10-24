@@ -35,7 +35,20 @@ CLIENT_EVENTS = ["audio", "user_transcript", "agent_response", "agent_response_c
 def prompt_for(slot: str) -> str:
     card = card_prompt(slot, f"the {slot.replace('_pm', '').replace('_', ' ')}", "in a WorkVerse workplace practice call")
     base = card or "You are a colleague in a WorkVerse workplace practice call. Be friendly and brief."
-    return f"{base} {VOICE_RULES} Say you don't know rather than guess."
+    return (
+        f"{base} {VOICE_RULES} Say you don't know rather than guess.\n\n"
+        "Facts you can share on this call (exact, use these words and numbers; anything else you don't know):\n"
+        "{{shared_facts}}\n\n"
+        "When they ask about one of these, tell them plainly and say the numbers and times exactly. "
+        "When the conversation is wrapped up (they say thanks, bye, or that they're good), say one short goodbye "
+        "and then use the end_call tool."
+    )
+
+
+# Lets the character hang up after saying goodbye (ElevenLabs system tool).
+END_CALL = {"end_call": {"name": "end_call", "description": "End the call once the conversation is wrapped up.", "params": {"system_tool_type": "end_call"}}}
+# Default for calls started without the variable (e.g. testing in the ElevenLabs dashboard).
+FACT_DEFAULTS = {"dynamic_variable_placeholders": {"shared_facts": "None."}}
 
 
 def payload(slot: str, gender: str, label: str, first: str) -> dict:
@@ -46,7 +59,8 @@ def payload(slot: str, gender: str, label: str, first: str) -> dict:
             "agent": {
                 "first_message": first,
                 "language": "en",
-                "prompt": {"prompt": prompt_for(slot), "llm": "deepseek-v41-flash", "temperature": 0.3, "max_tokens": 100},
+                "prompt": {"prompt": prompt_for(slot), "llm": "deepseek-v41-flash", "temperature": 0.3, "max_tokens": 100, "built_in_tools": END_CALL},
+                "dynamic_variables": FACT_DEFAULTS,
             },
             "tts": {"voice_id": VOICES[voice][0], "model_id": "eleven_v4_turbo", "stability": 0.5, "similarity_boost": 0.8},
             # No "interruption" event = the character finishes speaking even if the room is noisy.
@@ -90,9 +104,18 @@ def main() -> None:
             mapping[key] = r.json()["agent_id"]
             print("created", key, mapping[key])
         # Keep existing agents in line with the current settings (free).
-        for key, slot, gender, label, first in AGENTS:
-            conf = {"conversation": {"client_events": CLIENT_EVENTS}, "agent": {"first_message": first, "prompt": {"prompt": prompt_for(slot)}}}
-            http.patch(f"/v1/convai/agents/{mapping[key]}", json={"conversation_config": conf})
+        for key, slot, _gender, _label, first in AGENTS:
+            conf = {
+                "conversation": {"client_events": CLIENT_EVENTS},
+                "agent": {
+                    "first_message": first,
+                    "prompt": {"prompt": prompt_for(slot), "built_in_tools": END_CALL},
+                    "dynamic_variables": FACT_DEFAULTS,
+                },
+            }
+            r = http.patch(f"/v1/convai/agents/{mapping[key]}", json={"conversation_config": conf})
+            if r.status_code >= 300:
+                raise SystemExit(f"update {key}: {r.status_code} {error_text(r)}")
     write_env_map(mapping)
     from _eleven import SUFFIX
 

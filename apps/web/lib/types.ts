@@ -340,6 +340,8 @@ export type VoiceSessionStart = {
   connection_type: string;
   conversation_token: string;
   context_grant: string | null;
+  /** Per-call values for the agent prompt, e.g. {{shared_facts}}: what this colleague may tell you. */
+  dynamic_variables?: Record<string, string>;
   grant_expires_at: number | null;
   npc: VoiceNpc;
   greeting: string;

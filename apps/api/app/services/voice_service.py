@@ -56,7 +56,7 @@ async def start_voice_session(
     npc_id: str,
     client_request_id: str | None = None,
 ) -> dict[str, Any]:
-    row, blueprint, _state = await _load(repo, user_id, session_id)
+    row, blueprint, state = await _load(repo, user_id, session_id)
     if row["status"] != "active":
         raise ConflictError("This session is not active.", code="session_not_active")
 
@@ -112,7 +112,29 @@ async def start_voice_session(
         "grant_expires_at": grant_expires_at,
         "npc": {"id": character.id, "name": character.name, "role": character.role},
         "greeting": character.greeting,
+        # Filled into the agent prompt's {{shared_facts}} for this call only (never stored on the agent).
+        "dynamic_variables": {"shared_facts": voice_facts(blueprint, state, character.id)},
     }
+
+
+def voice_facts(blueprint: Any, state: Any, character_id: str) -> str:
+    """What this colleague may tell the learner on this call, exact wording and numbers included.
+    Same scope as text chat: only their own facts, and only ones not gated behind an action the learner
+    hasn't done yet. A fact that follows another of their own facts is marked so they share it in order."""
+    character = blueprint.character(character_id)
+    own = {r.fact_id for r in character.disclosure_rules} if character else set()
+    lines: list[str] = []
+    for rule in character.disclosure_rules if character else []:
+        if not all(a in state.actions_done for a in rule.requires_actions):
+            continue
+        if any(f not in state.facts_known and f not in own for f in rule.requires_facts):
+            continue
+        fact = blueprint.fact(rule.fact_id)
+        if fact is None:
+            continue
+        after = [blueprint.fact(f).label for f in rule.requires_facts if f in own and f not in state.facts_known and blueprint.fact(f)]
+        lines.append(f"- {fact.label}: {fact.detail}" + (f" (only after you've told them: {', '.join(after)})" if after else ""))
+    return "\n".join(lines) or "None. You hold no specific facts for this incident; say you don't know or point them to someone else."
 
 
 async def get_voice_session_view(

@@ -460,3 +460,19 @@ If a fact has numbers, times or percentages (e.g. "About 24% of checkouts are fa
 now has to actually say at least one of them for it to count. "Checkout is failing for customers" no
 longer unlocks the 24% fact, its popup, or "has told you what they know". (`says_specifics` in
 `apps/api/app/services/fact_check.py`.)
+
+## 29. Voice colleagues say the real numbers, hang up on goodbye; arrow keys don't scroll
+
+- **They know their facts now.** When a call starts, the server sends the colleague the facts *they* may
+  share (same rule as text chat: only their own facts, nothing locked behind something you haven't done
+  yet), exact wording and numbers included, e.g. "About 31% of customer requests are failing". It goes into
+  the agent's prompt slot `{{shared_facts}}` for that call only; it's never saved on the agent.
+  The agent is told to say numbers and times exactly. Since the popup only appears when the colleague
+  actually says the number (section 28), what you hear and the "told you" box now match.
+- **They hang up.** When the conversation is wrapped up ("thanks", "I'm good"), the colleague says goodbye and
+  ends the call with ElevenLabs' `end_call` tool. The app closes the call like the End button and moves on
+  to the next step if there is one.
+- Agents on both ElevenLabs accounts were updated with
+  `uv run python scripts/create_voice_agents.py` (and `ELEVENLABS_ACCOUNT=2 …`). Settings only, no credits.
+- **Arrow keys / space no longer scroll the page** while walking in the office (still work normally while typing
+  in a field). `apps/web/game/office.ts`.
