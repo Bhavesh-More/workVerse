@@ -2,7 +2,7 @@
 
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { cueFor, isMusicOn, isMuted, play, setMusicOn, setMuted, startMusic, stopMusic, suspendAudio, type Mood } from "../lib/sfx";
+import { cueFor, isMusicOn, isMuted, onSoundChange, play, setMusicOn, setMuted, startMusic, stopMusic, suspendAudio, type Mood } from "../lib/sfx";
 
 const CLICKABLE =
   "button, a[href], summary, select, label, [role=button], [role=tab], [role=switch], input[type=checkbox], input[type=radio]";
@@ -21,9 +21,12 @@ export function SoundLayer() {
   const moodRef = useRef(mood);
 
   useEffect(() => {
+    let hovered: Element | null = null;
     const onClick = (e: MouseEvent) => {
-      const el = (e.target as Element | null)?.closest?.(CLICKABLE);
-      if (el) {
+      const t = e.target as Element | null;
+      if (t instanceof HTMLInputElement && t.closest("label")) return; // the label's synthetic re-click
+      const el = t?.closest?.(CLICKABLE);
+      if (el && !el.matches(":disabled, [aria-disabled=true]")) {
         const cue = cueFor(el);
         if (cue) play(cue);
       }
@@ -33,11 +36,19 @@ export function SoundLayer() {
         if (moodRef.current) startMusic(moodRef.current);
       }
     };
+    const onOver = (e: PointerEvent) => {
+      if (e.pointerType !== "mouse") return;
+      const el = (e.target as Element | null)?.closest?.(CLICKABLE) ?? null;
+      if (el && el !== hovered && !el.matches(":disabled")) play("hover");
+      hovered = el;
+    };
     const onVisibility = () => suspendAudio(document.hidden);
     document.addEventListener("click", onClick, true);
+    document.addEventListener("pointerover", onOver, { passive: true });
     document.addEventListener("visibilitychange", onVisibility);
     return () => {
       document.removeEventListener("click", onClick, true);
+      document.removeEventListener("pointerover", onOver);
       document.removeEventListener("visibilitychange", onVisibility);
     };
   }, []);
@@ -58,8 +69,12 @@ export function SoundToggles() {
   const [sfxOn, setSfxOn] = useState(true);
   const [musicOn, setMusicState] = useState(true);
   useEffect(() => {
-    setSfxOn(!isMuted());
-    setMusicState(isMusicOn());
+    const sync = () => {
+      setSfxOn(!isMuted());
+      setMusicState(isMusicOn());
+    };
+    sync();
+    return onSoundChange(sync);
   }, []);
 
   return (
@@ -71,7 +86,7 @@ export function SoundToggles() {
         onClick={() => {
           setMuted(sfxOn);
           setSfxOn(!sfxOn);
-          if (!sfxOn) play("toggle");
+          if (!sfxOn) play("on"); // the click listener ran while still muted
         }}
       >
         {sfxOn ? "Sound on" : "Sound off"}

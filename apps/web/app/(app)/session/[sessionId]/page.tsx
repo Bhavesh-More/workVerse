@@ -221,7 +221,7 @@ export default function SessionPage() {
       voicePending.current = true;
       setVoiceError(null);
       setNotice(`Calling ${npc.name}…`); // instant feedback; the token round trip can take a while
-      play("nav");
+      play("call");
       try {
         if (!navigator.mediaDevices?.getUserMedia) {
           throw new Error("Microphone access is not available in this browser.");

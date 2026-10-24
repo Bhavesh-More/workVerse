@@ -150,15 +150,32 @@ then restart `pnpm dev`.
 
 ## 8. Game sounds + background music
 
-- **Every click has a sound** (`components/Sound.tsx` → `SoundLayer`, mounted once in `app/layout.tsx`):
-  buttons *click*, ghost/secondary buttons *soft tick*, links *nav chime*, toggles/tabs *pop*.
-  A control can override with `data-sfx="nav"` or opt out with `data-sfx="none"` (used on Send,
-  which already plays its own sound).
-- **Background music**, synthesized live (no audio files): a calm loop on menus/reports and a tenser
-  "focus" loop inside the incident. Starts on your first click (browsers block autoplay), pauses when the
-  tab is hidden, and fades out during a voice meeting.
-- **Sound on/off** and **Music on/off** buttons: sidebar footer and the session top bar (remembered).
-- Tune it in `lib/sfx.ts` (`NOTES` for clicks, `MOODS` for music, `MUSIC_VOL` for loudness).
+All sounds are **synthesized 8-bit** (Web Audio API, no audio files), so there is nothing to license and
+nothing extra to download on a slow connection. The palette is adapted from our
+[Crowdspawn](https://github.com/divyanshu-patil/Crowdspawn) project (MIT) plus classic
+[sfxr](https://www.npmjs.com/jsfxr) archetypes (coin, power-up, hurt).
+
+| Moment | Sound |
+|---|---|
+| Hover a control (mouse) | tiny tick |
+| Primary button / ghost button / link | confirm chord / blip / rising "nav" sweep |
+| Toggle or chip on / off | two-note up / two-note down |
+| Tab, expand / collapse, Close / Cancel / End | tab chirp, select / back |
+| Send / receive a chat message | up-blip / two-note reply |
+| New fact discovered | coin |
+| Objective complete | power-up |
+| Blocked or failed action | noise hit + falling buzz |
+| Press **E** to call someone | phone ring |
+| Report ready | victory fanfare |
+
+**Background music** is a chiptune loop: lo-fi **calm** groove on menus and reports, and a driving
+minor **focus** groove with drums, bass and a lead melody during the incident. It starts on your first
+click (browsers block autoplay), pauses when the tab is hidden, and fades out during voice meetings.
+
+- **Sound on/off** and **Music on/off** buttons: sidebar footer and the session top bar (they stay in sync).
+- Any control can pick its sound with `data-sfx="coin"` etc., or stay silent with `data-sfx="none"`.
+- Tune it in `apps/web/lib/sfx.ts`: `SOUNDS` (effects), `GROOVES` (music patterns), `MUSIC_VOL` (loudness).
+  Click routing lives in `apps/web/components/Sound.tsx`.
 
 ## 9. Snappier on slow internet
 
