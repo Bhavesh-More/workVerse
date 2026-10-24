@@ -235,7 +235,8 @@ It ends with a line-up of the whole team and the incident stamped across it.
 - **Q = profile card.** Walk up to someone: the hint says "Press E to talk · Q profile card". Press **Q** to see their card any time.
 - **First meeting:** the first time you talk to someone (E, or clicking them) whose card you haven't seen yet, their card plays first, then the call/chat starts. Cards seen in the opening intro count as "met" (remembered per session in the browser tab).
 - Skip any time: **Esc**, the Skip button. **Space / Enter / click** jumps to the next card.
-- Sounds are made in code (`lib/sfx.ts`: `whoosh`, `slam`, `shimmer`, `stat`, `type`, `stamp`) — no audio files. Background music keeps playing under it.
+- Sounds are made in code (`lib/sfx.ts`: `whoosh`, `slam`, `shimmer`, `stat`, `type`, `stamp`) — no audio files.
+- While the intro is open the music switches to a louder action/survival track (`intro` in `GROOVES`, 150 BPM, D minor) and switches back to the office music when it closes (`setMusicOverride`).
 - If your OS has "reduce motion" on, it keeps the fades and drops the movement.
 - Portraits: `apps/web/public/assets/portraits/` (DiceBear Lorelei, CC0 — see `CREDITS.md`).
 - Preview without signing in (dev only): run the web app and open http://localhost:3000/intro-preview.

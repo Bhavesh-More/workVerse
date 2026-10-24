@@ -223,7 +223,7 @@ export function cueFor(el: Element): Cue | null {
 // ---- Background music ----------------------------------------------------------------------
 // A chiptune loop scheduled a little ahead of time: pad + arpeggio + bass + drums, 8 steps a bar.
 // "calm" (lo-fi, menus and reports) and "focus" (driving minor groove with a lead, during incidents).
-export type Mood = "calm" | "focus";
+export type Mood = "calm" | "focus" | "intro";
 
 type Groove = {
   bpm: number;
@@ -235,8 +235,11 @@ type Groove = {
   snare: number[];
   hat: number[];
   lead?: (number | 0)[][]; // per bar, one Hz per step (0 = rest)
+  leadAlways?: boolean; // otherwise the lead sits out every other pass so the loop breathes
+  vol?: number; // loop loudness; defaults to MUSIC_VOL
 };
 
+const Bb3 = 233.1, Cs4 = 277.2, Bb4 = 466.2, Cs5 = 554.4, F5 = 698.5;
 const A3 = 220, C4 = 261.6, D4 = 293.7, E4 = 329.6, F4 = 349.2, G4 = 392, B3 = 246.9, A4 = 440, C5 = 523.3, D5 = 587.3, E5 = 659.3, G3 = 196, F3 = 174.6, E3 = 164.8;
 
 const GROOVES: Record<Mood, Groove> = {
@@ -266,10 +269,31 @@ const GROOVES: Record<Mood, Groove> = {
       [E5, 0, 0, 0, 0, 0, 0, 0],
     ],
   },
+  // Team intro: action/survival — D minor i-VI-VII-V, driving eighth-note bass, saw riff, heroic lead.
+  intro: {
+    bpm: 150,
+    chords: [[D4, F4, A4], [Bb3, D4, F4], [C4, E4, G4], [A3, Cs4, E4]],
+    arp: [0, 0, 2, 0, 1, 0, 2, 1],
+    arpWave: "sawtooth",
+    bass: [0, 1, 2, 3, 4, 5, 6, 7],
+    kick: [0, 2, 3, 4, 6],
+    snare: [2, 6],
+    hat: [0, 1, 2, 3, 4, 5, 6, 7],
+    lead: [
+      [D5, 0, D5, F5, 0, E5, D5, 0],
+      [Bb4, 0, D5, F5, 0, D5, Bb4, 0],
+      [E5, 0, G4 * 2, E5, 0, C5, E5, 0],
+      [Cs5, 0, E5, 0, A4, 0, Cs5, E5],
+    ],
+    leadAlways: true,
+    vol: 0.2,
+  },
 };
 const MUSIC_VOL = 0.09;
 
-let music: { mood: Mood; out: GainNode; timer: number } | null = null;
+let music: { mood: Mood; out: GainNode; timer: number; vol: number } | null = null;
+let baseMood: Mood | null = null; // what the page wants
+let overrideMood: Mood | null = null; // a moment that takes over, e.g. the team intro
 let ducked = false;
 
 export function isMusicOn(): boolean {
@@ -282,9 +306,23 @@ export function setMusicOn(on: boolean, mood: Mood = "calm"): void {
   else stopMusic();
 }
 
-/** Start (or switch the mood of) the loop. Safe to call repeatedly; no-op if music is off. */
+/** Start (or switch the mood of) the page's loop. Safe to call repeatedly; no-op if music is off. */
 export function startMusic(mood: Mood): void {
+  baseMood = mood;
+  playLoop(overrideMood ?? mood);
+}
+
+/** Temporarily replace the page's music (null hands back to it). */
+export function setMusicOverride(mood: Mood | null): void {
+  overrideMood = mood;
+  const next = mood ?? baseMood;
+  if (next) playLoop(next);
+  else stopMusic();
+}
+
+function playLoop(mood: Mood): void {
   if (typeof window === "undefined" || !isMusicOn()) return;
+  audio(); // resumes a suspended context once there has been a gesture
   if (music?.mood === mood) return;
   stopMusic();
   try {
@@ -292,12 +330,13 @@ export function startMusic(mood: Mood): void {
     if (!ac) return;
     const soften = ac.createBiquadFilter();
     soften.type = "lowpass";
-    soften.frequency.value = mood === "calm" ? 2200 : 3600;
+    soften.frequency.value = mood === "calm" ? 2200 : mood === "intro" ? 5200 : 3600;
+    const g = GROOVES[mood];
+    const vol = g.vol ?? MUSIC_VOL;
     const out = ac.createGain();
     out.gain.setValueAtTime(0.0001, ac.currentTime);
-    out.gain.exponentialRampToValueAtTime(ducked ? 0.0001 : MUSIC_VOL, ac.currentTime + 0.5);
+    out.gain.exponentialRampToValueAtTime(ducked ? 0.0001 : vol, ac.currentTime + 0.5);
     soften.connect(out).connect(ac.destination);
-    const g = GROOVES[mood];
     const step = 60 / g.bpm / 2; // eighth notes
     let i = 0;
     let next = ac.currentTime + 0.1;
@@ -308,19 +347,20 @@ export function startMusic(mood: Mood): void {
         const chord = g.chords[bar]!;
         if (s === 0) for (const f of chord) voice(ac, soften, { f, len: step * 8, wave: "sine", vol: 0.12 }, next); // pad
         const tone = g.arp[s]!;
-        if (tone >= 0) voice(ac, soften, { f: chord[tone]! * 2, len: step * 0.9, wave: g.arpWave, vol: g.arpWave === "square" ? 0.08 : 0.18 }, next);
+        const arpVol = g.arpWave === "square" ? 0.08 : g.arpWave === "sawtooth" ? 0.06 : 0.18;
+        if (tone >= 0) voice(ac, soften, { f: chord[tone]! * 2, len: step * 0.9, wave: g.arpWave, vol: arpVol }, next);
         if (g.bass.includes(s)) voice(ac, soften, { f: chord[0]! / 2, len: step * 0.9, wave: "triangle", vol: 0.45 }, next);
         if (g.kick.includes(s)) voice(ac, soften, { f: 150, to: 45, len: 0.14, wave: "sine", vol: 0.7 }, next);
         if (g.snare.includes(s)) voice(ac, soften, { f: 1800, len: 0.09, wave: "noise", vol: 0.18 }, next);
         if (g.hat.includes(s)) voice(ac, soften, { f: 7000, len: 0.03, wave: "noise", vol: 0.08 }, next);
         const lead = g.lead?.[bar]?.[s];
         // Lead only on every other pass so the loop breathes.
-        if (lead && Math.floor(i / 32) % 2 === 1) voice(ac, soften, { f: lead, len: step * 1.6, wave: "square", vol: 0.07 }, next);
+        if (lead && (g.leadAlways || Math.floor(i / 32) % 2 === 1)) voice(ac, soften, { f: lead, len: step * 1.6, wave: "square", vol: 0.07 }, next);
         next += step;
         i += 1;
       }
     }, 150);
-    music = { mood, out, timer };
+    music = { mood, out, timer, vol };
   } catch {
     music = null;
   }
@@ -341,7 +381,7 @@ export function duckMusic(on: boolean): void {
   ducked = on;
   if (!music || !ctx) return;
   music.out.gain.cancelScheduledValues(ctx.currentTime);
-  music.out.gain.setTargetAtTime(on ? 0.0001 : MUSIC_VOL, ctx.currentTime, 0.3);
+  music.out.gain.setTargetAtTime(on ? 0.0001 : music.vol, ctx.currentTime, 0.3);
 }
 
 /** Pause/resume all audio, e.g. when the tab is hidden. */
