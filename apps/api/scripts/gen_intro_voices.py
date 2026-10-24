@@ -2,6 +2,7 @@
 
     uv run python scripts/gen_intro_voices.py --dry-run   # list clips + estimated characters, no API calls
     uv run python scripts/gen_intro_voices.py             # generate missing clips (uses ElevenLabs credits)
+    uv run python scripts/gen_intro_voices.py --voice hope   # only one voice's clips
 
 Writes apps/web/public/assets/voices/<name-slug>.mp3. Existing files are skipped, so re-runs are free.
 """
@@ -30,7 +31,8 @@ def clips() -> list[tuple[str, str, str]]:
 
 def main() -> None:
     dry = "--dry-run" in sys.argv
-    todo = [c for c in clips() if not (OUT / f"{c[0]}.mp3").exists()]
+    only = sys.argv[sys.argv.index("--voice") + 1] if "--voice" in sys.argv else None  # e.g. --voice hope
+    todo = [c for c in clips() if not (OUT / f"{c[0]}.mp3").exists() and (only is None or c[2] == only)]
     chars = sum(len(text) for _, text, _ in todo)
     for slug, text, voice in todo:
         print(f"{slug:18} {VOICES[voice][1]:48} {text}")
