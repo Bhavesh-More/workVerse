@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { expect, test, type APIRequestContext, type Browser, type Page } from "@playwright/test";
 import { clerk, setupClerkTestingToken } from "@clerk/testing/playwright";
+import { markOwner, setPassword, testUser, type TestUser } from "./users";
 
 // Company assessment journey. Needs web + api + database + Ollama, and a local SMTP catcher
 // (mailpit: SMTP on 127.0.0.1:1025, API on 127.0.0.1:8025) so invites can be read back.
@@ -14,26 +15,12 @@ async function shot(page: Page, name: string) {
   await page.screenshot({ path: path.join(SHOTS, `${name}.png`), fullPage: true });
 }
 
-async function clerkUser(request: APIRequestContext, email: string) {
-  const created = await request.post("https://api.clerk.com/v1/users", {
-    headers: { Authorization: `Bearer ${process.env.CLERK_SECRET_KEY}` },
-    data: { email_address: [email], password: "WorkVerse!234", skip_password_checks: true },
-  });
-  expect(created.ok(), await created.text()).toBeTruthy();
-  const ticket = await request.post("https://api.clerk.com/v1/sign_in_tokens", {
-    headers: { Authorization: `Bearer ${process.env.CLERK_SECRET_KEY}` },
-    data: { user_id: (await created.json()).id, expires_in_seconds: 3600 },
-  });
-  return (await ticket.json()).token as string;
-}
-
-async function signedInPage(browser: Browser, request: APIRequestContext, email: string, landing = "/login") {
+async function signedInPage(browser: Browser, request: APIRequestContext, user: TestUser, landing = "/login") {
   const context = await browser.newContext({ acceptDownloads: true });
   const page = await context.newPage();
-  const ticket = await clerkUser(request, email);
   await page.goto(landing);
   await setupClerkTestingToken({ page });
-  await clerk.signIn({ page, signInParams: { strategy: "ticket", ticket } });
+  await clerk.signIn({ page, signInParams: { strategy: "ticket", ticket: user.ticket } });
   return page;
 }
 
@@ -146,8 +133,16 @@ test.describe("Company assessments", () => {
     await request.delete(`${MAILPIT}/api/v1/messages`);
 
     // ---- company account -------------------------------------------------------------
-    const co = await signedInPage(browser, request, `e2e-company-${RUN}@gmail.com`, "/company/login");
-    await co.goto("/company");
+    let co!: Page;
+    for (let attempt = 0; attempt < 6; attempt++) {
+      const owner = await testUser(request, { owner: true, preferEmail: `e2e-company-${RUN}@gmail.com` });
+      co = await signedInPage(browser, request, owner, "/company/login");
+      await co.goto("/company");
+      await co.getByRole("heading", { name: /Set up your company|Assessment overview|Where will candidates work/ }).first().waitFor({ timeout: 60_000 });
+      markOwner(owner);
+      if (await co.getByRole("heading", { name: /Set up your company/ }).isVisible()) break;
+      await co.context().close(); // reused account already owns a company: take the next one
+    }
     await expect(co.getByRole("heading", { name: /Set up your company/ })).toBeVisible({ timeout: 60_000 });
     await co.getByLabel("Company name").fill("E2E Hiring Co");
     await co.getByRole("button", { name: /Create company/ }).click();
@@ -215,7 +210,14 @@ test.describe("Company assessments", () => {
 
     // ---- invites: type, paste, CSV --------------------------------------------------------
     // Candidate 3 signs up through the UI, so it uses a Clerk test address (code 424242).
-    const cand = (n: number) => (n === 3 ? `e2e-cand3-${RUN}+clerk_test@example.com` : `e2e-cand${n}-${RUN}@gmail.com`);
+    // Candidates 1-2 sign in with tickets; 3 logs in through the UI (a +clerk_test account, code 424242);
+    // 4 is only invited.
+    const U1 = await testUser(request, { preferEmail: `e2e-cand1-${RUN}@gmail.com` });
+    const U2 = await testUser(request, { preferEmail: `e2e-cand2-${RUN}@gmail.com` });
+    const U3 = await testUser(request, { clerkTestEmail: true });
+    const U3_PASSWORD = `WorkVerse!${RUN}`;
+    await setPassword(request, U3.id, U3_PASSWORD);
+    const cand = (n: number) => ({ 1: U1.email, 2: U2.email, 3: U3.email } as Record<number, string>)[n] ?? `e2e-cand${n}-${RUN}@gmail.com`;
     await co.getByLabel("Candidate 1 name").fill("Asha Patel");
     await co.getByLabel("Candidate 1 email").fill(cand(1));
     await co.getByRole("tab", { name: "Paste list" }).click();
@@ -255,9 +257,9 @@ test.describe("Company assessments", () => {
     await inviteLink(request, cand(3));
     await inviteLink(request, cand(4));
 
-    const c1 = await signedInPage(browser, request, cand(1));
+    const c1 = await signedInPage(browser, request, U1);
     await playAssessment(c1, link1, "cand1", true);
-    const c2 = await signedInPage(browser, request, cand(2));
+    const c2 = await signedInPage(browser, request, U2);
     await playAssessment(c2, link2, "cand2", false);
 
     // Signed-out visitors to company pages land on the company log-in.
@@ -266,23 +268,31 @@ test.describe("Company assessments", () => {
     await expect(anon).toHaveURL(/\/company\/login\?redirect=%2Fcompany%2Fassessments/);
     await expect(anon.getByRole("heading", { name: /Hiring dashboard/ })).toBeVisible();
 
-    // A third candidate opens the invite signed out, signs up in the UI and comes back to it.
+    // A third candidate opens the invite signed out, logs in through the UI and comes back to it.
     const c3page = await browser.newPage();
     const link3 = await inviteLink(request, cand(3));
     await c3page.goto(link3);
     await setupClerkTestingToken({ page: c3page });
     await expect(c3page.getByTestId("invite-signup")).toBeVisible({ timeout: 60_000 });
     await shot(c3page, "24-cand3-invite-signed-out");
-    await c3page.getByTestId("invite-signup").click();
-    await expect(c3page).toHaveURL(/\/signup\?redirect=/);
+    await c3page.getByRole("link", { name: "I already have an account" }).click();
+    await expect(c3page).toHaveURL(/\/login\?redirect=/);
     await c3page.getByLabel("Email address").fill(cand(3));
-    await c3page.getByLabel("Password", { exact: true }).fill(`WorkVerse!${RUN}`);
-    await c3page.getByRole("button", { name: /Continue/ }).click();
-    await c3page.getByLabel("Verification code").fill("424242");
-    await c3page.getByRole("button", { name: "Verify & continue" }).click();
+    await c3page.getByLabel("Password", { exact: true }).fill(U3_PASSWORD);
+    await c3page.getByRole("button", { name: /Log in/ }).click();
+    const code = c3page.getByLabel("Verification code");
+    // Clerk asks new devices for an email code (always 424242 for +clerk_test addresses).
+    const needsCode = await Promise.race([
+      code.waitFor({ timeout: 20_000 }).then(() => true),
+      c3page.waitForURL(/\/invite\//, { timeout: 20_000 }).then(() => false),
+    ]).catch(() => false);
+    if (needsCode) {
+      await code.fill("424242");
+      await c3page.getByRole("button", { name: /Verify/ }).click();
+    }
     await expect(c3page).toHaveURL(new RegExp(link3.replace(/[/]/g, "\\/") + "$"), { timeout: 60_000 });
     await expect(c3page.getByTestId("start-assessment")).toBeVisible({ timeout: 60_000 });
-    await shot(c3page, "25-cand3-invite-after-signup");
+    await shot(c3page, "25-cand3-invite-after-login");
 
     // ---- HR analytics ----------------------------------------------------------------------
     await co.goto(assessmentUrl);

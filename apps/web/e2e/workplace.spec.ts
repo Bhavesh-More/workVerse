@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { expect, test, type APIRequestContext, type Browser, type Page } from "@playwright/test";
 import { clerk, setupClerkTestingToken } from "@clerk/testing/playwright";
+import { markOwner, testUser } from "./users";
 
 // Company workplace builder: onboarding choice, presets, participants, the world editor
 // (drag-and-drop, grid snapping, selection, inspector, undo/redo, zoom/pan, rooms, people),
@@ -15,34 +16,31 @@ async function shot(page: Page, name: string, fullPage = false) {
   await page.screenshot({ path: path.join(SHOTS, `${name}.png`), fullPage });
 }
 
-async function clerkTicket(request: APIRequestContext, email: string) {
-  const created = await request.post("https://api.clerk.com/v1/users", {
-    headers: { Authorization: `Bearer ${process.env.CLERK_SECRET_KEY}` },
-    data: { email_address: [email], password: "WorkVerse!234", skip_password_checks: true },
-  });
-  expect(created.ok(), await created.text()).toBeTruthy();
-  const ticket = await request.post("https://api.clerk.com/v1/sign_in_tokens", {
-    headers: { Authorization: `Bearer ${process.env.CLERK_SECRET_KEY}` },
-    data: { user_id: (await created.json()).id, expires_in_seconds: 3600 },
-  });
-  return (await ticket.json()).token as string;
-}
-
-export async function companyPage(browser: Browser, request: APIRequestContext, email: string, name: string) {
+export async function companyPage(browser: Browser, request: APIRequestContext, _email: string, name: string) {
   const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
   const page = await context.newPage();
   const errors: string[] = [];
   page.on("console", (m) => m.type() === "error" && errors.push(m.text()));
   page.on("pageerror", (e) => errors.push(String(e)));
-  const ticket = await clerkTicket(request, email);
-  await page.goto("/company/login");
-  await setupClerkTestingToken({ page });
-  await clerk.signIn({ page, signInParams: { strategy: "ticket", ticket } });
-  await page.goto("/company");
-  await expect(page.getByRole("heading", { name: /Set up your company/ })).toBeVisible({ timeout: 60_000 });
-  await page.getByLabel("Company name").fill(name);
-  await page.getByRole("button", { name: /Create company/ }).click();
-  return { page, errors };
+  // Reused test accounts: if one turns out to own a company already, take the next.
+  for (let attempt = 0; attempt < 6; attempt++) {
+    const user = await testUser(request, { owner: true, preferEmail: _email });
+    await page.goto("/company/login");
+    await setupClerkTestingToken({ page });
+    await clerk.signIn({ page, signInParams: { strategy: "ticket", ticket: user.ticket } });
+    await page.goto("/company");
+    const setup = page.getByRole("heading", { name: /Set up your company|Assessment overview|Where will candidates work/ });
+    await setup.first().waitFor({ timeout: 60_000 });
+    if (await page.getByRole("heading", { name: /Set up your company/ }).isVisible()) {
+      await page.getByLabel("Company name").fill(name);
+      await page.getByRole("button", { name: /Create company/ }).click();
+      markOwner(user);
+      return { page, errors, email: user.email };
+    }
+    markOwner(user); // already owned a company before the pool existed
+    await page.context().clearCookies();
+  }
+  throw new Error("Could not find a test account without a company.");
 }
 
 /** Bearer token for direct API checks, taken from the page's Clerk session. */
@@ -501,7 +499,8 @@ test.describe("Workplace builder", () => {
     expect((await api(page, request, "PATCH", "/company", { smtp: { host: "127.0.0.1", port: 1025, security: "none", from_email: "hiring@globex.test", from_name: "Globex" } })).status).toBe(200);
     const topic = await api(page, request, "POST", "/company/topics", { title: `Globex on-call ${RUN}`, description: "On-call incident in our own office.", track: "backend", difficulty: "standard", judges: {} });
     const assessment = await api(page, request, "POST", "/company/assessments", { topic_id: topic.body.id, title: `Globex round ${RUN}`, message: "" });
-    const email = `e2e-play-cand-${RUN}@gmail.com`;
+    const candidate = await testUser(request, { preferEmail: `e2e-play-cand-${RUN}@gmail.com` });
+    const email = candidate.email;
     const sent = await api(page, request, "POST", `/company/assessments/${assessment.body.id}/invites`, { candidates: [{ email, name: "Casey Candidate" }] });
     expect(sent.body.sent).toBe(1);
     let link = "";
@@ -519,7 +518,7 @@ test.describe("Workplace builder", () => {
     // Candidate
     const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 } });
     const cand = await ctx.newPage();
-    const ticket = await clerkTicket(request, email);
+    const ticket = candidate.ticket;
     await cand.goto("/login");
     await setupClerkTestingToken({ page: cand });
     await clerk.signIn({ page: cand, signInParams: { strategy: "ticket", ticket } });
@@ -530,7 +529,7 @@ test.describe("Workplace builder", () => {
     await cand.getByRole("button", { name: "Enter the office" }).click();
     await expect(cand).toHaveURL(/\/session\//, { timeout: 60_000 });
     const intro = cand.getByRole("dialog", { name: "Meet your team" });
-    if (await intro.isVisible({ timeout: 8_000 }).catch(() => false)) await cand.getByRole("button", { name: /Skip intro/i }).click();
+    // (the team intro may open a moment later; it's dismissed below before the screenshot)
     // The engine loaded the company's world, not the default map.
     await expect.poll(async () => cand.evaluate(() => (window as unknown as { __officeScene?: { meta?: { kind?: string; width?: number } } }).__officeScene?.meta?.kind ?? null), { timeout: 60_000 }).toBe("custom");
     const session = await cand.evaluate(async (sid) => {
@@ -540,7 +539,7 @@ test.describe("Workplace builder", () => {
       return r.json();
     }, sessionId);
     expect(session.world.map.doc.name).toBe(worldName);
-    if (await intro.isVisible({ timeout: 10_000 }).catch(() => false)) {
+    if (await intro.waitFor({ timeout: 10_000 }).then(() => true).catch(() => false)) {
       await cand.getByRole("button", { name: /Skip intro/i }).click();
       await expect(intro).toBeHidden({ timeout: 15_000 });
     }
