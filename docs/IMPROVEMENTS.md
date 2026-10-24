@@ -244,3 +244,5 @@ It ends with a line-up of the whole team and the incident stamped across it.
 **Why music needs one key press first:** browsers block sound until you interact with the page
 (autoplay rule). Music now starts on your *first* key press or mouse press anywhere — walking with the
 arrow keys counts — instead of waiting for a click. If you came from the dashboard by clicking, it is already playing.
+
+**Full list of every colleague** (all tracks, names, profiles, facts, keywords, questions, voice setup): see [`docs/CHARACTERS.md`](CHARACTERS.md).
