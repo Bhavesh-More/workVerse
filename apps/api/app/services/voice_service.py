@@ -26,7 +26,7 @@ from app.core.voice_grant import issue_grant
 from app.db.repository import Repository
 from app.services.fact_check import facts_stated
 from app.services.session_service import _load, _persist_pending_events, session_view
-from app.simulation.engine import apply_disclosure, reveal_facts
+from app.simulation.engine import reveal_facts
 from app.simulation.tracks import gender_of
 
 logger = logging.getLogger(__name__)
@@ -217,16 +217,15 @@ async def ingest_transcript_message(
 async def _learn_from_voice(
     repo: Repository, ai: OllamaCloudClient | None, user_id: str, session_id: str, npc_id: str, speaker: str, text: str
 ) -> dict[str, Any] | None:
-    """Voice turns reveal facts like text chat: keywords in what the learner asks, plus facts the
-    colleague actually says. Returns the new session view when something was learned, else None."""
+    """A fact counts only once the colleague actually says it. (Unlike text chat, the voice agent has
+    already answered by the time the learner's question arrives here, so keywords in the question
+    would claim facts the colleague never gave.) Returns the new session view, else None."""
+    if speaker != "npc" or ai is None:
+        return None
     row, blueprint, state = await _load(repo, user_id, session_id, for_update=True)
     if row["status"] != "active":
         return None
-    if speaker == "user":
-        newly, events = apply_disclosure(blueprint, state, npc_id, text)
-    else:
-        stated = await facts_stated(ai, blueprint, state, npc_id, text) if ai else []
-        newly, events = reveal_facts(blueprint, state, npc_id, stated)
+    newly, events = reveal_facts(blueprint, state, npc_id, await facts_stated(ai, blueprint, state, npc_id, text))
     if not newly:
         return None
     await _persist_pending_events(repo, session_id, state, events)

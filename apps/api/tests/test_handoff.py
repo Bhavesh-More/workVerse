@@ -91,10 +91,10 @@ def test_voice_turns_reveal_facts_from_question_and_from_reply(monkeypatch):
 
     from app.simulation.engine import disclosable_now
 
-    vs, repo, bp, state = _voice_harness(monkeypatch, stated=[])
-    # Learner asks out loud: keyword disclosure, same as typed chat.
-    view = asyncio.run(vs._learn_from_voice(repo, object(), "u", "s", "manager", "user", "what's the customer impact?"))
-    assert view and view["facts"]
+    vs, repo, bp, state = _voice_harness(monkeypatch, stated=["f_business_impact"])
+    # Learner asks out loud: nothing counts until the colleague actually says it.
+    assert asyncio.run(vs._learn_from_voice(repo, object(), "u", "s", "manager", "user", "what's the customer impact?")) is None
+    assert "f_business_impact" not in state.facts_known
     # Manager volunteers the rest unprompted: the fact check counts it, so the manager becomes "done".
     rest = disclosable_now(bp, state, "manager")
     vs2, repo2, *_ = _voice_harness(monkeypatch, stated=rest)

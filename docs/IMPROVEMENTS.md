@@ -424,3 +424,16 @@ Code: `apps/web/components/ShiftComplete.tsx`.
   the office arrow points you to the next place. You can press the button to go sooner.
 - **In text chat** the same countdown switches the chat to the next person; if the next step is a
   place, the card tells you where and the arrow shows the way.
+
+## 26. Voice: a fact counts only when the colleague says it
+
+In a voice call the colleague has already answered by the time your spoken question is saved, so
+matching keywords in *your* question (as text chat does) claimed facts they never gave: you'd see
+"Olivia told you …" while she said she didn't know. Voice now counts a fact only when the AI check
+finds it in what the **colleague** actually said.
+
+Why might she not know? Voice agents currently answer with ElevenLabs' built-in model, which only
+has their role card, not the scenario facts. The facts reach them through the **Custom LLM bridge**
+(`/v1/voice/llm-bridge`), which needs a public URL to this API (e.g. ngrok) set as each agent's
+Custom LLM. Until that's connected, ask the voice colleague, then check the logs/tools, or use text
+chat for exact numbers.
