@@ -102,6 +102,9 @@ export default function HomePage() {
           <a className="ghost-link hide-sm" href="#assess">
             What we assess
           </a>
+          <Link className="ghost-link hide-sm" href="/company/login">
+            For companies
+          </Link>
           <Link className="ghost-link" href="/login">
             Log-in
           </Link>

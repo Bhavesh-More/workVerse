@@ -8,6 +8,7 @@ import { CountUp } from "../../../../../components/CountUp";
 import { FormError } from "../../../../../components/AuthShell";
 import { ScoreBars, TalkBalance, TurnLengths } from "../../../../../components/Charts";
 import { api, ApiError } from "../../../../../lib/api";
+import { companyApi } from "../../../../../lib/company";
 import { play } from "../../../../../lib/sfx";
 import type { Evaluation, LedgerCheck, SessionView, SimEvent, TranscriptMessage } from "../../../../../lib/types";
 import { preloadGame } from "../../../../../game/preload";
@@ -48,6 +49,11 @@ export default function DebriefPage() {
   const [events, setEvents] = useState<SimEvent[]>([]);
   const [session, setSession] = useState<SessionView | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Set when this run was a company assessment: the candidate is told the report is shared.
+  const [assessment, setAssessment] = useState<{ company: string; title: string } | null>(null);
+  useEffect(() => {
+    companyApi.sessionAssessment(sessionId).then((r) => setAssessment(r.assessment), () => {});
+  }, [sessionId]);
   const [busy, setBusy] = useState(false);
 
   const load = useCallback(async () => {
@@ -169,6 +175,13 @@ export default function DebriefPage() {
         </m.div>
 
         <FormError message={error} />
+        {assessment && (
+          <div className="banner banner--info" style={{ marginBottom: 24 }}>
+            <span>
+              This was the <strong>{assessment.title}</strong> assessment. Your report has been shared with {assessment.company}.
+            </span>
+          </div>
+        )}
 
         <m.div variants={item} className="grid-3" style={{ margin: "0 0 32px" }}>
           <div className="card">

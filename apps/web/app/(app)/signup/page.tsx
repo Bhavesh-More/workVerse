@@ -2,9 +2,9 @@
 
 import { useState, type FormEvent } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useSignUp } from "@clerk/nextjs";
-import { clerkErrorMessage } from "../../../lib/auth";
+import { authRedirect, clerkErrorMessage, useWithRedirect } from "../../../lib/auth";
 import { AuthShell, FormError, PasswordInput } from "../../../components/AuthShell";
 
 const MIN_PASSWORD = 15;
@@ -12,6 +12,9 @@ const MIN_PASSWORD = 15;
 export default function SignupPage() {
   const { isLoaded, signUp, setActive } = useSignUp();
   const router = useRouter();
+  // /company/login and /company/signup reuse this page with company copy and landing.
+  const company = usePathname().startsWith("/company");
+  const switchHref = useWithRedirect(company ? "/company/login" : "/login");
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -23,7 +26,7 @@ export default function SignupPage() {
 
   const finish = async (sessionId: string | null) => {
     await setActive?.({ session: sessionId });
-    router.push("/onboarding");
+    router.push(authRedirect(company ? "/company" : "/onboarding"));
   };
 
   const submit = async (e: FormEvent) => {
@@ -70,12 +73,14 @@ export default function SignupPage() {
 
   return (
     <AuthShell>
-      <span className="eyebrow">Sign-up · free</span>
+      <span className="eyebrow">{company ? "Company sign-up" : "Sign-up · free"}</span>
       <h1 className="page-title">
-        Start <span className="hl">practising</span>
+        {company ? <>Assess with <span className="hl">WorkVerse</span></> : <>Start <span className="hl">practising</span></>}
       </h1>
       <p className="small muted" style={{ marginBottom: 24 }}>
-        Two minutes to set up. No résumé, no test — just an email we can send a code to.
+        {company
+          ? "Set up your hiring team: topics, AI judges and candidate invites."
+          : "Two minutes to set up. No résumé, no test — just an email we can send a code to."}
       </p>
 
       <div className="stack">
@@ -124,7 +129,7 @@ export default function SignupPage() {
                 type="email"
                 className="input"
                 autoComplete="email"
-                placeholder="you@university.edu"
+                placeholder={company ? "you@company.com" : "you@university.edu"}
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
@@ -162,7 +167,7 @@ export default function SignupPage() {
 
         <p className="small muted" style={{ textAlign: "center" }}>
           Already registered?{" "}
-          <Link className="text-link" href="/login">
+          <Link className="text-link" href={switchHref}>
             Log in
           </Link>
         </p>

@@ -11,7 +11,10 @@ export function AppChrome({ children }: { children: ReactNode }) {
     pathname === "/" ||
     pathname.startsWith("/login") ||
     pathname.startsWith("/signup") ||
-    pathname.startsWith("/onboarding");
+    pathname.startsWith("/onboarding") ||
+    pathname.startsWith("/company/login") ||
+    pathname.startsWith("/company/signup") ||
+    pathname.startsWith("/invite");
   const isSimulation = pathname.startsWith("/session/") && !pathname.endsWith("/debrief");
 
   return (
@@ -20,7 +23,7 @@ export function AppChrome({ children }: { children: ReactNode }) {
         children
       ) : (
         <div className="app-layout">
-          <Sidebar />
+          <Sidebar variant={pathname.startsWith("/company") ? "company" : "learner"} />
           <m.div
             className="app-content"
             key={pathname}

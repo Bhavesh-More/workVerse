@@ -18,6 +18,14 @@ const NAV = [
   { href: "/profile", label: "Profile", icon: "user" },
 ];
 
+const COMPANY_NAV = [
+  { href: "/company", label: "Overview", icon: "grid" },
+  { href: "/company/assessments", label: "Assessments", icon: "mail" },
+  { href: "/company/topics", label: "Topics", icon: "target" },
+  { href: "/company/judges", label: "AI judges", icon: "users" },
+  { href: "/company/settings", label: "Settings", icon: "sliders" },
+];
+
 const MIN = 200;
 const MAX = 340;
 const COLLAPSED = 72;
@@ -57,6 +65,30 @@ function Icon({ name }: { name: string }) {
         <path d="M12 7v5l3 2" />
       </svg>
     );
+  if (name === "mail")
+    return (
+      <svg {...common} aria-hidden="true">
+        <rect x="3" y="5" width="18" height="14" rx="2" />
+        <path d="M3 7l9 6 9-6" />
+      </svg>
+    );
+  if (name === "users")
+    return (
+      <svg {...common} aria-hidden="true">
+        <circle cx="9" cy="8" r="3.5" />
+        <path d="M2.5 20c0-3.5 3-5.5 6.5-5.5s6.5 2 6.5 5.5" />
+        <path d="M16 4.6a3.5 3.5 0 0 1 0 6.8M18 14.8c2.2.6 3.5 2.4 3.5 5.2" />
+      </svg>
+    );
+  if (name === "sliders")
+    return (
+      <svg {...common} aria-hidden="true">
+        <path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0" />
+        <circle cx="16" cy="6" r="2" />
+        <circle cx="10" cy="12" r="2" />
+        <circle cx="18" cy="18" r="2" />
+      </svg>
+    );
   if (name === "chart")
     return (
       <svg {...common} aria-hidden="true">
@@ -71,8 +103,11 @@ function Icon({ name }: { name: string }) {
   );
 }
 
-export function Sidebar() {
+export function Sidebar({ variant = "learner" }: { variant?: "learner" | "company" }) {
   const pathname = usePathname();
+  const isCompany = variant === "company";
+  const nav = isCompany ? COMPANY_NAV : NAV;
+  const home = isCompany ? "/company" : "/dashboard";
   const { user, signOut } = useAuth();
   const [width, setWidth] = useState(248);
   const [collapsed, setCollapsed] = useState(false);
@@ -128,7 +163,7 @@ export function Sidebar() {
       transition={dragging ? { duration: 0 } : { type: "spring", stiffness: 420, damping: 38 }}
     >
       <div className="sidebar__head">
-        <Link href="/dashboard" className="sidebar__brand" aria-label="WorkVerse dashboard">
+        <Link href={home} className="sidebar__brand" aria-label="WorkVerse dashboard">
           <span className="sidebar__mark">W</span>
           {!collapsed && <span className="sidebar__wordmark">WorkVerse</span>}
         </Link>
@@ -167,8 +202,8 @@ export function Sidebar() {
       )}
 
       <nav className="sidebar__nav" aria-label="Primary">
-        {NAV.map((item) => {
-          const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
+        {nav.map((item) => {
+          const active = item.href === home ? pathname === item.href : pathname === item.href || pathname.startsWith(`${item.href}/`);
           return (
             <Link
               key={item.href}
@@ -198,7 +233,7 @@ export function Sidebar() {
 
       <div className="sidebar__foot">
         {!collapsed && <SoundToggles />}
-        <Link href="/profile" className="sidebar__user" title={name}>
+        <Link href={isCompany ? "/company/settings" : "/profile"} className="sidebar__user" title={name}>
           <span className="sidebar__avatar">
             <Avatar imageUrl={user?.imageUrl} name={name} size={collapsed ? 34 : 38} />
             <span className="dot" aria-hidden="true" />
@@ -207,7 +242,7 @@ export function Sidebar() {
             <span className="sidebar__userinfo">
               <span className="sidebar__username">{name}</span>
               <span className="mono muted" style={{ fontSize: 11 }}>
-                In practice
+                {isCompany ? "Hiring team" : "In practice"}
               </span>
             </span>
           )}
@@ -215,7 +250,7 @@ export function Sidebar() {
         {!collapsed && (
           <button className="btn btn--ghost btn--small" onClick={() => {
               clearCache(); // cached reads belong to this user
-              signOut({ redirectUrl: "/" });
+              signOut({ redirectUrl: isCompany ? "/company/login" : "/" });
             }}>
             Sign out
           </button>
