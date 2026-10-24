@@ -99,9 +99,14 @@ export default function SessionPage() {
     if (nearCharacter) preloadVoice();
   }, [nearCharacter]);
 
+  // Chat sticks to the newest message, like any chat app (after layout, so new bubbles are measured).
   useEffect(() => {
-    transcriptRef.current?.scrollTo({ top: transcriptRef.current.scrollHeight, behavior: "smooth" });
-  }, [messages.length, pendingText]);
+    const id = requestAnimationFrame(() => {
+      const log = transcriptRef.current;
+      log?.scrollTo({ top: log.scrollHeight, behavior: "smooth" });
+    });
+    return () => cancelAnimationFrame(id);
+  }, [messages.length, pendingText, activeCharacter]);
 
   // Celebrate each objective the moment the server marks it complete (not on first load).
   useEffect(() => {
@@ -465,7 +470,10 @@ export default function SessionPage() {
   }
 
   const incident = session.incident as Record<string, unknown>;
-  const activeName = characters.find((c) => c.id === activeCharacter)?.name;
+  const activeChar = characters.find((c) => c.id === activeCharacter);
+  const activeName = activeChar?.name;
+  const activeFirst = activeName?.split(" ")[0] ?? "They";
+  const activeProfile = activeChar?.profile;
   const chatMessages = activeCharacter
     ? messages.filter((msg) => msg.character_id === activeCharacter)
     : [];
@@ -862,10 +870,11 @@ export default function SessionPage() {
             )}
           </AnimatePresence>
 
-          <section className="card stack stack--sm">
-            <h2 className="section-title" style={{ fontSize: 18 }}>
-              What you know
-            </h2>
+          <details className="card panel" open>
+            <summary className="panel__head">
+              <h2 className="section-title">What you know</h2>
+              <span className="panel__count">{session.facts_known.length}</span>
+            </summary>
             {session.facts_known.length === 0 ? (
               <p className="xsmall muted">Nothing confirmed yet. Ask around and check the evidence.</p>
             ) : (
@@ -886,7 +895,7 @@ export default function SessionPage() {
                 </AnimatePresence>
               </ul>
             )}
-          </section>
+          </details>
 
           <section className="sr-only" aria-label="All available actions">
             <h2 className="section-title">Workplace actions</h2>
@@ -912,15 +921,16 @@ export default function SessionPage() {
           </section>
 
           {actions.some((a) => a.id === "a_send_status_update" && a.ready) && (
-            <m.section
-              className="card stack stack--sm"
+            <m.details
+              className="card panel"
+              open
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               style={{ borderColor: "var(--color-ink)" }}
             >
-              <h2 className="section-title" style={{ fontSize: 18 }}>
-                Stakeholder update
-              </h2>
+              <summary className="panel__head">
+                <h2 className="section-title">Stakeholder update</h2>
+              </summary>
               <p className="xsmall muted">Cover impact, cause, action taken, next update time and owner.</p>
               <label className="sr-only" htmlFor="status-update">
                 Stakeholder update
@@ -947,25 +957,15 @@ export default function SessionPage() {
                   Send status update
                 </button>
               </div>
-            </m.section>
+            </m.details>
           )}
 
-          <section className="card stack stack--sm" style={{ minHeight: 260 }}>
-            <div className="row between">
-              <h2 className="section-title row" style={{ fontSize: 18, gap: 6 }}>
-                {activeName ? `Chat · ${activeName}` : "Conversation"}
-                {activeCharacter && hasProfiles && (
-                  <button
-                    className="btn btn--ghost btn--small"
-                    onClick={() => setIntro(activeCharacter)}
-                    aria-label={`About ${activeName}`}
-                    title={`About ${activeName}`}
-                  >
-                    ⓘ
-                  </button>
-                )}
-              </h2>
-              <div className="row" style={{ gap: 6 }}>
+          <details className="card panel panel--chat" open>
+            <summary className="panel__head">
+              <h2 className="section-title">{activeName ? `Chat · ${activeName}` : "Conversation"}</h2>
+            </summary>
+            <div className="stack stack--sm">
+              <div className="row" style={{ gap: 6, flexWrap: "wrap" }}>
                 {characters.map((c) => (
                   <button
                     key={c.id}
@@ -979,7 +979,37 @@ export default function SessionPage() {
                   </button>
                 ))}
               </div>
-            </div>
+            {activeProfile && activeChar && (
+              <div className="who-card">
+                {/* eslint-disable-next-line @next/next/no-img-element -- local SVG */}
+                <img src={activeProfile.portrait} alt="" />
+                <div className="who-card__id">
+                  <strong>{activeChar.name}</strong>
+                  <span>{activeChar.role}</span>
+                  <p>{activeProfile.personality}</p>
+                </div>
+                <button
+                  className="btn btn--ghost btn--small who-card__more"
+                  onClick={() => setIntro(activeChar.id)}
+                  aria-label={`${activeChar.name}'s profile card`}
+                  title="Profile card (Q)"
+                >
+                  ⓘ
+                </button>
+                <dl className="who-card__split">
+                  <div>
+                    <dt>{activeFirst} can tell you</dt>
+                    <dd>{activeProfile.knows}</dd>
+                  </div>
+                  {activeProfile.needs && (
+                    <div>
+                      <dt>{activeFirst} needs from you</dt>
+                      <dd>{activeProfile.needs}</dd>
+                    </div>
+                  )}
+                </dl>
+              </div>
+            )}
             {!activeCharacter ? (
               <p className="xsmall muted">Pick a colleague above and ask a question — or walk up to them and press E to talk out loud.</p>
             ) : (
@@ -1027,7 +1057,7 @@ export default function SessionPage() {
                     >
                       <span className="coach-nudge__spark" aria-hidden="true" />
                       <strong>{activeName} is waiting for you.</strong>
-                      <span className="xsmall">Not sure what to say? Tap one:</span>
+                      <span className="xsmall">Not sure what to ask {activeFirst}? Tap one:</span>
                       <div className="chip-row">
                         {suggestions.slice(0, 2).map((q, i) => (
                           <m.button
@@ -1049,7 +1079,7 @@ export default function SessionPage() {
                 </AnimatePresence>
                 {suggestions.length > 0 && !idleHint && (
                   <div className="stack stack--sm" aria-label="Suggested questions">
-                    <span className="xsmall muted">Try asking — short questions get real answers:</span>
+                    <span className="xsmall muted">Ask {activeFirst} (short questions get real answers):</span>
                     <div className="chip-row">
                       {suggestions.map((q) => (
                         <button
@@ -1074,7 +1104,7 @@ export default function SessionPage() {
                     id="chat-input"
                     className="textarea"
                     data-testid="chat-input"
-                    placeholder="Ask a question…"
+                    placeholder={`Message ${activeFirst}…`}
                     value={chatInput}
                     onChange={(e) => setChatInput(e.target.value)}
                     onKeyDown={(e) => {
@@ -1098,7 +1128,8 @@ export default function SessionPage() {
                 </p>
               </>
             )}
-          </section>
+            </div>
+          </details>
         </aside>
       </div>
     </div>

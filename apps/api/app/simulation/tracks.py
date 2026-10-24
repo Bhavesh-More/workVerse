@@ -53,7 +53,7 @@ TRACKS: dict[str, dict[str, Any]] = {
             "manager": {
                 "role": "Engineering Manager",
                 "style": "Direct, supportive, focused on impact and timelines.",
-                "greeting": "Thanks for jumping on this. Give me the short version: what's the blast radius?",
+                "greeting": "Thanks for jumping on this. Customers are hitting errors at checkout. Find out what changed and bring me a plan.",
                 "keywords": {
                     "f_business_impact": ["impact", "customer", "affected", "how bad", "users", "revenue", "business", "how many"],
                     "f_reporting_deadline": ["deadline", "when", "update", "how long", "time", "report", "escalat"],
@@ -180,7 +180,7 @@ TRACKS: dict[str, dict[str, Any]] = {
             "manager": {
                 "role": "Frontend Engineering Manager",
                 "style": "Warm but time-boxed; wants numbers, not guesses.",
-                "greeting": "Payments are tanking. How many people can't check out right now?",
+                "greeting": "Payments are tanking and people can't check out. Find out what broke; ask me if you need numbers.",
                 "keywords": {
                     "f_business_impact": ["impact", "customer", "how many", "affected", "revenue", "checkout", "users", "bad"],
                     "f_reporting_deadline": ["deadline", "when", "update", "time", "report", "leadership"],
@@ -306,7 +306,7 @@ TRACKS: dict[str, dict[str, Any]] = {
             "manager": {
                 "role": "Analytics Manager",
                 "style": "Analytical, calm, wants to know what leadership can trust.",
-                "greeting": "Leadership is about to quote these numbers. Are they real?",
+                "greeting": "Leadership is about to quote these numbers. Find out if they're real before the review.",
                 "keywords": {
                     "f_business_impact": ["impact", "how bad", "numbers", "drop", "leadership", "budget", "decision", "affected"],
                     "f_reporting_deadline": ["deadline", "when", "update", "time", "review", "meeting", "report"],
@@ -432,7 +432,7 @@ TRACKS: dict[str, dict[str, Any]] = {
             "manager": {
                 "role": "Head of Product",
                 "style": "Energetic, outcome-focused, hates vague answers.",
-                "greeting": "Our big launch is bleeding sign-ups. How bad is it, really?",
+                "greeting": "Our big launch is bleeding sign-ups. Find out why and bring me a plan I can share.",
                 "keywords": {
                     "f_business_impact": ["impact", "how bad", "sign-ups", "signups", "users", "affected", "campaign", "numbers"],
                     "f_reporting_deadline": ["deadline", "when", "update", "time", "vp", "standup", "report"],

@@ -148,7 +148,7 @@ _SLOTS: dict[str, dict[str, Any]] = {
     "coworker": {"location": "break_area", "sprite": "cat_brown2", "facts": []},
 }
 _GOALS = {
-    "manager": ["Understand customer impact", "Get a clear update before the reporting deadline"],
+    "manager": ["Hear the cause and a safe plan from the learner", "Get a clear status update before the reporting deadline"],
     "teammate": ["Identify the technical cause", "Avoid making the incident worse"],
     "qa": ["Report what testing missed", "Prevent a repeat"],
     "client_pm": ["Understand when things work again"],

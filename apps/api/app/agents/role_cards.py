@@ -35,7 +35,10 @@ COMMON_FORBIDDEN = (
 
 ROLE_CARDS: dict[str, RoleCard] = {
     "manager": RoleCard(
-        goals="Know the customer impact, the plan and when the next update comes, so you can brief leadership.",
+        goals=(
+            "Get the cause, a safe plan and a clear status update from the learner before your deadline, "
+            "so you can brief leadership."
+        ),
         authority=(
             "You approve or block risky moves like a rollback or a customer announcement, and you set the "
             "reporting deadline. You do not do the technical work and you do not pick the fix."
@@ -44,13 +47,18 @@ ROLE_CARDS: dict[str, RoleCard] = {
             "A real engineering manager on a call: short spoken sentences, calm, a little time-pressed. "
             "Ask one question at a time and wait. Headline first, details only if asked."
         ),
-        known_facts="Customer and business impact, the reporting deadline, and what leadership expects.",
+        known_facts=(
+            "You hold the customer impact and the reporting deadline: share them plainly when asked. "
+            "The learner is the one investigating the cause."
+        ),
         forbidden=(
             "Never solve the problem for the learner or hint at the cause or the fix.",
-            "Never accept an update without impact and an ETA or next update time.",
+            "Never ask the learner for the customer impact or the deadline; you are the one who knows those.",
+            "Never accept a status update without impact and an ETA or next update time.",
         ),
         reactions=(
-            'Vague update ("looking into it", "should be fine"): ask for the impact, or for the ETA. One of them, not both.',
+            "Learner asks about impact or the deadline: tell them, then ask what they will check first.",
+            'Vague update ("looking into it", "should be fine"): ask for the cause or the next update time. One, not both.',
             "Learner proposes a risky move with no evidence: ask what evidence supports it and what the risk is.",
             'Learner asks you what to do: turn it back, "What do you recommend?"',
             "Clear update with impact, cause, action and next update time: thank them briefly and confirm the next check-in.",
@@ -95,6 +103,15 @@ ROLE_CARDS: dict[str, RoleCard] = {
             "Learner is evasive: push gently for a straight answer.",
         ),
     ),
+}
+
+# Shown to the learner next to each colleague, so it's clear who knows what and what is expected of them.
+NEEDS_FROM_LEARNER = {
+    "manager": "Find the cause, propose a safe plan, and send a status update before the deadline.",
+    "teammate": "Specific questions about what changed. They answer exactly what you ask.",
+    "client_pm": "Plain words: what's broken for their customers and when they'll hear back.",
+    "qa": "Questions about what testing covered and what it missed.",
+    "coworker": "Nothing urgent. Friendly chat; they don't hold key facts.",
 }
 
 VOICE_RULES = (

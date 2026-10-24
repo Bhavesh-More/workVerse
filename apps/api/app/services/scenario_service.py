@@ -7,6 +7,7 @@ import random
 from typing import Any
 
 from app.agents.ollama_cloud import OllamaCloudClient
+from app.agents.role_cards import NEEDS_FROM_LEARNER
 from app.core.errors import NotFoundError, ValidationAppError
 from app.db.repository import Repository
 from app.schemas.runtime import SimulationState
@@ -46,13 +47,20 @@ def _precondition_reason(blueprint: ScenarioBlueprint, state: SimulationState, a
 def _profile(blueprint: ScenarioBlueprint, char_id: str, name: str) -> dict[str, Any] | None:
     """Intro-card profile; scenarios generated before profiles existed fall back to their track's."""
     stored = blueprint.metadata.get("profiles", {}).get(char_id)
+    needs = NEEDS_FROM_LEARNER.get(char_id, "")
     if stored:
-        return {"gender": gender_of(name), **stored}
+        return {"gender": gender_of(name), **stored, "needs": needs}
     track = TRACKS.get(blueprint.metadata.get("track", "backend"), TRACKS["backend"])
     slot = track["characters"].get(char_id)
     if not slot:
         return None
-    return {**slot["profile"], "portrait": _portrait(name), "knows": track["people_knows"].get(char_id, ""), "gender": gender_of(name)}
+    return {
+        **slot["profile"],
+        "portrait": _portrait(name),
+        "knows": track["people_knows"].get(char_id, ""),
+        "gender": gender_of(name),
+        "needs": needs,
+    }
 
 
 def world_view(blueprint: ScenarioBlueprint, state: SimulationState) -> dict[str, Any]:

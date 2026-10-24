@@ -267,3 +267,16 @@ arrow keys counts — instead of waiting for a click. If you came from the dashb
   It writes `ELEVENLABS_AGENT_MAP` into `apps/api/.env`, e.g. `{"manager":"agent_…","client_pm:male":"agent_…"}`.
   Lookup order: `client_pm:male` → `client_pm` → `ELEVENLABS_AGENT_ID`.
 - **Role cards** (`apps/api/app/agents/role_cards.py`) set how the manager, teammate and client behave on calls.
+
+## 15. Clear roles in chat: who knows what
+
+**Problem:** the manager asked *you* "who's affected?", but she is the one who knows the impact — you
+were confused whether to answer or investigate.
+
+- **Who owns what now:** the manager *tells* you the impact and the deadline when you ask; *you* find the
+  cause, propose a plan and send the status update. Her greeting, goals, role card and voice first line say so.
+- **"Who you're talking to" card** above the chat: portrait, role, personality, **"<Name> can tell you"**
+  and **"<Name> needs from you"** (`NEEDS_FROM_LEARNER` in `apps/api/app/agents/role_cards.py`).
+- Suggestions now say **"Ask Olivia:"** so it's clear they are questions *you* send.
+- Right-hand sections (**What you know**, **Stakeholder update**, **Chat**) collapse — click the title.
+- Chat always scrolls to the newest message; the chat box can no longer be squeezed to a sliver.

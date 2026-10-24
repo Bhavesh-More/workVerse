@@ -17,7 +17,7 @@ from app.agents.role_cards import VOICE_RULES, card_prompt
 from app.simulation.tracks import CASTING, VOICES
 
 AGENTS = [  # (map key, slot, gender, label, first message)
-    ("manager", "manager", "female", "Manager", "Thanks for jumping on this. Give me the short version: who's affected?"),
+    ("manager", "manager", "female", "Manager", "Thanks for jumping on this. Find out what went wrong, and ask me if you need the impact or the deadline."),
     ("teammate", "teammate", "male", "Teammate", "Hey. What do you need to know?"),
     ("client_pm:female", "client_pm", "female", "Client (female)", "Hi, thanks for calling. My customers are stuck. What's going on?"),
     ("client_pm:male", "client_pm", "male", "Client (male)", "Hi, thanks for calling. My customers are stuck. What's going on?"),
@@ -88,8 +88,9 @@ def main() -> None:
             mapping[key] = r.json()["agent_id"]
             print("created", key, mapping[key])
         # Keep existing agents in line with the current settings (free).
-        for agent_id in mapping.values():
-            http.patch(f"/v1/convai/agents/{agent_id}", json={"conversation_config": {"conversation": {"client_events": CLIENT_EVENTS}}})
+        for key, slot, gender, label, first in AGENTS:
+            conf = {"conversation": {"client_events": CLIENT_EVENTS}, "agent": {"first_message": first, "prompt": {"prompt": prompt_for(slot)}}}
+            http.patch(f"/v1/convai/agents/{mapping[key]}", json={"conversation_config": conf})
     write_env_map(mapping)
     print("ELEVENLABS_AGENT_MAP updated in apps/api/.env")
 

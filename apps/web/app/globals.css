@@ -2343,3 +2343,62 @@ blockquote {
   .ti-finale__card { width: 96px; }
   .ti-finale__row { gap: 8px; }
 }
+
+/* ---- Session side panels: collapsible, chat never squeezed ---- */
+.sim-full__side > * { flex-shrink: 0; }
+.panel > .panel__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+}
+.panel > .panel__head::-webkit-details-marker { display: none; }
+.panel > .panel__head .section-title { font-size: 18px; margin: 0; }
+.panel > .panel__head::after {
+  content: "";
+  margin-left: auto;
+  width: 8px;
+  height: 8px;
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  transform: rotate(45deg);
+  transition: transform 0.2s var(--ease-out);
+}
+.panel:not([open]) > .panel__head::after { transform: rotate(-45deg); }
+.panel[open] > .panel__head { margin-bottom: 10px; }
+.panel__count {
+  min-width: 22px;
+  padding: 1px 7px;
+  border-radius: var(--radius-pill);
+  background: var(--color-ink);
+  color: var(--color-paper);
+  font-family: var(--font-mono);
+  font-size: 11px;
+  text-align: center;
+}
+.panel--chat .chat-log { min-height: 220px; max-height: min(420px, 50vh); overscroll-behavior: contain; }
+
+.who-card {
+  display: grid;
+  grid-template-columns: 44px 1fr auto;
+  gap: 4px 10px;
+  align-items: start;
+  padding: 10px;
+  border-radius: 12px;
+  background: var(--color-surface, rgba(20, 20, 20, 0.04));
+  border: 1px solid rgba(20, 20, 20, 0.08);
+}
+.who-card img { width: 44px; height: 44px; border-radius: 10px; background: var(--color-highlight-yellow); }
+.who-card__id { display: grid; gap: 1px; min-width: 0; }
+.who-card__id strong { font-size: 14px; line-height: 1.2; }
+.who-card__id span { font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.06em; text-transform: uppercase; color: var(--color-muted); }
+.who-card__id p { margin: 3px 0 0; font-size: 12px; line-height: 1.35; color: var(--color-muted); }
+.who-card__split { grid-column: 1 / -1; margin: 4px 0 0; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.who-card__split > div { padding: 7px 9px; border-radius: 8px; background: var(--color-paper); }
+.who-card__split dt { font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--color-ember); }
+.who-card__split > div + div dt { color: var(--color-ink); }
+.who-card__split dd { margin: 2px 0 0; font-size: 12px; line-height: 1.35; }
+@media (max-width: 420px) { .who-card__split { grid-template-columns: 1fr; } }
+.panel[open] > :not(summary) + :not(summary) { margin-top: 10px; }

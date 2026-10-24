@@ -191,7 +191,7 @@ def test_verify_bridge_secret_accepts_documented_forms() -> None:
     with pytest.raises(AuthError):
         voice_llm.verify_bridge_secret(settings, {})
     with pytest.raises(AIConfigError):
-        voice_llm.verify_bridge_secret(Settings(), {"authorization": "Bearer x"})
+        voice_llm.verify_bridge_secret(Settings(voice_llm_bridge_secret=""), {"authorization": "Bearer x"})
 
 
 def test_validate_bridge_request_limits() -> None:
@@ -575,9 +575,11 @@ def test_voice_prompt_uses_role_card_and_spoken_rules() -> None:
     everything = " ".join(m["content"] for m in msgs)
     migration = BLUEPRINT.fact("f_migration_ran")
     assert migration is not None and migration.detail not in everything
-    # text chat keeps its own prompt (no role card)
+    # text chat uses the same role card but chat-length rules, not spoken ones
     chat = build_character_messages(BLUEPRINT, state, manager, [], "update?", [])
-    assert "Never solve the problem" not in chat[0]["content"]
+    assert "Never solve the problem" in chat[0]["content"]
+    assert "No markdown, no lists" not in chat[0]["content"]
+    assert "Never ask the learner for the customer impact" in chat[0]["content"]
 
 
 def test_spoken_strips_markdown() -> None:

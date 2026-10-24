@@ -22,6 +22,8 @@ export type CharacterProfile = {
   stats: Record<string, number>;
   portrait: string;
   gender?: "male" | "female";
+  /** What this colleague expects from the learner (shown next to the chat). */
+  needs?: string;
   knows: string;
 };
 
