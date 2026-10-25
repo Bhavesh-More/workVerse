@@ -6,7 +6,7 @@ import { useParams, useRouter } from "next/navigation";
 import { CompanyGate } from "../../../../../components/CompanyGate";
 import { FormError } from "../../../../../components/AuthShell";
 import { BandDot, BandStack, FunnelChart, HistogramChart, RankingBars, SkillBars } from "../../../../../components/CompanyCharts";
-import { companyApi, parseCandidates, type AssessmentDetail, type Candidate, type InviteResult } from "../../../../../lib/company";
+import { companyApi, parseCandidates, type AssessmentDetail, type Candidate, type InviteChannel, type InviteResult } from "../../../../../lib/company";
 import { useApi } from "../../../../../lib/useApi";
 
 export default function AssessmentPage() {
@@ -140,6 +140,8 @@ function InvitePanel({ detail, onDone }: { detail: AssessmentDetail; onDone: () 
   const [over, setOver] = useState(false);
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<InviteResult | null>(null);
+  const [channel, setChannel] = useState<InviteChannel>("app");
+  const needsSmtp = channel !== "app";
   const [error, setError] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
@@ -159,7 +161,7 @@ function InvitePanel({ detail, onDone }: { detail: AssessmentDetail; onDone: () 
     setError(null);
     setResult(null);
     try {
-      const res = await companyApi.invite(detail.assessment.id, parsed);
+      const res = await companyApi.invite(detail.assessment.id, parsed, channel);
       setResult(res);
       if (res.sent) {
         setRows([{ name: "", email: "" }]);
@@ -179,10 +181,32 @@ function InvitePanel({ detail, onDone }: { detail: AssessmentDetail; onDone: () 
       <div className="row between">
         <div>
           <h2 className="section-title">Invite candidates</h2>
-          <p className="small muted">Each candidate gets a personal link by email. Already-invited emails are skipped.</p>
+          <p className="small muted">Each candidate gets a personal assessment link. Already-invited emails are skipped.</p>
         </div>
       </div>
-      {!detail.smtp_ready && (
+      <fieldset className="co-channel" style={{ border: 0, padding: 0, margin: 0 }}>
+        <legend className="eyebrow" style={{ marginBottom: 8 }}>Deliver</legend>
+        {(
+          [
+            ["app", "In WorkVerse", "A notification and a live popup in the app"],
+            ["email", "By email", "Sent from your SMTP server"],
+            ["both", "Both", "In the app and by email"],
+          ] as const
+        ).map(([id, label, hint]) => (
+          <label key={id} title={hint}>
+            <input type="radio" name="invite-channel" value={id} checked={channel === id} onChange={() => setChannel(id)} data-testid={`channel-${id}`} />
+            <span>
+              <strong>{label}</strong> <span className="xsmall muted">· {hint}</span>
+            </span>
+          </label>
+        ))}
+      </fieldset>
+      {channel === "app" && (
+        <p className="xsmall muted" style={{ margin: 0 }}>
+          Candidates with a WorkVerse account get it right away. Anyone else sees it as soon as they sign up with the same email — choose <b>Both</b> to also email them a link.
+        </p>
+      )}
+      {needsSmtp && !detail.smtp_ready && (
         <div className="banner banner--error">
           SMTP isn&apos;t set up yet, so invites can&apos;t be emailed. <Link className="text-link" href="/company/settings">Add your SMTP server →</Link>
         </div>
@@ -261,7 +285,8 @@ function InvitePanel({ detail, onDone }: { detail: AssessmentDetail; onDone: () 
       {result && (
         <div className={`banner ${result.failed.length ? "banner--error" : "banner--info"}`} role="status" data-testid="invite-result">
           <span>
-            Sent {result.sent} invite{result.sent === 1 ? "" : "s"}.
+            {result.channel === "app" ? "Delivered" : "Sent"} {result.sent} invite{result.sent === 1 ? "" : "s"}{result.channel === "app" ? " in WorkVerse" : result.channel === "both" ? " (app + email)" : ""}.
+            {(result.awaiting_signup?.length ?? 0) > 0 && ` ${result.awaiting_signup!.length} ${result.awaiting_signup!.length === 1 ? "person doesn't" : "people don't"} have an account yet and will see it when they sign up.`}
             {result.already_invited.length > 0 && ` ${result.already_invited.length} already invited.`}
             {result.invalid.length > 0 && ` Invalid: ${result.invalid.join(", ")}.`}
             {result.failed.length > 0 && ` Failed: ${result.failed.map((f) => `${f.email} (${f.error})`).join("; ")}`}
@@ -341,6 +366,8 @@ function CandidateTable({
                     <span className={`badge${c.status === "completed" ? " badge--ok" : c.status === "email_failed" ? " badge--warn" : c.status === "in_progress" ? " badge--active" : ""}`} title={c.email_error ?? undefined}>
                       {c.status_label}
                     </span>
+                    <br />
+                    <span className="xsmall muted" data-testid="invite-channel">{c.channel === "app" ? "via WorkVerse" : c.channel === "both" ? "via app + email" : "via email"}</span>
                   </td>
                   <td className="co-score">{c.score ?? "—"}</td>
                   <td className="small"><BandDot label={c.band?.label} /></td>

@@ -3057,3 +3057,42 @@ blockquote {
   .jr-form__actions { grid-column: 1 / -1; justify-content: flex-start; }
   .jr-page { height: auto; }
 }
+
+/* =========================================================================
+   Notifications: bell, panel and live popups
+   ========================================================================= */
+.nt-bell { position: relative; }
+.nt-bell__btn { width: 100%; border: 0; background: none; cursor: pointer; text-align: left; }
+.nt-bell__btn.is-active { background: var(--color-mist); }
+.nt-bell__count { margin-left: auto; min-width: 20px; height: 20px; padding: 0 6px; border-radius: var(--radius-pill); background: var(--color-ember); color: #fff; font: 600 11px/20px var(--font-mono); text-align: center; letter-spacing: 0; }
+.nt-bell.is-compact .nt-bell__count { position: absolute !important; top: 4px; right: 6px; min-width: 16px; height: 16px; font-size: 9px; line-height: 16px; padding: 0 4px; }
+button.text-link { border: 0; background: none; padding: 0; font: inherit; color: inherit; cursor: pointer; }
+.nt-panel { position: fixed; z-index: 70; left: 16px; top: 64px; width: min(380px, calc(100vw - 32px)); max-height: min(70vh, 560px); display: grid; grid-template-rows: auto auto minmax(0, 1fr); background: var(--color-paper); border: 1px solid var(--color-ink); border-radius: var(--radius-card); overflow: hidden; }
+.nt-panel__head { display: flex; justify-content: space-between; align-items: center; padding: 14px 16px; border-bottom: 1px solid var(--color-hairline); }
+.nt-panel__desktop { margin: 10px 12px 0; padding: 10px 12px; border: 1px dashed var(--color-hairline); border-radius: var(--radius-button); background: var(--color-canvas); font: inherit; font-size: 13px; text-align: left; cursor: pointer; }
+.nt-panel__desktop:hover { border-color: var(--color-ink); }
+.nt-list { overflow-y: auto; padding: 6px; }
+.nt-empty { padding: 28px 12px; text-align: center; color: var(--color-muted); font-size: 14px; }
+.nt-item { width: 100%; display: grid; grid-template-columns: 30px 1fr auto; gap: 10px; align-items: start; padding: 10px; border: 0; border-radius: var(--radius-button); background: none; text-align: left; font: inherit; color: inherit; cursor: pointer; }
+.nt-item:hover { background: var(--color-canvas); }
+.nt-item__text { display: grid; gap: 3px; font-size: 13px; line-height: 1.4; min-width: 0; }
+.nt-item__text strong { font-size: 14px; }
+.nt-item__text > span { color: var(--color-muted); overflow-wrap: anywhere; }
+.nt-item:not(.is-unread) .nt-item__text strong { font-weight: 500; }
+.nt-item__time { font: 11px var(--font-mono); letter-spacing: var(--tracking-mono); text-transform: uppercase; }
+.nt-dot { width: 8px; height: 8px; margin-top: 6px; border-radius: 50%; background: var(--color-ember); }
+.nt-icon { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 50%; background: var(--color-highlight-yellow); font-size: 14px; }
+.nt-popups { position: fixed; z-index: 80; top: 16px; right: 16px; display: grid; gap: 10px; width: min(380px, calc(100vw - 32px)); pointer-events: none; }
+.nt-popup { pointer-events: auto; display: grid; grid-template-columns: 30px 1fr auto; gap: 12px; align-items: start; padding: 14px 14px 14px 16px; background: var(--color-paper); border: 1px solid var(--color-ink); border-left: 5px solid var(--color-highlight-yellow); border-radius: var(--radius-card); }
+.nt-popup--candidate_completed { border-left-color: var(--color-signal-green); }
+.nt-popup__text { display: grid; gap: 4px; font-size: 13px; line-height: 1.4; min-width: 0; }
+.nt-popup__text strong { font-size: 14px; }
+.nt-popup__text > span { color: var(--color-muted); overflow-wrap: anywhere; }
+.nt-popup__cta { justify-self: start; margin-top: 4px; padding: 6px 12px; border: 0; border-radius: var(--radius-button); background: var(--color-ink); color: var(--color-paper); font: 600 11px var(--font-mono); letter-spacing: var(--tracking-mono); text-transform: uppercase; cursor: pointer; }
+.nt-popup__x { border: 0; background: none; color: var(--color-muted); cursor: pointer; font-size: 12px; padding: 2px 4px; }
+.nt-popup__x:hover { color: var(--color-ink); }
+.co-channel { display: flex; gap: 8px; flex-wrap: wrap; }
+.co-channel label { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border: 1px solid var(--color-hairline); border-radius: var(--radius-button); cursor: pointer; font-size: 14px; }
+.co-channel label:has(input:checked) { border-color: var(--color-ink); background: var(--color-canvas); }
+.co-channel input { accent-color: var(--color-ink); }
+

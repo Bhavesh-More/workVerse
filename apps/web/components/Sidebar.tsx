@@ -9,6 +9,7 @@ import { clearCache } from "../lib/api";
 import { prefetchRoute } from "../lib/useApi";
 import { Avatar } from "./Avatar";
 import { SoundToggles } from "./Sound";
+import { NotificationBell } from "./Notifications";
 
 const NAV = [
   { href: "/dashboard", label: "Dashboard", icon: "grid" },
@@ -196,11 +197,11 @@ export function Sidebar({ variant = "learner" }: { variant?: "learner" | "compan
       {collapsed && (
         <button
           className="sidebar__collapse is-collapsed"
-          style={{ margin: "0 auto 4px" }}
           onClick={() => {
             setCollapsed(false);
             persist(width, false);
           }}
+          style={{ margin: "0 auto 4px" }}
           aria-label="Expand sidebar"
           title="Expand"
         >
@@ -238,6 +239,7 @@ export function Sidebar({ variant = "learner" }: { variant?: "learner" | "compan
             </Link>
           );
         })}
+        <NotificationBell collapsed={collapsed} />
       </nav>
 
       <div className="sidebar__foot">

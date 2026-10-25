@@ -108,6 +108,8 @@ export type Candidate = {
   status_label: string;
   email_status: string;
   email_error: string | null;
+  /** How the invite was delivered: inside WorkVerse, by email, or both. */
+  channel: InviteChannel;
   sent_at: string | null;
   opened_at: string | null;
   started_at: string | null;
@@ -161,7 +163,12 @@ export type AllCandidates = {
   skills: { id: string; name: string; description: string }[];
 };
 
+export type InviteChannel = "app" | "email" | "both";
+
 export type InviteResult = {
+  channel?: InviteChannel;
+  /** In-app invites to emails with no WorkVerse account yet: delivered once they sign up. */
+  awaiting_signup?: string[];
   sent: number;
   failed: { email: string; error: string }[];
   invalid: string[];
@@ -209,8 +216,8 @@ export const companyApi = {
     request<AssessmentSummary>("/company/assessments", { method: "POST", body }),
   setStatus: (id: string, status: "active" | "closed") =>
     request<{ status: string }>(`/company/assessments/${id}`, { method: "PATCH", body: { status } }),
-  invite: (id: string, candidates: { email: string; name?: string }[], resend = false) =>
-    request<InviteResult>(`/company/assessments/${id}/invites`, { method: "POST", body: { candidates, resend } }),
+  invite: (id: string, candidates: { email: string; name?: string }[], channel: InviteChannel = "app", resend = false) =>
+    request<InviteResult>(`/company/assessments/${id}/invites`, { method: "POST", body: { candidates, resend, channel } }),
   resend: (id: string, inviteId: string) =>
     request<{ ok: boolean; error: string | null }>(`/company/assessments/${id}/invites/${inviteId}/resend`, { method: "POST" }),
   removeInvite: (id: string, inviteId: string) =>
