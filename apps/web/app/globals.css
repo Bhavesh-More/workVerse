@@ -2951,6 +2951,7 @@ blockquote {
 .co-table th button { all: unset; cursor: pointer; }
 .co-table td { padding: 16px 10px; border-bottom: 1px solid var(--color-hairline); vertical-align: middle; }
 .co-table tr:hover td { background: var(--color-canvas); }
+.co-col-wide { min-width: 190px; }
 .co-score { font-family: var(--font-display); font-size: 26px; font-variant-numeric: tabular-nums; }
 .co-tabs { display: inline-flex; gap: 4px; padding: 4px; background: var(--color-canvas); border-radius: 10px; margin-bottom: 14px; }
 .co-tabs button {
@@ -3239,7 +3240,9 @@ blockquote {
 .jr-voice__play { width: 34px; height: 34px; margin-right: 8px; border-radius: 50%; border: 1px solid var(--color-hairline); background: var(--color-paper); cursor: pointer; font-size: 13px; }
 .jr-voice__play:hover { border-color: var(--color-ink); }
 .jr-empty { display: grid; place-items: center; align-content: center; gap: 12px; }
-.jr-page { height: min(78vh, 900px); border: 1px solid var(--color-hairline); border-radius: var(--radius-card); overflow: hidden; background: var(--color-canvas); }
+.jr-page { height: max(560px, calc(100dvh - 260px)); border: 1px solid var(--color-hairline); border-radius: var(--radius-card); overflow: hidden; background: var(--color-canvas); }
+/* The judges editor uses the whole area right of the sidebar, not the 1240px reading column. */
+.app-main:has(.jr-page) { max-width: none; }
 @media (max-width: 860px) {
   .jr-modal__bar { flex-wrap: wrap; }
   .jr-modal__body { overflow-y: auto; }

@@ -174,11 +174,11 @@ function Candidates() {
                 {rows.map((c) => (
                   <tr key={c.id}>
                     <td><strong>{c.name}</strong><br /><span className="xsmall muted">{c.email}</span></td>
-                    <td className="small"><Link className="text-link" href={`/company/assessments/${c.assessment_id}`}>{c.assessment_title}</Link></td>
+                    <td className="small co-col-wide"><Link className="text-link" href={`/company/assessments/${c.assessment_id}`}>{c.assessment_title}</Link></td>
                     <td><span className={statusBadge(c.status)}>{c.status_label}</span></td>
                     <td className="co-score">{c.score ?? "—"}</td>
                     <td className="small"><BandDot label={c.band?.label} /></td>
-                    <td className="small">{c.gaps.map((g) => g.skill).join(", ") || <span className="muted">—</span>}</td>
+                    <td className="small co-col-wide">{c.gaps.map((g) => g.skill).join(", ") || <span className="muted">—</span>}</td>
                     <td>
                       {c.session_id && (
                         <Link className="btn btn--ghost btn--small" href={`/company/assessments/${c.assessment_id}/candidates/${c.id}`}>View report</Link>
