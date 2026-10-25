@@ -205,6 +205,7 @@ export default function SessionPage() {
           setNotice(`New information: ${labels.join(" · ")}`);
           play("discover");
         }
+        return true;
       } catch (e) {
         if (e instanceof ApiError && e.status === 409) {
           await load();
@@ -213,6 +214,7 @@ export default function SessionPage() {
           setError(e instanceof ApiError ? e.message : "Action failed.");
           play("error");
         }
+        return false;
       } finally {
         setBusy(false);
       }
@@ -1151,7 +1153,7 @@ export default function SessionPage() {
                   disabled={busy || updateText.trim().length < 10}
                   onClick={() => {
                     const action = actions.find((a) => a.id === "a_send_status_update");
-                    if (action) runAction(action, { text: updateText.trim() });
+                    if (action) runAction(action, { text: updateText.trim() }).then((ok) => ok && setUpdateText(""));
                   }}
                 >
                   Send update
