@@ -96,3 +96,27 @@ def test_default_text_follows_topic_track():
     track = bp.metadata.get("track")
     judges.apply_topic(bp, {"title": "t", "description": ""}, {"name": "A", "judge_roster": roster})
     assert bp.character("qa").greeting == judges.default_template("qa", track)["greeting"]
+
+
+def test_topic_picks_judges_and_tunes_each_one():
+    roster = judges.clean_roster([
+        _j("manager", "Zara Quinn", id="boss"),
+        _j("teammate", "Pat Doe", id="pat"),
+        _j("qa", "Mina Park", id="mina"),
+        _j("client_pm", "Leo Ray", id="leo"),
+    ])
+    with pytest.raises(ValueError, match="at least one"):
+        judges.clean_topic_selection([], roster)
+    assert judges.clean_topic_selection(["boss", "pat", "mina", "leo"], roster) is None  # all = None
+    assert judges.clean_topic_selection(["mina", "boss", "ghost"], roster) == ["boss", "mina"]
+    tuned = judges.clean_topic_judges({"mina": {"tone": "blunt", "strictness": 5, "name": "Hacker"}, "ghost": {"tone": "warm"}}, roster)
+    assert tuned == {"mina": {"tone": "blunt", "strictness": 5}}
+
+    bp = build_production_incident(seed=4, role="Backend Engineer")
+    topic = {"title": "t", "description": "", "judge_ids": ["boss", "mina"], "judges": tuned}
+    judges.apply_topic(bp, topic, {"name": "A", "judge_roster": roster})
+    assert [c.name for c in bp.characters][:2] == ["Zara Quinn", "Mina Park"]
+    assert {c.id for c in bp.characters} >= {"manager", "qa"} and "teammate" not in {c.id for c in bp.characters}
+    assert bp.metadata["judges"]["qa"]["tone"] == "blunt" and bp.metadata["judges"]["qa"]["name"] == "Mina Park"
+    assert set(bp.metadata["covers"]) == {"teammate", "client_pm", "coworker"}
+    assert validate_blueprint(bp).ok

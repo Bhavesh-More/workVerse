@@ -360,25 +360,61 @@ def clean_judges(raw: Any) -> dict[str, dict[str, Any]]:
         cfg = raw.get(slot)
         if not isinstance(cfg, dict):
             continue
-        clean: dict[str, Any] = {}
+        clean = _clean_behaviour(cfg)
         name = cfg.get("name")
         if isinstance(name, str) and name in _cast(slot):
             clean["name"] = name
-        for key, limit in (("personality", 600), ("focus", 400), ("greeting", 300)):
-            val = cfg.get(key)
-            if isinstance(val, str) and val.strip():
-                clean[key] = val.strip()[:limit]
-        if cfg.get("tone") in TONES:
-            clean["tone"] = cfg["tone"]
-        try:
-            level = int(cfg.get("strictness"))
-            if level in STRICTNESS:
-                clean["strictness"] = level
-        except (TypeError, ValueError):
-            pass
         if clean:
             out[slot] = clean
     return out
+
+
+def _clean_behaviour(cfg: dict[str, Any]) -> dict[str, Any]:
+    clean: dict[str, Any] = {}
+    for key, limit in (("personality", 600), ("focus", 400), ("greeting", 300)):
+        val = cfg.get(key)
+        if isinstance(val, str) and val.strip():
+            clean[key] = val.strip()[:limit]
+    if cfg.get("tone") in TONES:
+        clean["tone"] = cfg["tone"]
+    try:
+        level = int(cfg.get("strictness"))
+        if level in STRICTNESS:
+            clean["strictness"] = level
+    except (TypeError, ValueError):
+        pass
+    return clean
+
+
+def clean_topic_judges(raw: Any, roster: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
+    """Per-topic tuning for a roster company: keyed by roster judge id, behaviour only (no names)."""
+    ids = {j["id"] for j in roster}
+    out: dict[str, dict[str, Any]] = {}
+    if isinstance(raw, dict):
+        for jid, cfg in raw.items():
+            if jid in ids and isinstance(cfg, dict) and (clean := _clean_behaviour(cfg)):
+                out[jid] = clean
+    return out
+
+
+def clean_topic_selection(raw: Any, roster: list[dict[str, Any]]) -> list[str] | None:
+    """Which roster judges take part in a topic. None = all (later additions join too).
+    Raises ValueError when the selection leaves nobody."""
+    if raw is None:
+        return None
+    ids = [j["id"] for j in roster]
+    picked = [i for i in ids if isinstance(raw, list) and i in raw]
+    if not picked:
+        raise ValueError("Pick at least one judge for this topic.")
+    return None if len(picked) == len(ids) else picked
+
+
+def topic_roster(roster: list[dict[str, Any]], topic: dict[str, Any]) -> list[dict[str, Any]]:
+    """The judges in a topic's scenario, with the topic's tuning applied (names stay the roster's)."""
+    ids = topic.get("judge_ids")
+    team = [j for j in roster if ids is None or j["id"] in ids] or roster
+    tuning = topic.get("judges") or {}
+    return [{**j, **{k: v for k, v in (tuning.get(j["id"]) or {}).items() if k in FIELDS and k != "name" and v not in (None, "")}} for j in team]
 
 
 def bad_names(raw: Any) -> list[str]:
@@ -421,10 +457,14 @@ def apply_topic(
     track = blueprint.metadata.get("track", "backend")
     overrides = topic.get("judges") or {}
     if company.get("judge_roster"):
-        apply_roster(blueprint, company["judge_roster"])
+        roster = company["judge_roster"]
+        apply_roster(blueprint, topic_roster(roster, topic))
         judges: dict[str, dict[str, Any]] = blueprint.metadata["judges"]
-        # A topic tunes the role's lead judge; the roster owns names.
+        ids = {j["id"] for j in roster}
+        # Older topics tuned roles (keys "manager", ...) rather than judges: apply to the role's lead.
         for character in blueprint.characters:
+            if character.id in ids:
+                continue  # already tuned through topic_roster
             layer = {k: v for k, v in (overrides.get(character.id) or {}).items() if k in FIELDS and k != "name" and v not in (None, "")}
             if not layer or character.id not in judges:
                 continue

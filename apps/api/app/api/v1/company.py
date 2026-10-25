@@ -18,6 +18,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.company import analytics, judges
+from app.company.judges import MAX_JUDGES
 from app.company.report_pdf import build_pdf
 from app.core.errors import ConflictError, ForbiddenError, NotFoundError, ValidationAppError
 from app.db.company_repository import CompanyRepository
@@ -139,19 +140,31 @@ class TopicBody(BaseModel):
     incident: str | None = Field(default=None, max_length=40)
     difficulty: Literal["introductory", "standard", "challenging"] = "standard"
     judges: dict[str, Any] = Field(default_factory=dict)
+    # Roster companies: which judges take part (None = all of them).
+    judge_ids: list[str] | None = Field(default=None, max_length=MAX_JUDGES)
 
 
-def _topic_data(body: TopicBody) -> dict[str, Any]:
-    if bad := judges.bad_names(body.judges):
-        raise ValidationAppError("Pick judge names from the existing cast.", code="invalid_judge_name", details={"names": bad})
+def _topic_data(body: TopicBody, company: dict[str, Any]) -> dict[str, Any]:
     incidents = {i["id"] for t in judges.catalog()["tracks"] if t["id"] == body.track for i in t["incidents"]}
+    roster = company.get("judge_roster")
+    if roster:
+        try:
+            selection = judges.clean_topic_selection(body.judge_ids, roster)
+        except ValueError as exc:
+            raise ValidationAppError(str(exc), code="no_judges") from exc
+        tuned = judges.clean_topic_judges(body.judges, roster)
+    else:
+        if bad := judges.bad_names(body.judges):
+            raise ValidationAppError("Pick judge names from the existing cast.", code="invalid_judge_name", details={"names": bad})
+        selection, tuned = None, judges.clean_judges(body.judges)
     return {
+        "judge_ids": selection,
         "title": body.title.strip(),
         "description": body.description.strip(),
         "track": body.track,
         "incident": body.incident if body.incident in incidents else None,
         "difficulty": body.difficulty,
-        "judges": judges.clean_judges(body.judges),
+        "judges": tuned,
     }
 
 
@@ -164,6 +177,7 @@ def _topic_view(t: dict[str, Any]) -> dict[str, Any]:
         "incident": t.get("incident"),
         "difficulty": t["difficulty"],
         "judges": t.get("judges") or {},
+        "judge_ids": t.get("judge_ids"),
         "assessment_count": int(t.get("assessment_count") or 0),
         "created_at": t["created_at"].isoformat(),
     }
@@ -178,7 +192,7 @@ async def list_topics(principal: CurrentUser, crepo: CRepo) -> dict:
 @router.post("/company/topics", status_code=201)
 async def create_topic(principal: CurrentUser, crepo: CRepo, body: TopicBody) -> dict:
     company = await _company(principal, crepo)
-    return _topic_view(await crepo.insert_topic(str(company["id"]), _topic_data(body)))
+    return _topic_view(await crepo.insert_topic(str(company["id"]), _topic_data(body, company)))
 
 
 @router.get("/company/topics/{topic_id}")
@@ -193,7 +207,7 @@ async def get_topic(principal: CurrentUser, crepo: CRepo, topic_id: str) -> dict
 @router.put("/company/topics/{topic_id}")
 async def update_topic(principal: CurrentUser, crepo: CRepo, topic_id: str, body: TopicBody) -> dict:
     company = await _company(principal, crepo)
-    topic = await crepo.update_topic(str(company["id"]), topic_id, _topic_data(body))
+    topic = await crepo.update_topic(str(company["id"]), topic_id, _topic_data(body, company))
     if topic is None:
         raise NotFoundError("Topic not found.")
     return _topic_view(topic)

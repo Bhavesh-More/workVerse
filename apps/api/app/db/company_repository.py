@@ -14,6 +14,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.repository import _row, _rows
 
 
+def _json_or_null(v: Any) -> str | None:
+    return None if v is None else json.dumps(v)
+
+
 class CompanyRepository:
     def __init__(self, session: AsyncSession) -> None:
         self.session = session
@@ -72,17 +76,17 @@ class CompanyRepository:
 
     async def insert_topic(self, company_id: str, data: dict[str, Any]) -> dict[str, Any]:
         return await self._one(  # type: ignore[return-value]
-            "insert into public.company_topics (company_id, title, description, track, incident, difficulty, judges) "
-            "values (:cid, :title, :description, :track, :incident, :difficulty, cast(:judges as jsonb)) returning *",
-            {"cid": company_id, **data, "judges": json.dumps(data["judges"])},
+            "insert into public.company_topics (company_id, title, description, track, incident, difficulty, judges, judge_ids) "
+            "values (:cid, :title, :description, :track, :incident, :difficulty, cast(:judges as jsonb), cast(:judge_ids as jsonb)) returning *",
+            {"cid": company_id, **data, "judges": json.dumps(data["judges"]), "judge_ids": _json_or_null(data.get("judge_ids"))},
         )
 
     async def update_topic(self, company_id: str, topic_id: str, data: dict[str, Any]) -> dict[str, Any] | None:
         return await self._one(
             "update public.company_topics set title = :title, description = :description, track = :track, "
-            "incident = :incident, difficulty = :difficulty, judges = cast(:judges as jsonb) "
+            "incident = :incident, difficulty = :difficulty, judges = cast(:judges as jsonb), judge_ids = cast(:judge_ids as jsonb) "
             "where id = :id and company_id = :cid returning *",
-            {"id": topic_id, "cid": company_id, **data, "judges": json.dumps(data["judges"])},
+            {"id": topic_id, "cid": company_id, **data, "judges": json.dumps(data["judges"]), "judge_ids": _json_or_null(data.get("judge_ids"))},
         )
 
     async def delete_topic(self, company_id: str, topic_id: str) -> None:
