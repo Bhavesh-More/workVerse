@@ -9,6 +9,7 @@ import { api } from "../../../../lib/api";
 import type { ScenarioInstance } from "../../../../lib/types";
 import { preloadGame, whenIdle } from "../../../../game/preload";
 import { Glyph } from "../../../../components/Glyph";
+import { DeployTimeline, ImpactRing, SeverityMeter } from "../../../../components/Charts";
 
 const container = { hidden: {}, show: { transition: { staggerChildren: 0.08 } } };
 const item = {
@@ -65,6 +66,9 @@ export default function BriefingPage() {
   }
 
   const b = instance.prebrief;
+  const inc = b.incident;
+  const pct = typeof inc?.impact_pct === "number" ? inc.impact_pct : null;
+  const mins = typeof inc?.deploy_minutes_ago === "number" ? inc.deploy_minutes_ago : null;
   return (
     <main className="app-main">
       <m.div variants={container} initial="hidden" animate="show">
@@ -98,32 +102,45 @@ export default function BriefingPage() {
             <h2 className="section-title" style={{ marginTop: 8 }}>
               Controls
             </h2>
-            <ul className="list-reset chip-row">
+            <ul className="list-reset stack stack--sm">
               {b.controls.map((c) => (
-                <li key={c} className="badge">
-                  {c}
+                <li key={c} className="small row" style={{ gap: 10, alignItems: "baseline", flexWrap: "nowrap" }}>
+                  <span className="dot" aria-hidden="true" /> {c}
                 </li>
               ))}
             </ul>
           </m.div>
         </div>
 
-        {b.incident && (
-          <m.div variants={item} className="stat-tiles" style={{ marginTop: 32 }}>
-            {[
-              ["Service", b.incident.service],
-              ["Requests failing", b.incident.impact_pct !== undefined ? `${String(b.incident.impact_pct)}%` : undefined],
-              ["Severity", b.incident.severity],
-              ["Deploy was", b.incident.deploy_minutes_ago !== undefined ? `${String(b.incident.deploy_minutes_ago)} min ago` : undefined],
-            ]
-              .filter(([, v]) => v !== undefined)
-              .map(([k, v]) => (
-                <div key={String(k)} className="stat-tile">
-                  <span className="eyebrow">{String(k)}</span>
-                  <strong className="mono" style={{ fontSize: 20 }}>{String(v)}</strong>
+        {inc && (
+          <m.section variants={item} className="brief-charts" style={{ marginTop: 32 }} aria-label="Incident at a glance">
+            {pct !== null && (
+              <div className="card stack stack--sm">
+                <span className="eyebrow icon-label" style={{ margin: 0 }}><Glyph name="target" size={15} /> Requests failing</span>
+                <ImpactRing pct={pct} />
+              </div>
+            )}
+            {pct !== null && mins !== null && (
+              <div className="card stack stack--sm brief-charts__wide">
+                <span className="eyebrow icon-label" style={{ margin: 0 }}><Glyph name="chart" size={15} /> Error rate since deploy</span>
+                <DeployTimeline minutesAgo={mins} pct={pct} />
+              </div>
+            )}
+            <div className="card stack">
+              {typeof inc.service === "string" && (
+                <div>
+                  <span className="eyebrow">Service</span>
+                  <strong className="section-title">{inc.service}</strong>
                 </div>
-              ))}
-          </m.div>
+              )}
+              {typeof inc.severity === "string" && (
+                <div>
+                  <span className="eyebrow">Severity</span>
+                  <SeverityMeter level={inc.severity} />
+                </div>
+              )}
+            </div>
+          </m.section>
         )}
 
         {b.people && (

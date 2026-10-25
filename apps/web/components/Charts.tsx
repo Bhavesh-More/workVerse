@@ -138,3 +138,83 @@ export function ScoreLine({ points }: { points: { label: string; score: number }
     </figure>
   );
 }
+
+/** Share of requests failing, as a ring. */
+export function ImpactRing({ pct }: { pct: number }) {
+  const r = 52;
+  const c = 2 * Math.PI * r;
+  const v = Math.max(0, Math.min(100, pct));
+  return (
+    <figure className="chart chart--ring">
+      <svg viewBox="0 0 140 140" role="img" aria-label={`${v}% of requests failing`}>
+        <circle cx={70} cy={70} r={r} fill="none" stroke="var(--color-mist)" strokeWidth={14} />
+        <circle
+          className="chart__ring-fill"
+          cx={70}
+          cy={70}
+          r={r}
+          fill="none"
+          stroke={WARN}
+          strokeWidth={14}
+          strokeLinecap="round"
+          strokeDasharray={c}
+          style={{ ["--ring-off" as string]: c * (1 - v / 100), ["--ring-c" as string]: c }}
+          transform="rotate(-90 70 70)"
+        />
+        <text x={70} y={68} textAnchor="middle" className="chart__big">{v}%</text>
+        <text x={70} y={90} textAnchor="middle" className="chart__axis">failing</text>
+      </svg>
+    </figure>
+  );
+}
+
+/** Error rate before and after the deploy: flat at zero, then a step to the impact level. */
+export function DeployTimeline({ minutesAgo, pct }: { minutesAgo: number; pct: number }) {
+  const W = 420;
+  const H = 150;
+  const pad = { l: 34, r: 14, t: 16, b: 28 };
+  const span = Math.max(minutesAgo * 2, 10); // equal time before and after the deploy
+  const x = (min: number) => pad.l + ((span - min) / span) * (W - pad.l - pad.r);
+  const y = (v: number) => pad.t + (H - pad.t - pad.b) * (1 - v / 100);
+  const top = Math.max(pct, 1);
+  const d = `M${x(span)},${y(0)} L${x(minutesAgo)},${y(0)} L${x(minutesAgo)},${y(top)} L${x(0)},${y(top)}`;
+  return (
+    <figure className="chart">
+      <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label={`Errors jumped to ${pct}% when the deploy went out ${minutesAgo} minutes ago`}>
+        {[0, 50, 100].map((v) => (
+          <g key={v}>
+            <line x1={pad.l} x2={W - pad.r} y1={y(v)} y2={y(v)} stroke="var(--color-mist)" />
+            <text x={pad.l - 6} y={y(v) + 4} textAnchor="end" className="chart__axis">{v}%</text>
+          </g>
+        ))}
+        <line x1={x(minutesAgo)} x2={x(minutesAgo)} y1={pad.t} y2={H - pad.b} stroke={INK} strokeDasharray="3 4" />
+        <text x={x(minutesAgo)} y={H - 8} textAnchor="middle" className="chart__note">deploy · {minutesAgo}m ago</text>
+        <text x={W - pad.r} y={H - 8} textAnchor="end" className="chart__axis">now</text>
+        <path className="chart__draw" d={d} pathLength={1} fill="none" stroke={WARN} strokeWidth={3} strokeLinejoin="round" />
+        <circle cx={x(0)} cy={y(top)} r={5} fill={WARN} className="chart__pulse" />
+        <circle cx={x(0)} cy={y(top)} r={5} fill={WARN} />
+      </svg>
+    </figure>
+  );
+}
+
+const LEVELS = ["low", "medium", "high", "critical"];
+
+/** Severity as a four-step meter with the current level labelled. */
+export function SeverityMeter({ level }: { level: string }) {
+  const at = LEVELS.indexOf(level.toLowerCase());
+  return (
+    <figure className="chart">
+      <div className="sev-meter" role="img" aria-label={`Severity ${level}`}>
+        {LEVELS.map((l, i) => (
+          <span key={l} className={i <= at ? "is-on" : ""} style={{ animationDelay: `${i * 90}ms` }} />
+        ))}
+      </div>
+      <figcaption className="chart__legend">
+        {LEVELS.map((l, i) => (
+          <span key={l} className={`mono${i === at ? "" : " muted"}`}>{l}</span>
+        ))}
+      </figcaption>
+    </figure>
+  );
+}
