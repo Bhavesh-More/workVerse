@@ -6,8 +6,10 @@ import logging
 import ssl
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
+from uuid import uuid4
 
 from fastapi import Request
+from sqlalchemy.engine import make_url
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from app.core.config import Settings
@@ -43,8 +45,15 @@ def init_engine(settings: Settings) -> None:
     }
     parsed_ssl = "require"
     connect_args["ssl"] = parsed_ssl if parsed_ssl else ssl.create_default_context()
+    url = make_url(_async_url(settings.database_url))
+    if url.port == 6543:
+        # Supabase transaction pooler: backends are shared between clients, so prepared
+        # statements can't be cached per connection (session mode on 5432 caps clients at ~15).
+        connect_args["statement_cache_size"] = 0
+        connect_args["prepared_statement_name_func"] = lambda: f"__asyncpg_{uuid4()}__"
+        url = url.update_query_dict({"prepared_statement_cache_size": "0"})
     _engine = create_async_engine(
-        _async_url(settings.database_url),
+        url,
         pool_size=settings.database_pool_size,
         max_overflow=settings.database_max_overflow,
         # ponytail: no pre-ping; a connection dropped despite keepalives fails one request,
