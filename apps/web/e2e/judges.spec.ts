@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { expect, test, type APIRequestContext, type Page } from "@playwright/test";
 import { clerk, setupClerkTestingToken } from "@clerk/testing/playwright";
-import { companyPage } from "./helpers";
+import { acceptAndStart, companyPage } from "./helpers";
 import { testUser } from "./users";
 
 // Company AI judges: the full-screen roster editor from workplace setup (any number of judges,
@@ -181,8 +181,7 @@ test("company configures its own AI judges and a candidate meets them", async ({
   await setupClerkTestingToken({ page: cand });
   await clerk.signIn({ page: cand, signInParams: { strategy: "ticket", ticket: candidate.ticket } });
   await cand.goto(link);
-  await cand.getByTestId("start-assessment").click();
-  await expect(cand).toHaveURL(/\/briefing\/.*session=/, { timeout: 120_000 });
+  await acceptAndStart(cand);
   const sessionId = new URL(cand.url()).searchParams.get("session")!;
   const session = await cand.evaluate(async (sid) => {
     const c = (window as unknown as { Clerk: { session: { getToken: () => Promise<string> } } }).Clerk;

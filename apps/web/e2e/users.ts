@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { expect, type APIRequestContext } from "@playwright/test";
@@ -81,7 +82,9 @@ export async function testUser(request: APIRequestContext, opts: { owner?: boole
   const pick = users.find((u) => {
     const emails = u.email_addresses.map((e) => e.email_address);
     if (!emails.length || !emails.every((e) => e.startsWith("e2e"))) return false; // never touch real people
-    if (usedThisRun.has(u.id) || state.owners.includes(u.id)) return false;
+    if (usedThisRun.has(u.id)) return false;
+    // Owning a company only rules an account out for tests that create a company.
+    if (opts.owner && state.owners.includes(u.id)) return false;
     if (opts.clerkTestEmail && !emails.some((e) => e.includes("+clerk_test@"))) return false;
     // A first-time learner: never onboarded (learner-journey accounts all were; candidates weren't).
     if (opts.fresh && ((state.onboarded ?? []).includes(u.id) || emails.some((e) => /^e2e\d+@/.test(e)))) return false;
@@ -89,6 +92,7 @@ export async function testUser(request: APIRequestContext, opts: { owner?: boole
     if (opts.owner && emails.some((e) => /^e2e-(company|world|editor|iso-[ab]|default|play)-\d+@/.test(e))) return false;
     return true;
   });
+  if (!pick && opts.owner) return recycleOwner(request, users, state);
   if (!pick) throw new Error("No reusable E2E test account left. Delete old e2e-* users in the Clerk dashboard to free quota.");
   usedThisRun.add(pick.id);
   return { id: pick.id, email: pick.email_addresses[0]!.email_address, ticket: await ticketFor(request, pick.id), reused: true };
@@ -98,4 +102,31 @@ export async function testUser(request: APIRequestContext, opts: { owner?: boole
 export async function setPassword(request: APIRequestContext, userId: string, password: string) {
   const r = await request.patch(`${CLERK}/users/${userId}`, { headers: auth(), data: { password, skip_password_checks: true } });
   expect(r.ok(), await r.text()).toBeTruthy();
+}
+
+/**
+ * No fresh owner left: free the longest-used E2E owner account by deleting the test company it
+ * owns (and that company's assessments, topics and world). Only accounts whose emails all start
+ * with "e2e" are ever touched; real companies are never deleted.
+ */
+async function recycleOwner(request: APIRequestContext, users: ClerkUser[], state: State): Promise<TestUser> {
+  const owners = state.owners
+    .map((id) => users.find((u) => u.id === id))
+    .filter((u): u is ClerkUser => !!u && u.email_addresses.length > 0 && u.email_addresses.every((e) => e.email_address.startsWith("e2e")))
+    .filter((u) => !usedThisRun.has(u.id));
+  const victim = owners[0];
+  if (!victim) throw new Error("No E2E owner account can be recycled. Delete old e2e-* users in the Clerk dashboard to free quota.");
+  const env = fs.readFileSync(path.join("..", "api", ".env"), "utf8");
+  const url = /^DATABASE_URL=(.*)$/m.exec(env)?.[1]?.replace(/^["']|["']$/g, "").replace("postgresql+asyncpg", "postgresql");
+  if (!url) throw new Error("DATABASE_URL not found in apps/api/.env");
+  const sql =
+    "begin; " +
+    "delete from public.assessments where company_id in (select c.id from public.companies c join public.profiles p on p.id = c.owner_profile_id where p.clerk_user_id = :'uid'); " +
+    "delete from public.companies where owner_profile_id in (select id from public.profiles where clerk_user_id = :'uid'); " +
+    "commit;";
+  execFileSync("psql", [url, "-v", "ON_ERROR_STOP=1", "-v", `uid=${victim.id}`, "-q", "-c", sql.replaceAll(":'uid'", `'${victim.id.replace(/[^A-Za-z0-9_]/g, "")}'`)], { stdio: "pipe" });
+  state.owners = state.owners.filter((id) => id !== victim.id);
+  save(state);
+  usedThisRun.add(victim.id);
+  return { id: victim.id, email: victim.email_addresses[0]!.email_address, ticket: await ticketFor(request, victim.id), reused: true };
 }

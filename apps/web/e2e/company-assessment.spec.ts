@@ -3,6 +3,7 @@ import path from "node:path";
 import { expect, test, type APIRequestContext, type Browser, type Page } from "@playwright/test";
 import { clerk, setupClerkTestingToken } from "@clerk/testing/playwright";
 import { markOwner, setPassword, testUser, type TestUser } from "./users";
+import { acceptAndStart } from "./helpers";
 
 // Company assessment journey. Needs web + api + database + Ollama, and a local SMTP catcher
 // (mailpit: SMTP on 127.0.0.1:1025, API on 127.0.0.1:8025) so invites can be read back.
@@ -62,10 +63,10 @@ function waitForApi(page: Page, part: string, method = "POST") {
 /** A candidate plays the scenario. `thorough` does the full safe path; otherwise a weaker run. */
 async function playAssessment(page: Page, link: string, name: string, thorough: boolean) {
   await page.goto(link);
-  await expect(page.getByRole("heading", { name: new RegExp(`Backend on-call ${RUN}`) })).toBeVisible();
+  // The emailed link opens the briefing in Company assessments; nothing starts until confirmed.
+  await expect(page.getByTestId("briefing-title")).toContainText(`Backend on-call ${RUN}`, { timeout: 60_000 });
   await shot(page, `20-${name}-invite`);
-  await page.getByTestId("start-assessment").click();
-  await expect(page).toHaveURL(/\/briefing\/.*session=/, { timeout: 120_000 });
+  await acceptAndStart(page);
   await expect(page.getByText(/Assessment by E2E Hiring Co/)).toBeVisible();
   await shot(page, `21-${name}-briefing`);
   await page.getByRole("button", { name: "Enter the office" }).click();
@@ -208,10 +209,14 @@ test.describe("Company assessments", () => {
     // ---- assessment ---------------------------------------------------------------------
     await co.getByRole("button", { name: /Create assessment from this topic/ }).click();
     await expect(co).toHaveURL(/\/company\/assessments\/new/);
-    await expect(co.getByLabel("Assessment name")).not.toHaveValue("");
-    await co.getByLabel("Assessment name").fill(`Backend on-call ${RUN}`);
-    await co.getByLabel("Note to candidates (optional)").fill("Please finish within a week. It takes about 15 minutes.");
-    await co.getByTestId("create-assessment").click();
+    await expect(co.getByTestId("preview-valid")).toHaveText(/Checked/, { timeout: 30_000 });
+    await co.getByTestId("wizard-next").click();
+    await co.getByTestId("field-title").fill(`Backend on-call ${RUN}`);
+    await co.getByLabel("Personal note in the invitation (optional)").fill("Please finish within a week. It takes about 15 minutes.");
+    await co.getByTestId("wizard-next").click();
+    await co.getByTestId("wizard-next").click(); // invite from the assessment page below
+    await co.getByTestId("publish-assessment").click();
+    await co.getByTestId("open-assessment").click();
     await expect(co).toHaveURL(/\/company\/assessments\/[0-9a-f-]+$/);
     const assessmentUrl = co.url();
 
@@ -283,7 +288,7 @@ test.describe("Company assessments", () => {
     await setupClerkTestingToken({ page: c3page });
     await expect(c3page.getByTestId("invite-signup")).toBeVisible({ timeout: 60_000 });
     await shot(c3page, "24-cand3-invite-signed-out");
-    await c3page.getByRole("link", { name: "I already have an account" }).click();
+    await c3page.getByTestId("invite-login").click();
     await expect(c3page).toHaveURL(/\/login\?redirect=/);
     await c3page.getByLabel("Email address").fill(cand(3));
     await c3page.getByLabel("Password", { exact: true }).fill(U3_PASSWORD);
@@ -292,14 +297,15 @@ test.describe("Company assessments", () => {
     // Clerk asks new devices for an email code (always 424242 for +clerk_test addresses).
     const needsCode = await Promise.race([
       code.waitFor({ timeout: 20_000 }).then(() => true),
-      c3page.waitForURL(/\/invite\//, { timeout: 20_000 }).then(() => false),
+      c3page.waitForURL(/\/(invite|assessments)\//, { timeout: 20_000 }).then(() => false),
     ]).catch(() => false);
     if (needsCode) {
       await code.fill("424242");
       await c3page.getByRole("button", { name: /Verify/ }).click();
     }
-    await expect(c3page).toHaveURL(new RegExp(link3.replace(/[/]/g, "\\/") + "$"), { timeout: 60_000 });
-    await expect(c3page.getByTestId("start-assessment")).toBeVisible({ timeout: 60_000 });
+    // Back from sign-in, the link opens the invitation in Company assessments (not started).
+    await expect(c3page).toHaveURL(/\/assessments\/[0-9a-f-]+$/, { timeout: 60_000 });
+    await expect(c3page.getByTestId("accept-invitation")).toBeVisible({ timeout: 60_000 });
     await shot(c3page, "25-cand3-invite-after-login");
 
     // ---- HR analytics ----------------------------------------------------------------------
