@@ -67,7 +67,7 @@ class ElevenLabsClient:
     async def mint_for_npc(self, npc_id: str, gender: str | None = None) -> tuple[str, str]:
         """(token, agent id) from the first account that can take the call.
 
-        Accounts are tried in order (ELEVENLABS_API_KEY, then ELEVENLABS_API_KEY_2); one that is out
+        Accounts are tried in order (ELEVENLABS_API_KEY, then _2 … _5); one that is out
         of credits, rate limited, rejects its key or errors is skipped, and the last error is raised
         only if none works. Each account has its own agents, so the agent id comes with the token.
         """
