@@ -273,7 +273,11 @@ export function Sidebar({ variant = "learner" }: { variant?: "learner" | "compan
       </nav>
 
       <div className="sidebar__foot">
-        {!collapsed && <SoundToggles />}
+        {!collapsed && (
+          <span className="sidebar__sound">
+            <SoundToggles />
+          </span>
+        )}
         <Link href={isCompany ? "/company/settings" : "/profile"} className="sidebar__user" title={name}>
           <span className="sidebar__avatar">
             <Avatar imageUrl={user?.imageUrl} name={name} size={collapsed ? 34 : 38} />

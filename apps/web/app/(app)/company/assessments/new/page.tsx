@@ -400,7 +400,7 @@ function Published({ company, result, title, people, channel, onOpen }: { compan
               <b>{d.sent}</b> of {people.length} invitation{people.length === 1 ? "" : "s"} delivered
               {channel === "app" ? " in WorkVerse" : channel === "email" ? " by email" : " (WorkVerse and email)"}.
             </li>
-            {(d.awaiting_signup?.length ?? 0) > 0 && <li>{d.awaiting_signup!.length} don&apos;t have an account yet — the invitation waits for them when they sign up with that email.</li>}
+            {(d.awaiting_signup?.length ?? 0) > 0 && <li>{d.awaiting_signup!.length === 1 ? "1 person doesn't" : `${d.awaiting_signup!.length} people don't`} have an account yet — the invitation waits for them when they sign up with that email.</li>}
             {d.already_invited.length > 0 && <li>{d.already_invited.length} were already invited and were skipped.</li>}
             {d.invalid.length > 0 && <li className="jr-err">Invalid addresses skipped: {d.invalid.join(", ")}</li>}
             {(d.email_failed?.length ?? 0) > 0 && channel === "both" && (

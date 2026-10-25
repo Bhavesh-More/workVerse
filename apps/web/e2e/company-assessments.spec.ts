@@ -288,6 +288,17 @@ test("company assessments: publish, review, accept, start, decline, track", asyn
   await a.goto(`/assessments/${mine!.id}`);
   await expect(a.getByTestId("continue-assessment")).toBeVisible();
   await expect(a.getByRole("note")).toContainText("closed this assessment");
+
+  // Phone width: the briefing stacks (next step first), lists stay readable.
+  await a.setViewportSize({ width: 390, height: 844 });
+  await a.waitForTimeout(400);
+  await shot(a, "89-phone-briefing");
+  await a.goto("/assessments");
+  await expect(a.getByTestId(`company-card-${companyId}`)).toBeVisible({ timeout: 30_000 });
+  await shot(a, "90-phone-landing");
+  await a.goto(`/assessments/company/${companyId}`);
+  await expect(a.getByTestId(`assignment-card-${mine!.id}`)).toBeVisible({ timeout: 30_000 });
+  await shot(a, "91-phone-company");
 });
 
 test("empty state, invalid links and the signed-out invitation", async ({ browser, request }) => {

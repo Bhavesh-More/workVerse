@@ -1034,14 +1034,27 @@ blockquote {
   .sidebar__link .sidebar__label {
     display: none;
   }
+  /* Phone: brand and account on the first row, every section on a scrollable second row. */
+  .sidebar {
+    flex-wrap: wrap;
+  }
   .sidebar__nav {
+    order: 2;
+    flex: 1 0 100%;
     flex-direction: row;
-    padding: 8px 4px;
+    padding: 4px 8px 8px;
     overflow-x: auto;
   }
   .sidebar__foot {
+    order: 1;
+    margin-left: auto;
+    flex-direction: row;
+    align-items: center;
     border-top: 0;
     padding: 8px 12px;
+  }
+  .sidebar__sound {
+    display: none;
   }
 }
 
@@ -3150,7 +3163,7 @@ button.text-link { border: 0; background: none; padding: 0; font: inherit; color
 .ca-tl__date strong { font-family: var(--font-display); font-size: 22px; }
 .ca-tl__date span { font: 11px var(--font-mono); text-transform: uppercase; letter-spacing: var(--tracking-mono); color: var(--color-muted); }
 .ca-tl__date.is-none span { font-size: 10px; }
-.ca-tl__body { display: grid; gap: 2px; min-width: 0; }
+.ca-tl__body { display: grid; grid-template-columns: minmax(0, 1fr); gap: 2px; min-width: 0; }
 .ca-tl__body strong { font-size: 16px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ca-tl__company { font: 11px var(--font-mono); letter-spacing: var(--tracking-mono); text-transform: uppercase; color: var(--color-muted); }
 
@@ -3161,15 +3174,15 @@ button.text-link { border: 0; background: none; padding: 0; font: inherit; color
 .ca-company:hover .ca-chev { transform: translateX(3px); color: var(--color-ink); }
 .ca-company.has-pending { border-color: var(--color-ink); }
 .ca-company__head { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 12px; align-items: center; }
-.ca-company__who { display: grid; gap: 2px; min-width: 0; }
+.ca-company__who { display: grid; grid-template-columns: minmax(0, 1fr); gap: 2px; min-width: 0; }
 .ca-company__who strong { font-family: var(--font-display); font-size: 19px; }
 .ca-company__who span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ca-badge { padding: 3px 9px; border-radius: var(--radius-pill); background: var(--color-highlight-yellow); border: 1px solid var(--color-ink); font: 600 11px var(--font-mono); text-transform: uppercase; letter-spacing: var(--tracking-mono); }
-.ca-company__stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 0; }
+.ca-company__stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 0; }
 .ca-company__stats div { padding: 10px; border-radius: var(--radius-button); background: var(--color-canvas); }
 .ca-company__stats dt { font: 10px var(--font-mono); text-transform: uppercase; letter-spacing: var(--tracking-mono); color: var(--color-muted); }
 .ca-company__stats dd { margin: 4px 0 0; font-family: var(--font-display); font-size: 22px; }
-.ca-company__foot { display: flex; justify-content: space-between; gap: 12px; align-items: center; padding-top: 12px; border-top: 1px solid var(--color-hairline); }
+.ca-company__foot { min-width: 0; display: flex; justify-content: space-between; gap: 12px; align-items: center; padding-top: 12px; border-top: 1px solid var(--color-hairline); }
 .ca-company__foot > span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
 .ca-empty { display: grid; justify-items: center; text-align: center; gap: 12px; padding: 48px 24px; }
@@ -3306,3 +3319,4 @@ button.text-link { border: 0; background: none; padding: 0; font: inherit; color
   .nw-two, .nw-review, .co-brief__grid, .pf-grid, .af-deadline__row { grid-template-columns: 1fr; }
   .nw-preview { position: static; }
 }
+.ca-tl__body .ca-due, .ca-card__meta .ca-due { white-space: normal; }
