@@ -34,6 +34,7 @@ const ROUTE_DATA: Record<string, [string, () => Promise<unknown>][]> = {
   ],
   "/scenarios": [
     ["/scenario-templates", api.listTemplates],
+    ["/me/context", api.getContext],
     ["/sessions", api.listSessions],
   ],
   "/progress": [
