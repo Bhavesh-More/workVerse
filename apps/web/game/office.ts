@@ -368,8 +368,9 @@ export function createOfficeGame(parent: HTMLElement, options: OfficeOptions): P
       const grid = this.meta.collision.map((r) => [...r]);
       const free = (x: number, y: number) =>
         x >= room.x0 && x <= room.x1 && y >= room.y0 && y <= room.y1 && grid[y]?.[x] === 0 && grid[y + 1]?.[x] === 0 && !(x === spawn.x && y === spawn.y);
-      // Nearest pair of free tiles to the room's top-right quarter, guide on the left of her standee.
-      const want = { x: Math.round(room.x0 + (room.x1 - room.x0) * 0.75), y: room.y0 + 1 };
+      // Nearest pair of free tiles to the right side, a few rows down: clear of the wall signs and
+      // far enough from the desk that the name tags don't collide. Guide on the left of her standee.
+      const want = { x: room.x1 - 1, y: room.y0 + 3 };
       let best: { x: number; y: number } | null = null;
       let bestD = Infinity;
       for (let y = room.y0; y < room.y1; y++)

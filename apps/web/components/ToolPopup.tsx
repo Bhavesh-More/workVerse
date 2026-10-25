@@ -36,6 +36,13 @@ const KIND: Record<string, Kind> = {
   coffee_machine: "coffee",
   reception_desk: "desk",
 };
+// Footer line for ambient objects with nothing to reveal (tools say "Nothing new since last time").
+const AMBIENT_NOTE: Partial<Record<Kind, string>> = {
+  board: "Nothing assigned to you yet",
+  whiteboard: "Free for your next meeting",
+  coffee: "No clues here, just caffeine",
+  desk: "All quiet at the front desk",
+};
 
 /** Pixel-art window that shows what a workplace tool revealed, styled like that tool. */
 export function ToolPopup({ tool, onClose }: { tool: ToolView; onClose: () => void }) {
@@ -88,7 +95,11 @@ export function ToolPopup({ tool, onClose }: { tool: ToolView; onClose: () => vo
           </div>
         )}
         <div className="px-footer">
-          <span>{tool.findings.some((f) => f.new) ? "★ New finding added to “What you know”" : "Nothing new since last time"}</span>
+          <span>
+            {tool.findings.some((f) => f.new)
+              ? "★ New finding added to “What you know”"
+              : (!tool.findings.length && AMBIENT_NOTE[kind]) || "Nothing new since last time"}
+          </span>
           <span className="px-footer__btns">
             {tool.next && (
               <button className={`px-btn px-btn--ghost ${pixelTitle.className}`} onClick={onClose}>
