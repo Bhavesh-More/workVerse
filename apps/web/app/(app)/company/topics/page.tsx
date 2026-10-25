@@ -6,10 +6,10 @@ import { TRACK_LABELS, companyApi } from "../../../../lib/company";
 import { useApi } from "../../../../lib/useApi";
 
 export default function TopicsPage() {
-  return <CompanyGate>{() => <Topics />}</CompanyGate>;
+  return <CompanyGate>{(company) => <Topics roster={company.judge_roster?.length ?? null} />}</CompanyGate>;
 }
 
-function Topics() {
+function Topics({ roster }: { roster: number | null }) {
   const { data } = useApi("/company/topics", companyApi.topics);
   const items = data?.items ?? [];
   return (
@@ -42,6 +42,7 @@ function Topics() {
               {t.description || "No description"}
             </p>
             <p className="xsmall muted">
+              {roster !== null ? `${t.judge_ids?.length ?? roster} of ${roster} judges · ` : ""}
               {Object.keys(t.judges).length} customised judge{Object.keys(t.judges).length === 1 ? "" : "s"} · used by {t.assessment_count} assessment{t.assessment_count === 1 ? "" : "s"}
             </p>
           </Link>

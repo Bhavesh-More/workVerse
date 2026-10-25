@@ -4,7 +4,8 @@ import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { FormError } from "./AuthShell";
 import { JudgeEditor } from "./JudgeEditor";
-import { TRACK_LABELS, companyApi, suggestTrack, type Company, type JudgeCatalog, type JudgeMap, type RosterJudge, type Topic, type TopicInput } from "../lib/company";
+import { TopicJudges } from "./judges/TopicJudges";
+import { TRACK_LABELS, companyApi, suggestTrack, type Company, type Topic, type TopicInput } from "../lib/company";
 import { useApi } from "../lib/useApi";
 
 const EMPTY: TopicInput = { title: "", description: "", track: "backend", incident: null, difficulty: "standard", judges: {} };
@@ -32,7 +33,15 @@ export function TopicForm({ company, topic }: { company: Company; topic?: Topic 
     if (!catalog) return;
     const s = catalog.samples[sampleIdx % catalog.samples.length]!;
     setSampleIdx((i) => i + 1);
-    setForm({ ...s, incident: s.incident ?? null, judges: { ...s.judges } });
+    // Samples tune roles; a roster company's topic tunes judges, so give each role's tuning to its first judge.
+    const roster = company.judge_roster;
+    const judges = roster
+      ? Object.fromEntries(Object.entries(s.judges).flatMap(([role, cfg]) => {
+          const j = roster.find((x) => x.role === role);
+          return j && cfg ? [[j.id, { ...cfg, name: undefined }]] : [];
+        }))
+      : { ...s.judges };
+    setForm({ ...s, incident: s.incident ?? null, judges, judge_ids: form.judge_ids ?? null });
     setTrackTouched(true);
   };
 
@@ -140,27 +149,28 @@ export function TopicForm({ company, topic }: { company: Company; topic?: Topic 
         <div>
           <h2 className="section-title">AI judges for this topic</h2>
           <p className="small muted">
-            These colleagues talk with the candidate and shape the evidence they&apos;re scored on. Anything you leave empty uses your company
-            defaults from <em>AI judges</em>.
+            {company.judge_roster
+              ? "Choose which of your judges take part in this scenario, and fine-tune how they behave for it. Names, looks and voices come from AI judges."
+              : "These colleagues talk with the candidate and shape the evidence they're scored on. Anything you leave empty uses your company defaults from AI judges."}
           </p>
         </div>
-        {catalog ? (
-          <JudgeEditor
+        {catalog && company.judge_roster ? (
+          <TopicJudges
             catalog={catalog}
-            track={form.track}
-            value={form.judges}
-            base={company.judge_roster ? rosterBase(company.judge_roster) : company.judge_defaults}
-            baseLabel={company.judge_roster ? "company judge" : "company default"}
-            leads={company.judge_roster ? rosterLeads(company.judge_roster, catalog) : undefined}
-            onChange={(judges) => setForm({ ...form, judges })}
+            roster={company.judge_roster}
+            selected={form.judge_ids ?? null}
+            tuning={form.judges}
+            onChange={({ judge_ids, judges }) => setForm({ ...form, judge_ids, judges })}
           />
+        ) : catalog ? (
+          <JudgeEditor catalog={catalog} track={form.track} value={form.judges} base={company.judge_defaults} onChange={(judges) => setForm({ ...form, judges })} />
         ) : (
           <div className="skeleton" style={{ height: 300 }} />
         )}
       </section>
 
       <div className="co-actions">
-        <button className="btn" type="submit" disabled={busy || !form.title.trim()} data-testid="save-topic">
+        <button className="btn" type="submit" disabled={busy || !form.title.trim() || (form.judge_ids?.length === 0)} data-testid="save-topic">
           {busy ? <span className="busy-dots">Saving</span> : topic ? "Save topic" : "Create topic"}
         </button>
         {topic && (
@@ -174,21 +184,4 @@ export function TopicForm({ company, topic }: { company: Company; topic?: Topic 
       </div>
     </form>
   );
-}
-
-/** Per role, the first roster judge playing it: the one a topic tunes. */
-function leadsOf(roster: RosterJudge[]): Map<string, RosterJudge> {
-  const out = new Map<string, RosterJudge>();
-  for (const j of roster) if (!out.has(j.role)) out.set(j.role, j);
-  return out;
-}
-function rosterBase(roster: RosterJudge[]): JudgeMap {
-  const out: JudgeMap = {};
-  for (const [role, j] of leadsOf(roster)) out[role] = { personality: j.personality, tone: j.tone, strictness: j.strictness, focus: j.focus, greeting: j.greeting };
-  return out;
-}
-function rosterLeads(roster: RosterJudge[], catalog: JudgeCatalog): Record<string, { name: string; portrait?: string }> {
-  const out: Record<string, { name: string; portrait?: string }> = {};
-  for (const [role, j] of leadsOf(roster)) out[role] = { name: j.name, portrait: catalog.avatars.find((a) => a.id === j.avatar)?.portrait };
-  return out;
 }

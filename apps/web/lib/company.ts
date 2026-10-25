@@ -78,6 +78,8 @@ export type TopicInput = {
   incident?: string | null;
   difficulty: string;
   judges: JudgeMap;
+  /** Roster companies: judges taking part (null = all). */
+  judge_ids?: string[] | null;
 };
 
 export type Topic = TopicInput & { id: string; assessment_count: number; created_at: string };
