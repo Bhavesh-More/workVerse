@@ -253,6 +253,7 @@ class CompanyRepository:
         " i.revoked_at, i.created_at, i.sent_at, i.opened_at, i.session_id, i.profile_id, i.started_at, "
         " a.title, a.description, a.expectations, a.instructions, a.skills, a.due_at, a.timezone, a.message, "
         " a.status as assessment_status, a.closed_at, a.topic_id, a.company_id, a.created_at as assessment_created_at, "
+        " a.client_request_id as assessment_request_id, "
         " c.name as company_name, c.tagline, c.about, c.mission, c.vision, c.company_values, c.industry, c.website, "
         " c.judge_roster, t.title as topic_title, t.description as topic_description, t.track, t.difficulty, t.judge_ids, "
         " s.status as session_status, s.scenario_version_id, s.ended_at, e.status as evaluation_status "

@@ -444,12 +444,23 @@ blockquote {
   font-family: var(--font-body);
   font-size: 17px;
   color: var(--color-ink);
-  background: var(--color-canvas);
-  border: 1px solid transparent;
+  /* On the grid canvas a field needs its own white box and a visible edge to read as a field. */
+  background: var(--color-paper);
+  border: 1.5px solid #cfcbd6;
+  box-shadow: 0 1px 2px rgba(20, 20, 20, 0.04);
   width: 100%;
   transition:
     border-color 0.15s ease,
-    background-color 0.15s ease;
+    background-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+/* Inside white cards: the soft filled style (the card already gives the contrast). */
+.card .input,
+.card .select,
+.card .textarea {
+  background: var(--color-canvas);
+  border-color: transparent;
+  box-shadow: none;
 }
 .input,
 .select {
@@ -484,21 +495,24 @@ blockquote {
 .input:hover,
 .select:hover,
 .textarea:hover {
+  border-color: #a9a4b2;
+}
+.card .input:hover,
+.card .select:hover,
+.card .textarea:hover {
   border-color: var(--color-hairline);
 }
 .input:focus,
 .select:focus,
-.textarea:focus {
-  outline: none;
-  background: var(--color-paper);
-  border-color: var(--color-signal-green);
-}
+.textarea:focus,
 .card .input:focus,
 .card .select:focus,
 .card .textarea:focus {
+  outline: none;
   background: var(--color-paper);
+  border-color: var(--color-signal-green);
+  box-shadow: 0 0 0 3px rgba(48, 168, 29, 0.15);
 }
-
 /* password helper */
 .meter {
   height: 4px;
@@ -4100,4 +4114,153 @@ button.text-link { border: 0; background: none; padding: 0; font: inherit; color
 }
 @media (max-width: 520px) {
   .px-board { grid-template-columns: 1fr; }
+}
+
+/* Company question bank (CSV) on the new-assessment brief */
+.qb {
+  margin-top: 24px;
+}
+.qb-drop {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  padding: 24px;
+  border: 2px dashed #d6d3dc;
+  border-radius: 12px;
+}
+.qb-drop label.btn {
+  cursor: pointer;
+}
+.qb-steps {
+  display: grid;
+  gap: 10px;
+  padding: 8px 0;
+}
+.qb-steps li {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 17px;
+  transition: opacity 200ms ease;
+}
+.qb-steps li[data-state="pending"] {
+  opacity: 0.4;
+}
+.qb-steps__dot {
+  display: inline-grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 2px solid var(--color-ink);
+  font-size: 12px;
+}
+.qb-steps li[data-state="active"] .qb-steps__dot {
+  border-color: #fd5b0e;
+  animation: qb-pulse 0.9s ease-in-out infinite;
+}
+.qb-steps li[data-state="done"] .qb-steps__dot {
+  background: var(--color-ink);
+  color: #fff;
+}
+@keyframes qb-pulse {
+  50% {
+    transform: scale(1.15);
+  }
+}
+.qb-file {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+.qb-summary {
+  margin: 0;
+  font-size: 18px;
+  line-height: 1.5;
+  padding: 14px 18px;
+  border-radius: 12px;
+  background: #f4f3fa;
+  border-left: 4px solid #491aeb;
+}
+.qb-skills {
+  display: grid;
+  gap: 10px;
+}
+.qb-skills li {
+  display: grid;
+  grid-template-columns: minmax(140px, 200px) 1fr 28px;
+  align-items: center;
+  gap: 12px;
+  font-size: 16px;
+}
+.qb-bar {
+  height: 10px;
+  border-radius: 999px;
+  background: #ece9f2;
+  overflow: hidden;
+}
+.qb-bar i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #491aeb, #fd5b0e);
+}
+.qb-agents {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+}
+.qb-agent {
+  display: grid;
+  align-content: start;
+  gap: 10px;
+  padding: 16px;
+  border-radius: 12px;
+  background: #fff;
+  border: 1px solid #e7e5ea;
+}
+.qb-agent__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.qb-agent li {
+  display: grid;
+  gap: 2px;
+  padding: 8px 0;
+  border-top: 1px solid #f0eef3;
+}
+.qb-rounds {
+  display: grid;
+  gap: 12px;
+}
+.qb-rounds li {
+  display: grid;
+  grid-template-columns: 36px 1fr;
+  gap: 12px;
+  align-items: start;
+}
+.qb-rounds__n {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: var(--color-ink);
+  color: #fff;
+  font-weight: 600;
+}
+@media (max-width: 860px) {
+  .qb-agents {
+    grid-template-columns: 1fr;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .qb-steps li[data-state="active"] .qb-steps__dot {
+    animation: none;
+  }
 }

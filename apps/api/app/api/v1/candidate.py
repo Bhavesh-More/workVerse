@@ -16,7 +16,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.v1.company import CRepo
-from app.company import lifecycle
+from app.company import lifecycle, question_bank
 from app.company.analytics import SKILLS
 from app.company.judges import ROLE_LABELS, avatar_portrait
 from app.core.errors import ConflictError, ForbiddenError, NotFoundError
@@ -247,6 +247,7 @@ async def start(request: Request, principal: CurrentUser, crepo: CRepo, repo: Re
     instance = await scenario_service.create_instance(
         repo=repo, ai=ai, user_id=principal.user_id, profile=profile, topic=topic, company=company,
         world=await published_world_for(crepo, company),
+        question_bank=question_bank.for_assessment(row.get("assessment_request_id")),
     )
     session = await session_service.start_session(repo=repo, user_id=principal.user_id, scenario_instance_id=instance["scenario_instance_id"], mode="quick")
     await crepo.set_invite_session(invite_id, str(session["id"]))
