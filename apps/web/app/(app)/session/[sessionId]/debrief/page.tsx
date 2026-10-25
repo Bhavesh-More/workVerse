@@ -50,7 +50,7 @@ export default function DebriefPage() {
   const [session, setSession] = useState<SessionView | null>(null);
   const [error, setError] = useState<string | null>(null);
   // Set when this run was a company assessment: the candidate is told the report is shared.
-  const [assessment, setAssessment] = useState<{ company: string; title: string } | null>(null);
+  const [assessment, setAssessment] = useState<{ company: string; title: string; invite_id: string } | null>(null);
   useEffect(() => {
     companyApi.sessionAssessment(sessionId).then((r) => setAssessment(r.assessment), () => {});
   }, [sessionId]);
@@ -205,12 +205,21 @@ export default function DebriefPage() {
           </div>
           <div className="card stack stack--sm">
             <span className="eyebrow">What next</span>
-            <button className="btn btn--block" onClick={retry} disabled={busy} onMouseEnter={preloadGame} onFocus={preloadGame}>
-              {busy ? <span className="busy-dots">Starting</span> : "Retry a variant"}
-            </button>
-            <Link className="btn btn--ghost btn--block" href="/progress">
-              View progress
-            </Link>
+            {assessment ? (
+              // A company assessment is one submission, not practice: no retry, no progress stats.
+              <Link className="btn btn--block" href={`/assessments/${assessment.invite_id}`} data-testid="back-to-company-assessment">
+                Back to Company assessments
+              </Link>
+            ) : (
+              <>
+                <button className="btn btn--block" onClick={retry} disabled={busy} onMouseEnter={preloadGame} onFocus={preloadGame}>
+                  {busy ? <span className="busy-dots">Starting</span> : "Retry a variant"}
+                </button>
+                <Link className="btn btn--ghost btn--block" href="/progress">
+                  View progress
+                </Link>
+              </>
+            )}
             <a className="btn btn--ghost btn--block" href="#transcript">
               Read your transcript
             </a>

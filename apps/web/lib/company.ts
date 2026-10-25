@@ -30,6 +30,8 @@ export type Company = {
   /** The company's own judges; null = the legacy five roles with names from the cast. */
   judge_roster: RosterJudge[] | null;
   world_mode?: "default" | "custom" | null;
+  profile: CompanyProfile;
+  smtp_ready: boolean;
   created_at: string;
 };
 
@@ -84,11 +86,24 @@ export type TopicInput = {
 
 export type Topic = TopicInput & { id: string; assessment_count: number; created_at: string };
 
-export type AssessmentSummary = {
+export type AssessmentFields = {
+  description: string;
+  expectations: string;
+  instructions: string;
+  skills: string[];
+  /** Absolute instant (ISO, UTC); one deadline for everyone. */
+  due_at: string | null;
+  /** IANA zone the company set the deadline in. */
+  timezone: string | null;
+};
+
+export type AssessmentSummary = AssessmentFields & {
   id: string;
   title: string;
   message: string;
   status: "active" | "closed";
+  past_due: boolean;
+  closed_at: string | null;
   topic_id: string;
   topic_title: string;
   track: string;
@@ -106,7 +121,14 @@ export type Candidate = {
   id: string;
   email: string;
   name: string;
-  status: "completed" | "in_progress" | "opened" | "invited" | "pending" | "email_failed";
+  status: "completed" | "submitted" | "in_progress" | "accepted" | "declined" | "revoked" | "expired" | "missed" | "opened" | "invited" | "pending" | "email_failed";
+  invitation: "pending" | "accepted" | "declined" | "revoked";
+  accepted_at: string | null;
+  declined_at: string | null;
+  decline_reason: string | null;
+  revoked_at: string | null;
+  /** Submitted after the due date. */
+  late: boolean;
   status_label: string;
   email_status: string;
   email_error: string | null;
@@ -171,6 +193,8 @@ export type InviteResult = {
   channel?: InviteChannel;
   /** In-app invites to emails with no WorkVerse account yet: delivered once they sign up. */
   awaiting_signup?: string[];
+  /** "Both": emails that failed (the in-app invitation still went out). */
+  email_failed?: { email: string; error: string }[];
   sent: number;
   failed: { email: string; error: string }[];
   invalid: string[];
@@ -187,21 +211,47 @@ export type CandidateReport = {
 
 export type InvitePreview = {
   company: string;
+  tagline: string;
   assessment: string;
-  message: string;
-  topic: string;
   description: string;
-  difficulty: string;
+  message: string;
+  due_at: string | null;
+  timezone: string | null;
   email: string;
   candidate_name: string | null;
+  stage: string;
+  label: string;
+  note: string;
   open: boolean;
-  started: boolean;
+};
+
+export type CompanyProfile = { tagline: string; about: string; mission: string; vision: string; values: string; industry: string; website: string };
+
+export type TopicPreview = {
+  valid: boolean;
+  title: string;
+  briefing: string;
+  role: string;
+  team: { name: string; role: string }[];
+  objectives: string[];
+  tools: string[];
+  skills: { id: string; name: string; description: string }[];
+  estimated_minutes: number;
+};
+
+export type PublishBody = Partial<AssessmentFields> & {
+  topic_id: string;
+  title: string;
+  message: string;
+  candidates?: { email: string; name?: string }[];
+  channel?: InviteChannel;
+  client_request_id?: string;
 };
 
 export const companyApi = {
   get: () => request<{ company: Company | null }>("/company"),
   create: (name: string) => request<{ company: Company }>("/company", { method: "POST", body: { name } }),
-  update: (body: { name?: string; smtp?: Smtp & { password?: string | null }; judge_defaults?: JudgeMap; judge_roster?: RosterJudge[] }) =>
+  update: (body: { name?: string; smtp?: Smtp & { password?: string | null }; judge_defaults?: JudgeMap; judge_roster?: RosterJudge[]; profile?: CompanyProfile }) =>
     request<{ company: Company }>("/company", { method: "PATCH", body }),
   testSmtp: (to: string) => request<{ ok: boolean; error: string | null }>("/company/smtp/test", { method: "POST", body: { to } }),
   catalog: () => request<JudgeCatalog>("/company/judges/catalog"),
@@ -214,10 +264,14 @@ export const companyApi = {
 
   assessments: () => request<{ items: AssessmentSummary[] }>("/company/assessments"),
   assessment: (id: string) => request<AssessmentDetail>(`/company/assessments/${id}`),
-  createAssessment: (body: { topic_id: string; title: string; message: string }) =>
-    request<AssessmentSummary>("/company/assessments", { method: "POST", body }),
+  createAssessment: (body: PublishBody) =>
+    request<AssessmentSummary & { created: boolean; delivery: InviteResult | null }>("/company/assessments", { method: "POST", body }),
+  updateAssessment: (id: string, body: Partial<AssessmentFields> & { title?: string; message?: string }) =>
+    request<{ status: string; assessment: AssessmentSummary }>(`/company/assessments/${id}`, { method: "PATCH", body }),
   setStatus: (id: string, status: "active" | "closed") =>
     request<{ status: string }>(`/company/assessments/${id}`, { method: "PATCH", body: { status } }),
+  revoke: (id: string, inviteId: string) => request<{ ok: boolean }>(`/company/assessments/${id}/invites/${inviteId}/revoke`, { method: "POST" }),
+  topicPreview: (topicId: string) => request<TopicPreview>(`/company/topics/${topicId}/preview`),
   invite: (id: string, candidates: { email: string; name?: string }[], channel: InviteChannel = "app", resend = false) =>
     request<InviteResult>(`/company/assessments/${id}/invites`, { method: "POST", body: { candidates, resend, channel } }),
   resend: (id: string, inviteId: string) =>
@@ -233,13 +287,30 @@ export const companyApi = {
   downloadAllPdf: () => download("/company/candidates.pdf", "all-candidates.pdf"),
 
   invitePreview: (token: string) => request<InvitePreview>(`/invites/${token}`),
-  acceptInvite: (token: string) =>
-    request<{ session_id: string; scenario_instance_id: string; status: string }>(`/invites/${token}/accept`, { method: "POST" }),
+  /** Signed in with the emailed link: link the invitation to this account (never accepts or starts it). */
+  claimInvite: (token: string) => request<{ invite_id: string }>(`/invites/${token}/claim`, { method: "POST" }),
   sessionAssessment: (sessionId: string) =>
-    request<{ assessment: { company: string; title: string } | null }>(`/sessions/${sessionId}/assessment`),
+    request<{ assessment: { company: string; title: string; invite_id: string } | null }>(`/sessions/${sessionId}/assessment`),
 };
 
 export { parseCandidates } from "./candidates";
+
+/** Company-side candidate statuses: sort order (most advanced first) and filter labels. */
+export const STATUS_ORDER: Record<Candidate["status"], number> = {
+  completed: 0, submitted: 1, in_progress: 2, accepted: 3, opened: 4, invited: 5, pending: 6,
+  declined: 7, missed: 8, expired: 9, revoked: 10, email_failed: 11,
+};
+export const STATUS_FILTERS: [Candidate["status"], string][] = [
+  ["completed", "Completed"], ["submitted", "Submitted"], ["in_progress", "In progress"], ["accepted", "Accepted"],
+  ["opened", "Opened invite"], ["invited", "Invited"], ["declined", "Declined"], ["missed", "Missed deadline"],
+  ["expired", "Expired"], ["revoked", "Withdrawn"], ["email_failed", "Email failed"],
+];
+export function statusBadge(status: Candidate["status"]): string {
+  if (status === "completed" || status === "submitted") return "badge badge--ok";
+  if (status === "in_progress" || status === "accepted") return "badge badge--active";
+  if (status === "email_failed" || status === "declined" || status === "missed") return "badge badge--warn";
+  return "badge";
+}
 
 export const BAND_COLORS: Record<string, string> = {
   Strong: "#0ca30c",

@@ -3,6 +3,7 @@
 import { useState, type FormEvent } from "react";
 import { CompanyGate } from "../../../../components/CompanyGate";
 import { FormError } from "../../../../components/AuthShell";
+import { ProfileForm } from "../../../../components/company/ProfileForm";
 import { companyApi, type Company, type Smtp } from "../../../../lib/company";
 import { useAuth } from "../../../../lib/auth";
 
@@ -73,6 +74,9 @@ function Settings({ company, refresh }: { company: Company; refresh: (c: Company
         <h1 className="page-title">
           Company & <span className="hl">email</span>
         </h1>
+      </div>
+      <div style={{ maxWidth: 760, marginBottom: 24 }}>
+        <ProfileForm company={company} refresh={refresh} />
       </div>
       <form className="stack" style={{ maxWidth: 760 }} onSubmit={save}>
         <FormError message={error} />

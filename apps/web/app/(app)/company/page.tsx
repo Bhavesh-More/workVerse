@@ -24,9 +24,10 @@ function Overview({ company }: { company: Company }) {
   const steps = [
     { done: Boolean(company.world_mode), label: "Set up your virtual workplace", href: "/company/workplace/setup", hint: "Use the default office or build your own with the world editor." },
     { done: (topics?.items.length ?? 0) > 0, label: "Create a topic", href: "/company/topics/new", hint: "Just a title and a description — or fill a sample." },
-    { done: Object.keys(company.judge_defaults).length > 0, label: "Tune your AI judges", href: "/company/judges", hint: "Tone, strictness and focus for each colleague." },
-    { done: Boolean(company.smtp.host), label: "Connect your SMTP server", href: "/company/settings", hint: "Invites are sent from your own address." },
-    { done: items.length > 0, label: "Create an assessment", href: "/company/assessments/new", hint: "Pick a topic, add a note for candidates." },
+    { done: Boolean(company.profile.tagline || company.profile.about), label: "Describe your company", href: "/company/settings#profile", hint: "Candidates read it on their briefing before they start." },
+    { done: Boolean(company.judge_roster) || Object.keys(company.judge_defaults).length > 0, label: "Set up your AI judges", href: "/company/judges", hint: "Who candidates meet, how they sound and behave." },
+    { done: company.smtp_ready, label: "Connect your SMTP server", href: "/company/settings", hint: "Optional: invitations can also go out inside WorkVerse." },
+    { done: items.length > 0, label: "Create an assessment", href: "/company/assessments/new", hint: "Scenario, brief, deadline and candidates in one flow." },
     { done: invited > 0, label: "Invite candidates", href: items[0] ? `/company/assessments/${items[0].id}` : "/company/assessments", hint: "Type, paste or upload a CSV of emails." },
   ];
 

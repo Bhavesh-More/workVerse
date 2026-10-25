@@ -2,7 +2,15 @@
 // candidates start or finish. The web app polls; the server remembers which popups were shown.
 import { request } from "./api";
 
-export type NotificationKind = "assessment_invite" | "candidate_started" | "candidate_completed";
+export type NotificationKind =
+  | "assessment_invite"
+  | "candidate_started"
+  | "candidate_completed"
+  | "invite_accepted"
+  | "invite_declined"
+  | "due_changed"
+  | "due_soon"
+  | "assessment_withdrawn";
 
 export type AppNotification = {
   id: string;

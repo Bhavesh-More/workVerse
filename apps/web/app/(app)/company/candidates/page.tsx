@@ -5,7 +5,7 @@ import Link from "next/link";
 import { CompanyGate } from "../../../../components/CompanyGate";
 import { FormError } from "../../../../components/AuthShell";
 import { BandDot, BandStack, FunnelChart, SkillBars } from "../../../../components/CompanyCharts";
-import { companyApi, type CompanyCandidate } from "../../../../lib/company";
+import { STATUS_FILTERS, STATUS_ORDER, companyApi, statusBadge, type CompanyCandidate } from "../../../../lib/company";
 import { useApi } from "../../../../lib/useApi";
 
 export default function CandidatesPage() {
@@ -13,7 +13,7 @@ export default function CandidatesPage() {
 }
 
 type SortKey = "score" | "name" | "status" | "assessment";
-const ORDER: Record<CompanyCandidate["status"], number> = { completed: 0, in_progress: 1, opened: 2, invited: 3, pending: 4, email_failed: 5 };
+const ORDER = STATUS_ORDER;
 
 function Candidates() {
   const { data, error } = useApi("/company/candidates", companyApi.allCandidates);
@@ -132,11 +132,9 @@ function Candidates() {
           </select>
           <select className="select" style={{ width: "auto" }} aria-label="Filter by status" value={status} onChange={(e) => setStatus(e.target.value)}>
             <option value="all">All statuses</option>
-            <option value="completed">Completed</option>
-            <option value="in_progress">In progress</option>
-            <option value="opened">Opened invite</option>
-            <option value="invited">Invited</option>
-            <option value="email_failed">Email failed</option>
+            {STATUS_FILTERS.map(([id, label]) => (
+              <option key={id} value={id}>{label}</option>
+            ))}
           </select>
           <select className="select" style={{ width: "auto" }} aria-label="Filter by band" value={band} onChange={(e) => setBand(e.target.value)}>
             <option value="all">All bands</option>
@@ -167,7 +165,7 @@ function Candidates() {
                   <tr key={c.id}>
                     <td><strong>{c.name}</strong><br /><span className="xsmall muted">{c.email}</span></td>
                     <td className="small"><Link className="text-link" href={`/company/assessments/${c.assessment_id}`}>{c.assessment_title}</Link></td>
-                    <td><span className={`badge${c.status === "completed" ? " badge--ok" : c.status === "email_failed" ? " badge--warn" : ""}`}>{c.status_label}</span></td>
+                    <td><span className={statusBadge(c.status)}>{c.status_label}</span></td>
                     <td className="co-score">{c.score ?? "—"}</td>
                     <td className="small"><BandDot label={c.band?.label} /></td>
                     <td className="small">{c.gaps.map((g) => g.skill).join(", ") || <span className="muted">—</span>}</td>
