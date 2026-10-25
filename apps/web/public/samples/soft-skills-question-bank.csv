@@ -1,0 +1,16 @@
+id,skill,question,ask_by,look_for,difficulty
+SS01,Communication,"Give me a one-line status I can forward to leadership right now.",manager,"Impact, what's known, next step and when the next update is",standard
+SS02,Communication,"How would you explain this problem to a customer who isn't technical?",client,"Plain words, no jargon, honest about what's unknown",standard
+SS03,Stakeholder updates,"When will you update me next, and what will you have by then?",client,"Commits to a time and a concrete deliverable",introductory
+SS04,Ownership,"Who else needs to know about this, and have you told them?",manager,"Names the right people and closes the loop",standard
+SS05,Accountability,"If this turns out to be your change, what do you do first?",manager,"Owns it without blame, focuses on fixing and learning",challenging
+SS06,Teamwork,"I'm stuck on something else — what exactly do you need from me?",teammate,"Specific, small ask; respects the teammate's time",standard
+SS07,Conflict resolution,"I think rolling back is a mistake. Convince me otherwise.",teammate,"Listens, uses evidence, stays calm and respectful",challenging
+SS08,Empathy,"Customers are angry and support is overwhelmed. What do you say to the support lead?",client,"Acknowledges pressure, gives them something they can use",standard
+SS09,Prioritisation,"You have three things on fire. Which do you do first and why?",manager,"Orders by impact and risk, explains trade-offs",challenging
+SS10,Decision making,"What could go wrong with your plan, and how would you know?",manager,"Names risks and a check before acting",standard
+SS11,Adaptability,"New info: the error rate just doubled. What changes in your plan?",teammate,"Updates the plan instead of defending the old one",standard
+SS12,Learning mindset,"What would you do differently next time?",manager,"Concrete, honest reflection; no excuses",introductory
+SS13,Active listening,"Repeat back what I just asked you to check.",teammate,"Accurate summary before acting",introductory
+SS14,Critical thinking,"How do you know it's the database and not the network?",teammate,"Uses evidence, rules out alternatives",standard
+SS15,Feedback,"Your last update was too long. Can you try again in two sentences?",client,"Takes feedback well and adjusts quickly",standard

@@ -215,6 +215,7 @@ async def create_instance(
     company: dict[str, Any] | None = None,
     world: dict[str, Any] | None = None,
     spec: ScenarioSpec | None = None,
+    question_bank: list[dict[str, str]] | None = None,
 ) -> dict[str, Any]:
     """Generate and store a validated scenario version.
 
@@ -301,6 +302,9 @@ async def create_instance(
         # The company's published workplace, frozen into this run: later edits don't move it.
         ids = blueprint.metadata.get("judge_ids")
         blueprint.metadata["world"] = remap_world(world, ids) if ids else world
+    if question_bank:
+        # The company's question bank, frozen into this run; colleagues ask it (see prompts.py).
+        blueprint.metadata["question_bank"] = question_bank
 
     rubric_snapshot = blueprint.rubric.model_dump()
     profile_snapshot = {

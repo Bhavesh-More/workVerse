@@ -10,6 +10,7 @@ from __future__ import annotations
 from typing import Any
 
 from app.agents.role_cards import VOICE_RULES, card_prompt
+from app.company import question_bank
 from app.company.judges import behaviour_prompt, slot_of
 from app.schemas.runtime import SimulationState
 from app.schemas.scenario import CharacterBlueprint, ScenarioBlueprint
@@ -67,6 +68,9 @@ def build_character_messages(
         if judge
         else ""
     )
+    # The hiring company's question bank: on every other reply this colleague asks its next question.
+    replies = sum(1 for m in recent_messages if m.get("role") == "assistant")
+    behaviour += question_bank.prompt_line(blueprint.metadata.get("question_bank"), slot_of(blueprint, character.id), replies)
     if card:
         # Role card (manager, teammate, client) for chat and voice alike; scenario facts come only from context below.
         system = (

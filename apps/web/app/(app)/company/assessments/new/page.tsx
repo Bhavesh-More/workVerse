@@ -11,6 +11,8 @@ import { CompanyGate } from "../../../../../components/CompanyGate";
 import { FormError } from "../../../../../components/AuthShell";
 import { BriefFields, DeadlineField, SKILL_OPTIONS } from "../../../../../components/company/AssessmentFields";
 import { CandidateEntry, type Person } from "../../../../../components/company/CandidateEntry";
+import { QuestionBank } from "../../../../../components/company/QuestionBank";
+import type { QuestionPlan } from "../../../../../lib/questionBank";
 import { TRACK_LABELS, companyApi, type AssessmentFields, type Company, type InviteChannel, type InviteResult, type Topic, type TopicPreview } from "../../../../../lib/company";
 import { formatWhen, localZone, zoneAbbr } from "../../../../../lib/time";
 import { useApi } from "../../../../../lib/useApi";
@@ -39,6 +41,13 @@ function Wizard({ company }: { company: Company }) {
   const [message, setMessage] = useState("");
   const [fields, setFields] = useState<AssessmentFields>({ description: "", expectations: "", instructions: "", skills: [], due_at: null, timezone: localZone() });
   const [people, setPeople] = useState<Person[]>([]);
+  const [bank, setBank] = useState<QuestionPlan | null>(null);
+  // A bank's analysis sets the skill emphasis (still editable). Nothing from the bank itself goes on
+  // the candidate's briefing: the questions only surface in the colleagues' conversation.
+  const applyBank = (plan: QuestionPlan | null) => {
+    setBank(plan);
+    if (plan) setFields((f) => ({ ...f, skills: plan.skills.slice(0, 3).map((s) => s.id) }));
+  };
   const [channel, setChannel] = useState<InviteChannel>(company.smtp_ready ? "both" : "app");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -92,7 +101,9 @@ function Wizard({ company }: { company: Company }) {
         ...fields,
         candidates: people,
         channel,
-        client_request_id: requestId.current,
+        // "qb-" tells the API a question bank is attached, so the AI colleagues ask its questions
+        // (demo: no extra field or migration; see apps/api/app/company/question_bank.py).
+        client_request_id: bank ? `qb-${requestId.current}` : requestId.current,
       });
       setResult({ id: res.id, delivery: res.delivery, created: res.created });
     } catch (e) {
@@ -170,6 +181,7 @@ function Wizard({ company }: { company: Company }) {
             <ProfileCard company={company} />
           </div>
         )}
+        {step === "details" && <QuestionBank plan={bank} onChange={applyBank} team={preview?.team ?? []} />}
 
         {step === "people" && (
           <div className="stack" style={{ maxWidth: 760 }}>
@@ -188,6 +200,7 @@ function Wizard({ company }: { company: Company }) {
             preview={preview}
             title={title}
             fields={fields}
+            bank={bank}
             message={message}
             people={people}
             channel={channel}
@@ -294,6 +307,7 @@ function Review(props: {
   preview: TopicPreview | null;
   title: string;
   fields: AssessmentFields;
+  bank: QuestionPlan | null;
   message: string;
   people: Person[];
   channel: InviteChannel;
@@ -318,6 +332,14 @@ function Review(props: {
             {fields.instructions ? " · instructions added" : ""}
           </span>
         </ReviewBlock>
+        {props.bank && (
+          <ReviewBlock label="Question bank" onEdit={() => props.onEdit("details")}>
+            <strong>{props.bank.source}</strong>
+            <span className="small muted">
+              {props.bank.questions.length} questions · manager {props.bank.bySlot.manager.length} · teammate {props.bank.bySlot.teammate.length} · client {props.bank.bySlot.client.length}
+            </span>
+          </ReviewBlock>
+        )}
         <ReviewBlock label="Deadline" onEdit={() => props.onEdit("details")}>
           {fields.due_at ? (
             <>
