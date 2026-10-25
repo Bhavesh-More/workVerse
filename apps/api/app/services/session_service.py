@@ -383,6 +383,10 @@ async def complete_session(
         blueprint=blueprint,
         state=state,
     )
+    from app.notifications import notify_company
+
+    score = (evaluation or {}).get("overall_score") if isinstance(evaluation, dict) else None
+    await notify_company(repo.session, session_id, "candidate_completed", float(score) if score is not None else None)
     return {"status": "completed", "evaluation": evaluation}
 
 

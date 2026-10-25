@@ -4,6 +4,7 @@ import { usePathname } from "next/navigation";
 import { m } from "framer-motion";
 import type { ReactNode } from "react";
 import { Sidebar } from "./Sidebar";
+import { NotificationsProvider } from "./Notifications";
 
 export function AppChrome({ children }: { children: ReactNode }) {
   const pathname = usePathname();
@@ -11,16 +12,20 @@ export function AppChrome({ children }: { children: ReactNode }) {
     pathname === "/" ||
     pathname.startsWith("/login") ||
     pathname.startsWith("/signup") ||
-    pathname.startsWith("/onboarding");
-  const isSimulation = pathname.startsWith("/session/") && !pathname.endsWith("/debrief");
+    pathname.startsWith("/onboarding") ||
+    pathname.startsWith("/company/login") ||
+    pathname.startsWith("/company/signup") ||
+    pathname.startsWith("/invite");
+  const isSimulation =
+    (pathname.startsWith("/session/") && !pathname.endsWith("/debrief")) || pathname.startsWith("/company/workplace/editor");
 
   return (
-    <>
+    <NotificationsProvider>
       {isPublic || isSimulation ? (
         children
       ) : (
         <div className="app-layout">
-          <Sidebar />
+          <Sidebar variant={pathname.startsWith("/company") ? "company" : "learner"} />
           <m.div
             className="app-content"
             key={pathname}
@@ -32,6 +37,6 @@ export function AppChrome({ children }: { children: ReactNode }) {
           </m.div>
         </div>
       )}
-    </>
+    </NotificationsProvider>
   );
 }

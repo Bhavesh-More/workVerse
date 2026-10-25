@@ -12,6 +12,7 @@ import { useAuth } from "../../../lib/auth";
 import { averageScore, strongestCriterion } from "../../../lib/practice";
 import { useApi } from "../../../lib/useApi";
 import { preloadGame } from "../../../game/preload";
+import { useNotifications } from "../../../components/Notifications";
 
 const container = { hidden: {}, show: { transition: { staggerChildren: 0.07 } } };
 const item = {
@@ -31,6 +32,8 @@ export default function DashboardPage() {
   const { data: sessionList } = useApi("/sessions", api.listSessions);
   const { data: trendList } = useApi("/progress/competencies", api.competencies);
   const sessions = sessionList?.items ?? [];
+  const inbox = useNotifications();
+  const invites = (inbox?.items ?? []).filter((n) => n.kind === "assessment_invite" && n.link);
   const trends = trendList?.items ?? [];
 
   // First-time users are sent through onboarding before seeing the dashboard.
@@ -83,6 +86,29 @@ export default function DashboardPage() {
             </p>
           </div>
         </m.div>
+
+        {invites.length > 0 && (
+          <m.section variants={item} className="card stack" style={{ marginBottom: 24 }} data-testid="dashboard-invites">
+            <div className="row between">
+              <span className="eyebrow" style={{ margin: 0 }}>Assessment invitations</span>
+              <span className="badge">{invites.filter((n) => !n.read).length} new</span>
+            </div>
+            <ul className="list-reset stack" style={{ gap: 10 }}>
+              {invites.slice(0, 5).map((n) => (
+                <li key={n.id} className="row between" style={{ gap: 16, flexWrap: "wrap" }}>
+                  <span>
+                    <strong>{n.title}</strong>
+                    <br />
+                    <span className="small muted">{n.body}</span>
+                  </span>
+                  <button className={`btn btn--small${n.read ? " btn--ghost" : ""}`} onClick={() => inbox!.open(n)}>
+                    {n.read ? "View" : "Open invite"} →
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </m.section>
+        )}
 
         <m.div variants={item} className="grid-3" style={{ marginBottom: 24 }}>
           <div className="card">

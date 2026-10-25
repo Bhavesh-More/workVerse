@@ -9,6 +9,7 @@ from typing import Any
 
 from app.agents.ollama_cloud import OllamaCloudClient
 from app.agents.role_cards import NEEDS_FROM_LEARNER
+from app.company.judges import apply_topic, remap_world, slot_of
 from app.core.errors import NotFoundError, ValidationAppError
 from app.db.repository import Repository
 from app.schemas.runtime import SimulationState
@@ -27,6 +28,13 @@ from app.simulation.validation import validate_blueprint
 logger = logging.getLogger(__name__)
 
 VALIDATOR_VERSION = "validator-v1"
+# A role label per track that track_for() maps back to the same track.
+TRACK_ROLES = {
+    "backend": "Backend Engineer",
+    "frontend": "Frontend Engineer",
+    "data": "Data Analyst",
+    "product": "Product Manager",
+}
 PROMPT_VERSION = "prompts-v1"
 
 
@@ -51,7 +59,7 @@ def _precondition_reason(
 def _profile(blueprint: ScenarioBlueprint, char_id: str, name: str) -> dict[str, Any] | None:
     """Intro-card profile; scenarios generated before profiles existed fall back to their track's."""
     stored = blueprint.metadata.get("profiles", {}).get(char_id)
-    needs = NEEDS_FROM_LEARNER.get(char_id, "")
+    needs = NEEDS_FROM_LEARNER.get(slot_of(blueprint, char_id), "")
     if stored:
         return {"gender": gender_of(name), **stored, "needs": needs}
     track = TRACKS.get(blueprint.metadata.get("track", "backend"), TRACKS["backend"])
@@ -112,6 +120,8 @@ def world_view(blueprint: ScenarioBlueprint, state: SimulationState) -> dict[str
             for o in blueprint.objects
         ],
         "actions": actions,
+        # A company-built office (WorldDoc + team members) or None for the default office.
+        "map": blueprint.metadata.get("world"),
     }
 
 
@@ -198,7 +208,12 @@ async def create_instance(
     learning_objectives: list[str] | None = None,
     variation_request: str = "",
     incident: str | None = None,
+    topic: dict[str, Any] | None = None,
+    company: dict[str, Any] | None = None,
+    world: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
+    """`topic` + `company` turn this into a company assessment: the topic picks the track and
+    incident, and its judges' names and personalities are written into the blueprint."""
     template = await repo.get_template_by_slug(template_slug)
     if template is None:
         await ensure_seed_templates(repo)
@@ -207,6 +222,10 @@ async def create_instance(
         raise NotFoundError("Scenario template not found.")
 
     role = (profile or {}).get("target_role") or "Junior Software Engineer"
+    if topic:
+        role = TRACK_ROLES.get(topic.get("track") or "backend", role)
+        difficulty = topic.get("difficulty") or difficulty
+        incident = topic.get("incident") or incident
     profile_goals = list(learning_objectives or []) or list(
         (profile or {}).get("career_goals") or []
     )
@@ -224,8 +243,12 @@ async def create_instance(
 
     # The incident mechanics stay deterministic (and validated); Ollama only writes a short,
     # profile-aware story around them, and the session starts without it if it's slow or off.
-    generator_model = ai.model_name if await personalize(ai, blueprint, profile) else None
-
+    # A company topic brings its own story, so it is not rewritten.
+    if topic:
+        apply_topic(blueprint, topic, company or {})
+        generator_model = None
+    else:
+        generator_model = ai.model_name if await personalize(ai, blueprint, profile) else None
     report = validate_blueprint(blueprint)
     if not report.ok:
         logger.warning("generated_blueprint_invalid", extra={"event": "fallback"})
@@ -238,11 +261,17 @@ async def create_instance(
             profile_goals=profile_goals,
             incident=incident,
         )
+        if topic:
+            apply_topic(blueprint, topic, company or {})
         report = validate_blueprint(blueprint)
         if not report.ok:
             raise ValidationAppError(
                 "Unable to produce a valid scenario. Please retry.", code="scenario_invalid"
             )
+    if world:
+        # The company's published workplace, frozen into this run: later edits don't move it.
+        ids = blueprint.metadata.get("judge_ids")
+        blueprint.metadata["world"] = remap_world(world, ids) if ids else world
 
     rubric_snapshot = blueprint.rubric.model_dump()
     profile_snapshot = {

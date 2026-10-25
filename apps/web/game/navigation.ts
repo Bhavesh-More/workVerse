@@ -23,13 +23,15 @@ export type RouteTarget = {
   showLabel?: boolean;
 };
 
+// Route and marker are floor decals: above the floor and walls, under furniture and people.
 const ROUTE_DEPTH = 6;
-const MARKER_DEPTH = 900;
+const MARKER_DEPTH = 7;
+const LABEL_DEPTH = 5002;
 const ROUTE_COLOR = 0x2ff5cf;
 const DOT_SPACING = 22;
 const TICK_MS = 90;
 /** Sprite origin is (0.5, 1); the route leaves from the character's centre instead of its feet. */
-const PLAYER_CENTER_OFFSET = 16;
+const PLAYER_CENTER_OFFSET = 20;
 /** Nudge the route start along the heading so it leaves the body at the travel angle. */
 const ROUTE_LEAD = 8;
 
@@ -78,7 +80,7 @@ export class NavigationOverlay {
         padding: { left: 5, right: 5, top: 2, bottom: 2 },
       })
       .setOrigin(0.5, 1)
-      .setDepth(MARKER_DEPTH + 1)
+      .setDepth(LABEL_DEPTH)
       .setVisible(false);
     this.timer = scene.time.addEvent({
       delay: TICK_MS,

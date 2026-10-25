@@ -14,6 +14,7 @@ from sqlalchemy.exc import IntegrityError
 
 from app.agents.elevenlabs_cloud import ElevenLabsClient
 from app.agents.ollama_cloud import OllamaCloudClient
+from app.company.judges import behaviour_prompt, voice_agent
 from app.core.config import Settings
 from app.core.errors import (
     AIConfigError,
@@ -27,7 +28,6 @@ from app.db.repository import Repository
 from app.services.fact_check import facts_stated
 from app.services.session_service import _load, _persist_pending_events, session_view
 from app.simulation.engine import reveal_facts
-from app.simulation.tracks import gender_of
 
 logger = logging.getLogger(__name__)
 
@@ -70,7 +70,7 @@ async def start_voice_session(
             "Real-time voice is disabled for this deployment.", code="voice_disabled"
         )
     # Picks the ElevenLabs account (and its agent) that can take the call; raises if none can.
-    token, agent_id = await voice_client.mint_for_npc(npc_id, gender_of(character.name))
+    token, agent_id = await voice_client.mint_for_npc(*voice_agent(blueprint, npc_id, character.name))
 
     voice = await repo.get_active_voice_session(session_id, npc_id)
     if voice is None:
@@ -113,8 +113,14 @@ async def start_voice_session(
         "npc": {"id": character.id, "name": character.name, "role": character.role},
         "greeting": character.greeting,
         # Filled into the agent prompt's {{shared_facts}} for this call only (never stored on the agent).
-        "dynamic_variables": {"shared_facts": voice_facts(blueprint, state, character.id)},
+        "dynamic_variables": {"shared_facts": voice_facts(blueprint, state, character.id) + _voice_behaviour(blueprint, character.id)},
     }
+
+
+def _voice_behaviour(blueprint: Any, character_id: str) -> str:
+    """A company-configured judge personality rides along with the facts (the agent prompt has one slot)."""
+    judge = (blueprint.metadata.get("judges") or {}).get(character_id)
+    return f"\n\nHow to behave on this call (manner only): {behaviour_prompt(judge)}" if judge else ""
 
 
 def voice_facts(blueprint: Any, state: Any, character_id: str) -> str:

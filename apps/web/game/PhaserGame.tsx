@@ -7,6 +7,7 @@ import {
   useRef,
 } from "react";
 import type { NavigationTarget, WorldView } from "../lib/types";
+import type { CompiledWorld } from "../lib/world/types";
 import type { NavigationStatus } from "./navigation";
 
 export type PhaserGameHandle = {
@@ -29,6 +30,7 @@ type Props = {
   onNavigationStatus?: (status: NavigationStatus) => void;
   onReady: () => void;
   isLocked?: () => boolean;
+  map?: CompiledWorld | null;
 };
 
 export const PhaserGame = forwardRef<PhaserGameHandle, Props>(function PhaserGame(props, ref) {
@@ -69,10 +71,18 @@ export const PhaserGame = forwardRef<PhaserGameHandle, Props>(function PhaserGam
 
     (async () => {
       const { createOfficeGame } = await import("./office");
+      const custom = callbacks.current.world.map;
+      let map = callbacks.current.map ?? null;
+      if (!map && custom) {
+        // A company-built office frozen into this session: compile it for the engine.
+        const [{ compileWorld }, { KIT }] = await Promise.all([import("../lib/world/compile"), import("../lib/world/kit")]);
+        map = compileWorld(custom.doc, KIT, custom.members);
+      }
       if (disposed) return;
       gameRef.current = createOfficeGame(parent, {
         world: callbacks.current.world,
-        playerTexture: callbacks.current.playerTexture ?? "blonde_man",
+        map,
+        playerTexture: callbacks.current.playerTexture ?? "player",
         onPrompt: (label) => callbacks.current.onPrompt(label),
         onNearCharacter: (id) => callbacks.current.onNearCharacter(id),
         onInteractCharacter: (id) => callbacks.current.onInteractCharacter(id),

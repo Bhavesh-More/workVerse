@@ -1,5 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
 import { clerk, setupClerkTestingToken } from "@clerk/testing/playwright";
+import { markOnboarded, testUser } from "./users";
 
 const API = "http://localhost:8000";
 
@@ -10,42 +11,41 @@ async function waitForApi(page: Page, path: string, method = "POST") {
   );
 }
 
+/** Findings (a colleague's "told you" card, a tool's findings window) open a pixel popup over the
+ * office; close it with Esc, the way a keyboard learner dismisses it. */
+async function dismissFinding(page: Page, waitMs = 8_000) {
+  const popup = page.locator(".px-backdrop");
+  try {
+    await popup.waitFor({ state: "visible", timeout: waitMs });
+  } catch {
+    return; // nothing new this time
+  }
+  await page.keyboard.press("Escape");
+  await expect(popup).toBeHidden({ timeout: 10_000 });
+}
+
 test.describe("WorkVerse learner journey", () => {
   test("sign up, onboard, run the incident scenario, and receive an evidence-grounded debrief", async ({
     page,
     request,
   }) => {
-    const email = `e2e${Date.now()}@gmail.com`;
-    const password = "WorkVerse!234";
-
-    // Create a Clerk user via the Backend API, then sign in with a one-time ticket so the
-    // test does not depend on email/OTP delivery.
-    const created = await request.post("https://api.clerk.com/v1/users", {
-      headers: { Authorization: `Bearer ${process.env.CLERK_SECRET_KEY}` },
-      data: { email_address: [email], password, skip_password_checks: true },
-    });
-    expect(created.ok()).toBeTruthy();
-    const userId = (await created.json()).id;
-    const ticketRes = await request.post("https://api.clerk.com/v1/sign_in_tokens", {
-      headers: { Authorization: `Bearer ${process.env.CLERK_SECRET_KEY}` },
-      data: { user_id: userId, expires_in_seconds: 3600 },
-    });
-    expect(ticketRes.ok()).toBeTruthy();
-    const ticket = (await ticketRes.json()).token;
-
+    // A test account (reused when the Clerk dev instance is at its user cap), signed in with a
+    // one-time ticket so the test doesn't depend on email/OTP delivery.
+    const user = await testUser(request, { preferEmail: `e2e${Date.now()}@gmail.com`, fresh: true });
     await page.goto("/login"); // Clerk loads only on app routes, not the landing page
     await setupClerkTestingToken({ page });
-    await clerk.signIn({ page, signInParams: { strategy: "ticket", ticket } });
+    await clerk.signIn({ page, signInParams: { strategy: "ticket", ticket: user.ticket } });
 
     // First-time users are routed through onboarding before the dashboard.
     await page.goto("/dashboard");
     await expect(page).toHaveURL(/\/onboarding/, { timeout: 60_000 });
 
-    await page.getByLabel("Target role").fill("Junior Backend Engineer");
+    await page.getByLabel("Target role").selectOption({ label: "Junior Backend Engineer" });
     await page.getByRole("button", { name: "Next", exact: true }).click();
     await page.getByRole("button", { name: "Next", exact: true }).click();
     await page.getByRole("button", { name: "Enter WorkVerse" }).click();
     await expect(page).toHaveURL(/\/dashboard/, { timeout: 60_000 });
+    markOnboarded(user);
 
     // --- catalogue ---
     await page.goto("/scenarios");
@@ -57,6 +57,12 @@ test.describe("WorkVerse learner journey", () => {
     await page.getByRole("button", { name: "Enter the office" }).click();
     await expect(page).toHaveURL(/\/session\//, { timeout: 60_000 });
     await expect(page.getByTestId("complete")).toBeVisible({ timeout: 30_000 });
+    // First entry shows the "Meet your team" intro; skip it like a learner would.
+    const intro = page.getByRole("dialog", { name: "Meet your team" });
+    if (await intro.isVisible().catch(() => false)) {
+      await page.getByRole("button", { name: /Skip intro/i }).click();
+      await expect(intro).toBeHidden({ timeout: 15_000 });
+    }
 
     // --- guide toggle ---
     await page.getByRole("button", { name: /Show guide/i }).click();
@@ -70,6 +76,7 @@ test.describe("WorkVerse learner journey", () => {
     await page.getByTestId("chat-send").click();
     expect((await turn1).ok()).toBeTruthy();
     await expect(page.getByTestId("chat-log")).toContainText(/migration|deploy|release/i, { timeout: 60_000 });
+    await dismissFinding(page);
 
     // --- talk to the manager ---
     await page.getByTestId("talk-manager").click();
@@ -77,6 +84,7 @@ test.describe("WorkVerse learner journey", () => {
     const turn2 = waitForApi(page, "/turns");
     await page.getByTestId("chat-send").click();
     expect((await turn2).ok()).toBeTruthy();
+    await dismissFinding(page);
 
     // --- investigate + mitigate ---
     for (const actionId of [
@@ -84,6 +92,8 @@ test.describe("WorkVerse learner journey", () => {
       "a_check_migration_compat",
       "a_apply_forward_fix",
     ]) {
+      // A colleague's fact check runs asynchronously and can open its card at any moment.
+      await dismissFinding(page, 1_500);
       const resp = waitForApi(page, "/actions");
       // The full action list is visually hidden (keyboard/screen-reader path), so activate it
       // the way those users do rather than with a pointer click.
@@ -92,6 +102,7 @@ test.describe("WorkVerse learner journey", () => {
       await button.focus();
       await page.keyboard.press("Enter");
       expect((await resp).ok()).toBeTruthy();
+      await dismissFinding(page);
     }
 
     // --- stakeholder update deliverable ---
@@ -107,9 +118,11 @@ test.describe("WorkVerse learner journey", () => {
     const complete = waitForApi(page, "/complete");
     await page.getByTestId("complete").click();
     expect((await complete).ok()).toBeTruthy();
+    // The "Shift complete" end card plays first; continue from it to the report.
+    await page.getByRole("button", { name: /See your debrief/i }).click({ timeout: 60_000 });
     await expect(page).toHaveURL(/\/debrief/, { timeout: 120_000 });
     await expect(page.getByRole("heading", { name: "Practice report" })).toBeVisible();
-    await expect(page.getByText("Criterion feedback")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Skill scores" })).toBeVisible();
     await expect(page.getByText(/formative practice feedback/i).first()).toBeVisible();
   });
 

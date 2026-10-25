@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { useUser, useClerk } from "@clerk/nextjs";
 import { isClerkAPIResponseError } from "@clerk/nextjs/errors";
 
@@ -47,4 +48,21 @@ export function useAuth(): AppAuth {
     loading: !isLoaded,
     signOut: (options) => signOut(options),
   };
+}
+
+/** Where to go after sign-in/up: a same-site ?redirect= path (e.g. back to an invite) or the default. */
+export function authRedirect(fallback: string): string {
+  if (typeof window === "undefined") return fallback;
+  const target = new URLSearchParams(window.location.search).get("redirect");
+  return target && target.startsWith("/") && !target.startsWith("//") ? target : fallback;
+}
+
+/** Carry the ?redirect= along when switching between log-in and sign-up (read after mount to match SSR). */
+export function useWithRedirect(href: string): string {
+  const [out, setOut] = useState(href);
+  useEffect(() => {
+    const target = new URLSearchParams(window.location.search).get("redirect");
+    setOut(target ? `${href}?redirect=${encodeURIComponent(target)}` : href);
+  }, [href]);
+  return out;
 }

@@ -25,6 +25,10 @@ export type CharacterProfile = {
   /** What this colleague expects from the learner (shown next to the chat). */
   needs?: string;
   knows: string;
+  /** Company judges: in-game sprite sheet, chosen voice, and whether the recorded intro fits their name. */
+  sheet?: string;
+  voice?: string;
+  intro_audio?: boolean;
 };
 
 export type WorldCharacter = {
@@ -57,6 +61,8 @@ export type WorldView = {
   characters: WorldCharacter[];
   objects: WorldObject[];
   actions: WorldAction[];
+  /** The company's published office for this run (null/absent: the default office). */
+  map?: { doc: import("./world/types").WorldDoc; members: import("./world/types").Member[] } | null;
 };
 
 export type Objective = {

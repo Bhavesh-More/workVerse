@@ -700,7 +700,7 @@ export default function SessionPage() {
             ref={gameRef}
             world={session.world}
             sessionId={sessionId}
-            playerTexture="blonde_man"
+            playerTexture="player"
             onPrompt={setPrompt}
             onNearCharacter={setNearCharacter}
             onInteractCharacter={openCharacter}

@@ -35,7 +35,9 @@ export default function BriefingPage() {
     setBusy(true);
     setError(null);
     try {
-      const session = await api.startSession(instance.scenario_instance_id);
+      // A company invite already started the session (?session=); just enter it.
+      const invited = new URLSearchParams(window.location.search).get("session");
+      const session = invited ? { id: invited } : await api.startSession(instance.scenario_instance_id);
       router.push(`/session/${session.id}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not start the session.");

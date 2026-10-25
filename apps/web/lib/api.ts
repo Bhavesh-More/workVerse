@@ -46,7 +46,7 @@ type RequestOptions = {
   signal?: AbortSignal;
 };
 
-async function request<T>(path: string, opts: RequestOptions = {}): Promise<T> {
+export async function request<T>(path: string, opts: RequestOptions = {}): Promise<T> {
   const doFetch = async (): Promise<Response> => {
     const headers: Record<string, string> = {};
     if (opts.body !== undefined) headers["Content-Type"] = "application/json";
@@ -111,6 +111,25 @@ async function request<T>(path: string, opts: RequestOptions = {}): Promise<T> {
     );
   }
   return data as T;
+}
+
+/** Fetch an authenticated file (PDF/CSV report) and hand it to the browser as a download. */
+export async function download(path: string, fallbackName: string): Promise<void> {
+  const token = tokenGetter ? await tokenGetter() : null;
+  const res = await fetch(`${API_BASE}${path}`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    cache: "no-store",
+  });
+  if (!res.ok) throw new ApiError(res.status, "download_failed", `Download failed (${res.status}).`);
+  const name = /filename="([^"]+)"/.exec(res.headers.get("Content-Disposition") ?? "")?.[1] ?? fallbackName;
+  const url = URL.createObjectURL(await res.blob());
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = name;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
 // Stale-while-revalidate read cache: pages render the last known data instantly and refresh

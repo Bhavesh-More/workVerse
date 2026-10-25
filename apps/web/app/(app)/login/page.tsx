@@ -2,14 +2,17 @@
 
 import { useState, type FormEvent } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useSignIn } from "@clerk/nextjs";
-import { clerkErrorMessage } from "../../../lib/auth";
+import { authRedirect, clerkErrorMessage, useWithRedirect } from "../../../lib/auth";
 import { AuthShell, FormError, PasswordInput } from "../../../components/AuthShell";
 
 export default function LoginPage() {
   const { isLoaded, signIn, setActive } = useSignIn();
   const router = useRouter();
+  // /company/login and /company/signup reuse this page with company copy and landing.
+  const company = usePathname().startsWith("/company");
+  const switchHref = useWithRedirect(company ? "/company/signup" : "/signup");
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -21,7 +24,7 @@ export default function LoginPage() {
 
   const finish = async (sessionId: string | null) => {
     await setActive?.({ session: sessionId });
-    router.push("/dashboard");
+    router.push(authRedirect(company ? "/company" : "/dashboard"));
   };
 
   const submit = async (e: FormEvent) => {
@@ -72,12 +75,14 @@ export default function LoginPage() {
 
   return (
     <AuthShell>
-      <span className="eyebrow">Log-in</span>
+      <span className="eyebrow">{company ? "Company log-in" : "Log-in"}</span>
       <h1 className="page-title">
-        Welcome <span className="hl">back</span>
+        {company ? <>Hiring <span className="hl">dashboard</span></> : <>Welcome <span className="hl">back</span></>}
       </h1>
       <p className="small muted" style={{ marginBottom: 24 }}>
-        Pick up where you left off — your sessions and reports are waiting.
+        {company
+          ? "Create assessments, invite candidates and read their results."
+          : "Pick up where you left off — your sessions and reports are waiting."}
       </p>
 
       <div className="stack">
@@ -126,7 +131,7 @@ export default function LoginPage() {
                 type="email"
                 className="input"
                 autoComplete="email"
-                placeholder="you@university.edu"
+                placeholder={company ? "you@company.com" : "you@university.edu"}
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
@@ -151,8 +156,8 @@ export default function LoginPage() {
 
         <p className="small muted" style={{ textAlign: "center" }}>
           New here?{" "}
-          <Link className="text-link" href="/signup">
-            Create a free account
+          <Link className="text-link" href={switchHref}>
+            {company ? "Create a company account" : "Create a free account"}
           </Link>
         </p>
       </div>
