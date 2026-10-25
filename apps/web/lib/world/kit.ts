@@ -38,12 +38,4 @@ export function loadKitImages(): Promise<KitImages> {
   return loading;
 }
 
-/** Default looks for the five judges in the editor (the game picks by the judge's gender). */
-export const JUDGE_LOOK: Record<string, string> = { manager: "f1", teammate: "m1", qa: "f2", client_pm: "m2", coworker: "f3" };
-export const JUDGE_TITLES: Record<string, string> = {
-  manager: "Manager",
-  teammate: "Senior teammate",
-  qa: "QA / reviewer",
-  client_pm: "Client stakeholder",
-  coworker: "Friendly coworker",
-};
+export { JUDGE_LOOK, JUDGE_TITLES } from "./validate.ts";

@@ -27,9 +27,30 @@ export type Company = {
   name: string;
   smtp: Smtp;
   judge_defaults: JudgeMap;
+  /** The company's own judges; null = the legacy five roles with names from the cast. */
+  judge_roster: RosterJudge[] | null;
   world_mode?: "default" | "custom" | null;
   created_at: string;
 };
+
+export type JudgeRole = "manager" | "teammate" | "qa" | "client_pm" | "coworker";
+
+/** One AI judge a company configured: plays a scenario role, with its own name, look, voice and manner. */
+export type RosterJudge = {
+  id: string;
+  role: JudgeRole;
+  name: string;
+  avatar: string;
+  voice: string;
+  personality: string;
+  greeting: string;
+  focus: string;
+  tone: string;
+  strictness: number;
+};
+
+export type Avatar = { id: string; portrait: string; gender: "male" | "female"; sheet: string };
+export type Voice = { id: string; label: string; gender: "male" | "female"; sample: string | null };
 
 export type JudgeDefault = Required<Omit<JudgeConfig, "focus">> & { focus: string; role: string; knows: string };
 
@@ -43,6 +64,11 @@ export type JudgeCatalog = {
   strictness: { level: number; description: string }[];
   tracks: { id: string; label: string; title: string; incidents: { id: string; title: string }[] }[];
   samples: TopicInput[];
+  roles: { id: JudgeRole; label: string }[];
+  avatars: Avatar[];
+  voices: Voice[];
+  default_roster: RosterJudge[];
+  max_judges: number;
 };
 
 export type TopicInput = {
@@ -166,7 +192,7 @@ export type InvitePreview = {
 export const companyApi = {
   get: () => request<{ company: Company | null }>("/company"),
   create: (name: string) => request<{ company: Company }>("/company", { method: "POST", body: { name } }),
-  update: (body: { name?: string; smtp?: Smtp & { password?: string | null }; judge_defaults?: JudgeMap }) =>
+  update: (body: { name?: string; smtp?: Smtp & { password?: string | null }; judge_defaults?: JudgeMap; judge_roster?: RosterJudge[] }) =>
     request<{ company: Company }>("/company", { method: "PATCH", body }),
   testSmtp: (to: string) => request<{ ok: boolean; error: string | null }>("/company/smtp/test", { method: "POST", body: { to } }),
   catalog: () => request<JudgeCatalog>("/company/judges/catalog"),

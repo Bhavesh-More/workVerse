@@ -2,10 +2,10 @@
 
 // Properties of whatever is selected; edits here go through the same ops as the canvas.
 import { useEffect, useState, type Dispatch, type ReactNode } from "react";
-import { KIT, JUDGE_TITLES } from "../../../lib/world/kit";
+import { KIT } from "../../../lib/world/kit";
 import { deleteRoom, objectRoom, resizeRoom, resizeWorld, roomContents, roomRect, setRoomFloor, stats } from "../../../lib/world/doc";
 import { autoPlacePeople, connectRoom, duplicateRoom } from "../../../lib/world/presets";
-import { MAX_H, MAX_W, MIN_H, MIN_W, PURPOSES, type Dir, type FloorKind, type Member, type Paint, type RoomPurpose } from "../../../lib/world/types";
+import { MAX_H, MAX_W, MIN_H, MIN_W, PURPOSES, type Dir, type FloorKind, type Member, type Paint, type RoomPurpose, type WorldJudge } from "../../../lib/world/types";
 import { AssetThumb, CharThumb } from "../Thumbs";
 import { personLabel, sheetFor } from "./EditorCanvas";
 import { deleteSelection, duplicateObjects, moveItems, nudge, selectedObjects } from "./ops";
@@ -15,12 +15,12 @@ type Props = {
   state: EditorState;
   dispatch: Dispatch<Action>;
   members: Member[];
-  judgeNames: Record<string, string>;
+  judges: WorldJudge[];
   onToast: (msg: string) => void;
   onFocus: (x: number, y: number) => void;
 };
 
-export function Inspector({ state, dispatch, members, judgeNames, onToast, onFocus }: Props) {
+export function Inspector({ state, dispatch, members, judges, onToast, onFocus }: Props) {
   const { doc, sel } = state;
   const apply = (res: { doc: typeof doc; sel: typeof sel } | { error: string }) => {
     if ("error" in res) onToast(res.error);
@@ -104,11 +104,11 @@ export function Inspector({ state, dispatch, members, judgeNames, onToast, onFoc
     const p = people[0];
     if (p) {
       const kind = p.ref.startsWith("judge:") ? "AI judge" : p.ref.startsWith("member:") ? "Team member · display only" : "Office pet";
-      const title = p.ref.startsWith("judge:") ? JUDGE_TITLES[p.ref.slice(6)] : p.ref.startsWith("member:") ? members.find((m) => `member:${m.id}` === p.ref)?.title : "Wanders its room";
+      const title = p.ref.startsWith("judge:") ? judges.find((j) => `judge:${j.id}` === p.ref)?.title : p.ref.startsWith("member:") ? members.find((m) => `member:${m.id}` === p.ref)?.title : "Wanders its room";
       return (
-        <Panel title={personLabel(p.ref, judgeNames, members)} subtitle={kind}>
+        <Panel title={personLabel(p.ref, judges, members)} subtitle={kind}>
           <div className="we-insp-hero">
-            <CharThumb sheet={sheetFor(p.ref, members)} box={64} />
+            <CharThumb sheet={sheetFor(p.ref, members, judges)} box={64} />
             <dl className="we-dl">
               <dt>Role</dt>
               <dd>{title || "—"}</dd>
@@ -157,7 +157,7 @@ export function Inspector({ state, dispatch, members, judgeNames, onToast, onFoc
     );
   }
 
-  return <WorldPanel state={state} dispatch={dispatch} members={members} onToast={onToast} />;
+  return <WorldPanel state={state} dispatch={dispatch} members={members} judges={judges} onToast={onToast} />;
 }
 
 function RoomPanel({ state, dispatch, onToast, onFocus, roomId }: { state: EditorState; dispatch: Dispatch<Action>; onToast: (m: string) => void; onFocus: (x: number, y: number) => void; roomId: string }) {
@@ -290,7 +290,7 @@ function nudgeRoom(doc: EditorState["doc"], id: string, dx: number, dy: number) 
   return "error" in res ? doc : res.doc;
 }
 
-function WorldPanel({ state, dispatch, members, onToast }: { state: EditorState; dispatch: Dispatch<Action>; members: Member[]; onToast: (m: string) => void }) {
+function WorldPanel({ state, dispatch, members, judges, onToast }: { state: EditorState; dispatch: Dispatch<Action>; members: Member[]; judges: WorldJudge[]; onToast: (m: string) => void }) {
   const { doc } = state;
   const [w, setW] = useState(doc.width);
   const [h, setH] = useState(doc.height);
@@ -349,7 +349,7 @@ function WorldPanel({ state, dispatch, members, onToast }: { state: EditorState;
         <button
           className="btn btn--ghost btn--small"
           onClick={() => {
-            const next = autoPlacePeople(doc, KIT, members);
+            const next = autoPlacePeople(doc, KIT, members, judges);
             if (next.people.length === doc.people.length) onToast("Everyone already has a place.");
             else dispatch({ type: "commit", doc: next });
           }}

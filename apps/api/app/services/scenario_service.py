@@ -9,7 +9,7 @@ from typing import Any
 
 from app.agents.ollama_cloud import OllamaCloudClient
 from app.agents.role_cards import NEEDS_FROM_LEARNER
-from app.company.judges import apply_topic
+from app.company.judges import apply_topic, remap_world, slot_of
 from app.core.errors import NotFoundError, ValidationAppError
 from app.db.repository import Repository
 from app.schemas.runtime import SimulationState
@@ -59,7 +59,7 @@ def _precondition_reason(
 def _profile(blueprint: ScenarioBlueprint, char_id: str, name: str) -> dict[str, Any] | None:
     """Intro-card profile; scenarios generated before profiles existed fall back to their track's."""
     stored = blueprint.metadata.get("profiles", {}).get(char_id)
-    needs = NEEDS_FROM_LEARNER.get(char_id, "")
+    needs = NEEDS_FROM_LEARNER.get(slot_of(blueprint, char_id), "")
     if stored:
         return {"gender": gender_of(name), **stored, "needs": needs}
     track = TRACKS.get(blueprint.metadata.get("track", "backend"), TRACKS["backend"])
@@ -249,10 +249,6 @@ async def create_instance(
         generator_model = None
     else:
         generator_model = ai.model_name if await personalize(ai, blueprint, profile) else None
-    if world:
-        # The company's published workplace, frozen into this run: later edits don't move it.
-        blueprint.metadata["world"] = world
-
     report = validate_blueprint(blueprint)
     if not report.ok:
         logger.warning("generated_blueprint_invalid", extra={"event": "fallback"})
@@ -272,6 +268,10 @@ async def create_instance(
             raise ValidationAppError(
                 "Unable to produce a valid scenario. Please retry.", code="scenario_invalid"
             )
+    if world:
+        # The company's published workplace, frozen into this run: later edits don't move it.
+        ids = blueprint.metadata.get("judge_ids")
+        blueprint.metadata["world"] = remap_world(world, ids) if ids else world
 
     rubric_snapshot = blueprint.rubric.model_dump()
     profile_snapshot = {

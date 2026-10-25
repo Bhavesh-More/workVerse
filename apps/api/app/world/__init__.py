@@ -7,6 +7,7 @@ a draft must be well-formed to be saved, and must be playable to be published.
 from __future__ import annotations
 
 import json
+import re
 from functools import lru_cache
 from pathlib import Path
 from typing import Any, Literal
@@ -95,7 +96,8 @@ class Person(BaseModel):
     @classmethod
     def known_kind(cls, v: str) -> str:
         kind, _, rest = v.partition(":")
-        if kind == "judge" and rest in JUDGE_SLOTS:
+        # A role slot (legacy worlds, default roster ids) or a roster judge id.
+        if kind == "judge" and (rest in JUDGE_SLOTS or re.fullmatch(r"[a-z0-9_-]{1,24}", rest)):
             return v
         if kind == "pet" and rest in PETS:
             return v

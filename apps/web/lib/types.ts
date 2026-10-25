@@ -25,6 +25,10 @@ export type CharacterProfile = {
   /** What this colleague expects from the learner (shown next to the chat). */
   needs?: string;
   knows: string;
+  /** Company judges: in-game sprite sheet, chosen voice, and whether the recorded intro fits their name. */
+  sheet?: string;
+  voice?: string;
+  intro_audio?: boolean;
 };
 
 export type WorldCharacter = {

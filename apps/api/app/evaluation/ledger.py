@@ -11,6 +11,7 @@ import re
 from statistics import median
 from typing import Any
 
+from app.company.judges import ROLE_LABELS, stands_in_for
 from app.schemas.runtime import SimulationState
 from app.schemas.scenario import ScenarioBlueprint
 
@@ -64,11 +65,21 @@ def _event_for_fact(events: list[dict[str, Any]], fact_id: str) -> str | None:
     return None
 
 
-def _first_message_to(messages: list[dict[str, Any]], character_id: str) -> str | None:
+def _first_message_to(messages: list[dict[str, Any]], character_ids: str | set[str]) -> str | None:
+    ids = {character_ids} if isinstance(character_ids, str) else character_ids
     for m in messages:
-        if m["speaker_type"] == "learner" and m.get("character_id") == character_id:
+        if m["speaker_type"] == "learner" and m.get("character_id") in ids:
             return str(m["id"])
     return None
+
+
+def _role_people(blueprint: ScenarioBlueprint) -> dict[str, set[str]]:
+    """role -> characters that count as talking to it (a company roster may rename, add or drop roles)."""
+    out: dict[str, set[str]] = {}
+    for cid, roles in stands_in_for(blueprint).items():
+        for r in roles:
+            out.setdefault(r, set()).add(cid)
+    return out
 
 
 def _check(cid: str, label: str, passed: bool, source_type: str | None, source_id: str | None, detail: str = "") -> dict[str, Any]:
@@ -99,7 +110,8 @@ def build_ledger(
     # Labels come from the blueprint so each role track reads in its own words.
     A = {a.id: a.label for a in blueprint.actions}  # noqa: N806
     F = {f.id: f.label for f in blueprint.facts}  # noqa: N806
-    R = {c.id: c.role for c in blueprint.characters}  # noqa: N806
+    R = {**ROLE_LABELS, **{c.id: c.role for c in blueprint.characters}}  # noqa: N806
+    people = _role_people(blueprint)
     ev = lambda a: _event_for_action(events, a)  # noqa: E731
     fact_ev = lambda f: _event_for_fact(events, f)  # noqa: E731
     rejected = [e for e in events if e["event_type"] == "decision_rejected"]
@@ -158,8 +170,8 @@ def build_ledger(
         ],
         "ownership": [
             _check("impact_known", f"Asked the {R['manager']} about impact", "f_business_impact" in known, "event", fact_ev("f_business_impact")),
-            _check("talked_qa", f"Talked to the {R['qa']}", "qa" in consulted, "message", _first_message_to(messages, "qa")),
-            _check("talked_client", f"Kept the {R['client_pm']} informed", "client_pm" in consulted, "message", _first_message_to(messages, "client_pm")),
+            _check("talked_qa", f"Talked to the {R['qa']}", bool(people.get("qa", set()) & consulted), "message", _first_message_to(messages, people.get("qa", set()))),
+            _check("talked_client", f"Kept the {R['client_pm']} informed", bool(people.get("client_pm", set()) & consulted), "message", _first_message_to(messages, people.get("client_pm", set()))),
             _check("followup", "Documented a follow-up", "a_document_followup" in done, "event", ev("a_document_followup")),
         ],
         "adaptation": [
@@ -224,6 +236,8 @@ def conversation_stats(
 def say_next_time(ledger: dict[str, list[dict[str, Any]]], blueprint: ScenarioBlueprint) -> list[dict[str, str]]:
     """Ready-to-use lines for the checks the learner missed (max 4, in ledger order)."""
     names = {c.id: c.name for c in blueprint.characters}
+    # A role nobody plays is covered by another judge: point the tip at them.
+    names.update({role: names.get(cid, cid) for role, cid in (blueprint.metadata.get("covers") or {}).items()})
     lines = blueprint.metadata.get("say_next_time") or SAY_NEXT_TIME
     out: list[dict[str, str]] = []
     for checks in ledger.values():

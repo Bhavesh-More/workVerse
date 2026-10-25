@@ -129,7 +129,13 @@ function hash(s: string): number {
 export function assignCast(characters: Pick<WorldCharacter, "id" | "name" | "sprite" | "profile">[]) {
   const used = new Set<string>();
   const out: Record<string, string> = {};
+  // A company judge's avatar comes with its sprite; everyone else is matched by gender.
+  for (const c of characters) if (c.profile?.sheet && !used.has(c.profile.sheet)) {
+    used.add(c.profile.sheet);
+    out[c.id] = c.profile.sheet;
+  }
   for (const c of characters) {
+    if (out[c.id]) continue;
     const female = c.profile?.gender
       ? c.profile.gender === "female"
       : c.sprite === "blue_haired_woman";

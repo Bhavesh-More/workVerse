@@ -6,13 +6,12 @@
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, type Dispatch } from "react";
 import { compileWorld } from "../../../lib/world/compile";
 import { carveDoor, footprint, moveRoom, paintFloor, resizeRoom, roomAt, uid, type Rect } from "../../../lib/world/doc";
-import { JUDGE_LOOK, JUDGE_TITLES } from "../../../lib/world/kit";
 import type { KitImages } from "../../../lib/world/kit";
 import { canPlaceAsset, canPlacePerson, canPlacePreset, freeCell, placementContext, type PlacementContext } from "../../../lib/world/placement";
 import { presetById } from "../../../lib/world/presets";
 import { drawFrame, drawGround, drawWalls } from "../../../lib/world/render";
 import { reachable, type Issue } from "../../../lib/world/validate";
-import { TILE, type Kit, type Member, type Room, type WorldDoc } from "../../../lib/world/types";
+import { TILE, type Kit, type Member, type Room, type WorldDoc, type WorldJudge } from "../../../lib/world/types";
 import { moveItems, place, placementOrigin } from "./ops";
 import { selectedIds, type Action, type EditorState } from "./store";
 
@@ -31,7 +30,7 @@ type Props = {
   kit: Kit;
   imgs: KitImages | null;
   members: Member[];
-  judgeNames: Record<string, string>;
+  judges: WorldJudge[];
   issues: Issue[];
   onToast: (msg: string) => void;
   onZoom: (z: number) => void;
@@ -68,7 +67,7 @@ const FLOOR_SWATCH: Record<string, string> = {
 };
 
 export const EditorCanvas = forwardRef<CanvasApi, Props>(function EditorCanvas(props, ref) {
-  const { state, dispatch, kit, imgs, members, judgeNames, issues, onToast, onZoom } = props;
+  const { state, dispatch, kit, imgs, members, judges, issues, onToast, onZoom } = props;
   const wrapRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const miniRef = useRef<HTMLCanvasElement>(null);
@@ -210,7 +209,7 @@ export const EditorCanvas = forwardRef<CanvasApi, Props>(function EditorCanvas(p
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext("2d")!;
-    const { state: st, imgs: im, judgeNames: names, members: mem, issues: iss } = latest.current;
+    const { state: st, imgs: im, judges: jud, members: mem, issues: iss } = latest.current;
     const d = st.doc;
     const v = view.current;
     const z = v.zoom;
@@ -262,7 +261,7 @@ export const EditorCanvas = forwardRef<CanvasApi, Props>(function EditorCanvas(p
         const off = offsetOf(p.id);
         const fx = p.x * TILE + TILE / 2 + off.x;
         const fy = p.y * TILE + TILE - 2 + off.y;
-        const sheet = sheetFor(p.ref, mem);
+        const sheet = sheetFor(p.ref, mem, jud);
         const img = im.chars[sheet];
         const pet = sheet.startsWith("cat");
         items.push({
@@ -447,9 +446,9 @@ export const EditorCanvas = forwardRef<CanvasApi, Props>(function EditorCanvas(p
           outlineFill(ctx, fp, ok, z);
         }
       } else if (st.placing.kind === "person") {
-        const img = im.chars[sheetFor(st.placing.ref, mem)];
+        const img = im.chars[sheetFor(st.placing.ref, mem, jud)];
         if (img) {
-          const pet = sheetFor(st.placing.ref, mem).startsWith("cat");
+          const pet = sheetFor(st.placing.ref, mem, jud).startsWith("cat");
           if (pet) ctx.drawImage(img, 0, 0, 32, 32, o.x * TILE, o.y * TILE, 32, 32);
           else ctx.drawImage(img, 0, 0, 64, 64, o.x * TILE - 16, o.y * TILE - 34, 64, 64);
         }
@@ -518,7 +517,7 @@ export const EditorCanvas = forwardRef<CanvasApi, Props>(function EditorCanvas(p
     if (z >= 0.6) {
       for (const p of d.people) {
         const off = offsetOf(p.id);
-        const label = personLabel(p.ref, names, mem);
+        const label = personLabel(p.ref, jud, mem);
         const sx = v.panX + (p.x * TILE + TILE / 2 + off.x) * z;
         const sy = v.panY + (p.y * TILE - 22 + off.y) * z;
         const w = ctx.measureText(label).width + 10;
@@ -1005,15 +1004,15 @@ export const EditorCanvas = forwardRef<CanvasApi, Props>(function EditorCanvas(p
 // ---------------------------------------------------------------------------------- helpers
 const ROW: Record<string, number> = { down: 0, left: 1, right: 2, up: 3 };
 
-export function sheetFor(ref: string, members: Member[]): string {
-  if (ref.startsWith("judge:")) return JUDGE_LOOK[ref.slice(6)] ?? "m1";
+export function sheetFor(ref: string, members: Member[], judges: WorldJudge[]): string {
+  if (ref.startsWith("judge:")) return judges.find((j) => `judge:${j.id}` === ref)?.sheet ?? "m1";
   if (ref.startsWith("member:")) return members.find((m) => `member:${m.id}` === ref)?.look ?? "m3";
   if (ref.startsWith("pet:")) return ref.slice(4);
   return "m1";
 }
 
-export function personLabel(ref: string, judgeNames: Record<string, string>, members: Member[]): string {
-  if (ref.startsWith("judge:")) return judgeNames[ref.slice(6)] ?? JUDGE_TITLES[ref.slice(6)] ?? ref.slice(6);
+export function personLabel(ref: string, judges: WorldJudge[], members: Member[]): string {
+  if (ref.startsWith("judge:")) return judges.find((j) => `judge:${j.id}` === ref)?.name ?? "Removed judge";
   if (ref.startsWith("member:")) return members.find((m) => `member:${m.id}` === ref)?.name ?? "Member";
   return "Cat";
 }

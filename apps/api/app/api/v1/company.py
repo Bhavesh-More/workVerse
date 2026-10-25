@@ -48,6 +48,7 @@ def _company_view(c: dict[str, Any]) -> dict[str, Any]:
         "name": c["name"],
         "smtp": mailer.public_smtp(c.get("smtp")),
         "judge_defaults": c.get("judge_defaults") or {},
+        "judge_roster": c.get("judge_roster"),
         "world_mode": c.get("world_mode"),
         "created_at": c["created_at"].isoformat(),
     }
@@ -73,6 +74,7 @@ class CompanyUpdate(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=120)
     smtp: SmtpSettings | None = None
     judge_defaults: dict[str, Any] | None = None
+    judge_roster: list[Any] | None = None
 
 
 @router.get("/company")
@@ -101,6 +103,11 @@ async def update_company(principal: CurrentUser, crepo: CRepo, body: CompanyUpda
         if bad := judges.bad_names(body.judge_defaults):
             raise ValidationAppError("Pick judge names from the existing cast.", code="invalid_judge_name", details={"names": bad})
         fields["judge_defaults"] = judges.clean_judges(body.judge_defaults)
+    if body.judge_roster is not None:
+        try:
+            fields["judge_roster"] = judges.clean_roster(body.judge_roster)
+        except ValueError as exc:
+            raise ValidationAppError(str(exc), code="invalid_judges") from exc
     return {"company": _company_view(await crepo.update_company(str(company["id"]), fields))}
 
 

@@ -1,7 +1,7 @@
 "use client";
 
-// Edits the five AI judges' personalities on top of a template. Names are picked from the
-// existing cast (each has a portrait and a matching voice), never typed.
+// Edits the five roles' judges on top of a template (per topic). Legacy companies pick names
+// from the existing cast; companies with their own roster tune each role's lead judge.
 import type { JudgeCatalog, JudgeConfig, JudgeMap } from "../lib/company";
 
 const SLOT_TITLES: Record<string, string> = {
@@ -19,6 +19,7 @@ export function JudgeEditor({
   onChange,
   base,
   baseLabel = "company default",
+  leads,
 }: {
   catalog: JudgeCatalog;
   track: string;
@@ -27,6 +28,8 @@ export function JudgeEditor({
   /** Layer under `value` (company defaults when editing a topic). */
   base?: JudgeMap;
   baseLabel?: string;
+  /** Company roster: per role, the judge a topic tunes (names belong to the roster, not the topic). */
+  leads?: Record<string, { name: string; portrait?: string }>;
 }) {
   const set = (slot: string, patch: Partial<JudgeConfig>) => {
     const cur = { ...(value[slot] ?? {}), ...patch };
@@ -43,14 +46,15 @@ export function JudgeEditor({
 
   return (
     <div className="judge-grid">
-      {catalog.slots.map((slot) => {
+      {catalog.slots.filter((slot) => !leads || leads[slot.id]).map((slot) => {
         const tmpl = slot.defaults[track] ?? slot.defaults.backend!;
         const inherited = { ...tmpl, ...(base?.[slot.id] ?? {}) };
         const own = value[slot.id] ?? {};
         const eff = { ...inherited, ...own };
         // No name picked anywhere = each candidate meets a random member of the cast for this role.
-        const chosen = own.name ?? base?.[slot.id]?.name ?? "";
-        const portrait = (slot.names.find((n) => n.name === chosen) ?? slot.names[0])?.portrait;
+        const lead = leads?.[slot.id];
+        const chosen = lead?.name ?? own.name ?? base?.[slot.id]?.name ?? "";
+        const portrait = lead?.portrait ?? (slot.names.find((n) => n.name === chosen) ?? slot.names[0])?.portrait;
         const customised = Object.keys(own).length > 0;
         const strict = Number(eff.strictness ?? 3);
         const id = (f: string) => `judge-${slot.id}-${f}`;
@@ -69,7 +73,7 @@ export function JudgeEditor({
               </span>
             </div>
 
-            <div className="field">
+            {!lead && <div className="field">
               <label htmlFor={id("name")}>Name</label>
               <select id={id("name")} className="select" value={chosen} onChange={(e) => set(slot.id, { name: e.target.value })}>
                 <option value="">Random — varies per candidate</option>
@@ -80,7 +84,7 @@ export function JudgeEditor({
                 ))}
               </select>
               <span className="field__hint xsmall muted">Names come from the existing cast so the portrait and voice match.</span>
-            </div>
+            </div>}
 
             <div className="field">
               <label htmlFor={id("tone")}>Tone</label>

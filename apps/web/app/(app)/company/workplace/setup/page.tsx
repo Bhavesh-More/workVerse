@@ -3,19 +3,18 @@
 // Workplace setup: choose default vs custom, pick room presets, review who's in the office,
 // then open the editor with a generated, connected layout. Progress is saved after each step.
 import { useEffect, useMemo, useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { m } from "framer-motion";
 import { CompanyGate } from "../../../../../components/CompanyGate";
 import { FormError } from "../../../../../components/AuthShell";
 import { CharThumb, PresetThumb, WorldThumb } from "../../../../../components/world/Thumbs";
-import type { Company } from "../../../../../lib/company";
+import { JudgeRosterModal, RosterSummary, effectiveRoster, worldJudges } from "../../../../../components/judges/JudgeRoster";
+import { companyApi, type Company, type JudgeCatalog } from "../../../../../lib/company";
 import { useAuth } from "../../../../../lib/auth";
 import { workplaceApi, type WorkplaceState } from "../../../../../lib/workplace";
 import { uid } from "../../../../../lib/world/doc";
-import { KIT, JUDGE_LOOK, JUDGE_TITLES } from "../../../../../lib/world/kit";
+import { KIT } from "../../../../../lib/world/kit";
 import { PRESETS, generateLayout, presetById, type RoomPreset } from "../../../../../lib/world/presets";
-import { JUDGE_SLOTS } from "../../../../../lib/world/validate";
 import type { Member } from "../../../../../lib/world/types";
 
 type Step = "choose" | "presets" | "people";
@@ -28,10 +27,10 @@ const RECOMMENDED = ["reception", "ops_lab", "meeting", "executive", "lounge"];
 const LOOKS = ["m1", "m2", "m3", "m4", "m5", "f1", "f2", "f3", "f4", "f5"];
 
 export default function WorkplaceSetupPage() {
-  return <CompanyGate>{(company) => <Setup company={company} />}</CompanyGate>;
+  return <CompanyGate>{(company, refresh) => <Setup company={company} refresh={refresh} />}</CompanyGate>;
 }
 
-function Setup({ company }: { company: Company }) {
+function Setup({ company, refresh }: { company: Company; refresh: (c: Company) => void }) {
   const router = useRouter();
   const { user } = useAuth();
   const [wp, setWp] = useState<WorkplaceState | null>(null);
@@ -42,8 +41,12 @@ function Setup({ company }: { company: Company }) {
   const [error, setError] = useState<string | null>(null);
   const [preview, setPreview] = useState<RoomPreset | null>(null);
   const [replaceOk, setReplaceOk] = useState(false);
+  const [catalog, setCatalog] = useState<JudgeCatalog | null>(null);
+  const [judgesOpen, setJudgesOpen] = useState(false);
+  const [judgesSaved, setJudgesSaved] = useState(false);
 
   useEffect(() => {
+    companyApi.catalog().then(setCatalog, () => {});
     workplaceApi.get().then(
       (w) => {
         setWp(w);
@@ -65,12 +68,9 @@ function Setup({ company }: { company: Company }) {
     );
   }, []);
 
-  const judgeNames = useMemo(() => {
-    const out: Record<string, string> = {};
-    for (const [slot, cfg] of Object.entries(company.judge_defaults)) if (cfg?.name) out[slot] = cfg.name;
-    return out;
-  }, [company]);
-  const layout = useMemo(() => (presets.length ? generateLayout(KIT, presets, { name: `${company.name} HQ`, members }) : null), [presets, members, company.name]);
+  const roster = useMemo(() => effectiveRoster(company, catalog), [company, catalog]);
+  const judges = useMemo(() => worldJudges(roster, catalog, !company.judge_roster), [roster, catalog, company.judge_roster]);
+  const layout = useMemo(() => (presets.length ? generateLayout(KIT, presets, { name: `${company.name} HQ`, members, judges }) : null), [presets, members, company.name, judges]);
 
   const go = async (next: Step) => {
     setError(null);
@@ -103,7 +103,7 @@ function Setup({ company }: { company: Company }) {
     setError(null);
     try {
       await workplaceApi.patch({ members: named.map((mm) => ({ ...mm, name: mm.name.trim(), title: mm.title.trim() })), setup: { step: "done", completed: true, presets } });
-      const doc = generateLayout(KIT, presets, { name: `${company.name} HQ`, members: named });
+      const doc = generateLayout(KIT, presets, { name: `${company.name} HQ`, members: named, judges });
       if (!wp?.world) await workplaceApi.saveDraft(doc, 0);
       else if (replaceOk) await workplaceApi.saveDraft(doc, wp.world.draft_version);
       router.push("/company/workplace/editor");
@@ -244,22 +244,14 @@ function Setup({ company }: { company: Company }) {
             <section className="card stack">
               <div className="row between">
                 <h2 className="section-title">AI judges</h2>
-                <span className="badge">5 · simulated</span>
+                <span className="badge" data-testid="judge-badge">{roster.length} · simulated</span>
               </div>
-              <p className="small muted">Simulated colleagues who talk to candidates and shape the evaluation. Their personalities are set in AI judges.</p>
-              <ul className="list-reset ws-roster">
-                {JUDGE_SLOTS.map((slot) => (
-                  <li key={slot}>
-                    <CharThumb sheet={JUDGE_LOOK[slot]!} box={36} />
-                    <span>
-                      <strong>{judgeNames[slot] ?? "Random cast member"}</strong>
-                      <span className="xsmall muted">{JUDGE_TITLES[slot]}</span>
-                    </span>
-                    <span className="badge">AI judge</span>
-                  </li>
-                ))}
-              </ul>
-              <Link className="text-link small" href="/company/judges">Edit judge personalities →</Link>
+              <p className="small muted">Simulated colleagues who talk to candidates and shape the evaluation. Choose how many, who they are, how they sound and how they behave.</p>
+              {judgesSaved && <div className="banner banner--info small" role="status">Judges saved. New candidates meet this team.</div>}
+              {catalog ? <RosterSummary catalog={catalog} roster={roster} legacy={!company.judge_roster} /> : <div className="skeleton" style={{ height: 160 }} />}
+              <button type="button" className="btn btn--ghost btn--small" style={{ justifySelf: "start" }} onClick={() => setJudgesOpen(true)} disabled={!catalog} data-testid="configure-judges">
+                {company.judge_roster ? "Edit judges" : "Configure judges"}
+              </button>
             </section>
             <section className="card stack">
               <div className="row between">
@@ -305,7 +297,7 @@ function Setup({ company }: { company: Company }) {
             <div>
               <span className="eyebrow">Ready to build</span>
               <p className="small">
-                {presets.length ? `${presets.length} rooms` : "A blank canvas"} · 5 AI judges · {members.filter((x) => x.name.trim()).length} team members. Everyone gets a starting spot you can change.
+                {presets.length ? `${presets.length} rooms` : "A blank canvas"} · {roster.length} AI judge{roster.length === 1 ? "" : "s"} · {members.filter((x) => x.name.trim()).length} team members. Everyone gets a starting spot you can change.
               </p>
               {wp.world && (
                 <label className="we-check" style={{ marginTop: 8 }}>
@@ -318,11 +310,22 @@ function Setup({ company }: { company: Company }) {
           </div>
           <div className="ws-nav">
             <button className="btn btn--ghost" onClick={() => go("presets")}>← Back</button>
-            <button className="btn" onClick={openEditor} disabled={busy !== null} data-testid="open-editor">
+            <button className="btn" onClick={openEditor} disabled={busy !== null || !catalog} data-testid="open-editor">
               {busy === "editor" ? <span className="busy-dots">Building your world</span> : <>Open world editor <span className="arrow" aria-hidden="true">→</span></>}
             </button>
           </div>
         </m.section>
+      )}
+
+      {judgesOpen && (
+        <JudgeRosterModal
+          company={company}
+          onClose={() => setJudgesOpen(false)}
+          onSaved={(c) => {
+            refresh(c);
+            setJudgesSaved(true);
+          }}
+        />
       )}
 
       {preview && (

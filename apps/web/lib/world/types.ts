@@ -95,6 +95,8 @@ export type WorldDoc = {
 
 /** A team member shown in the office (display only: not a login, not an AI judge). */
 export type Member = { id: string; name: string; title: string; look: string };
+/** An AI judge as the world sees it: placed as `judge:<id>`; `role` picks their home room. */
+export type WorldJudge = { id: string; name: string; role: string; title: string; sheet: string };
 
 // ---------------------------------------------------------------------------------- catalog
 export type AssetCategory =

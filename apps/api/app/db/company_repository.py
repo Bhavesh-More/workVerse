@@ -42,7 +42,7 @@ class CompanyRepository:
 
     async def update_company(self, company_id: str, fields: dict[str, Any]) -> dict[str, Any]:
         sets, params = [], {"id": company_id}
-        for key in ("name", "smtp", "judge_defaults"):
+        for key in ("name", "smtp", "judge_defaults", "judge_roster"):
             if key in fields:
                 if key == "name":
                     sets.append("name = :name")

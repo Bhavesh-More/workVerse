@@ -9,10 +9,10 @@ import { PhaserGame } from "../../../game/PhaserGame";
 import { ApiError } from "../../../lib/api";
 import { workplaceApi } from "../../../lib/workplace";
 import { compileWorld } from "../../../lib/world/compile";
-import { KIT, JUDGE_TITLES } from "../../../lib/world/kit";
+import { KIT } from "../../../lib/world/kit";
 import { hasErrors, JUDGE_HOME, validateWorld, type Issue } from "../../../lib/world/validate";
 import type { WorldCharacter, WorldView } from "../../../lib/types";
-import type { Member, WorldDoc } from "../../../lib/world/types";
+import type { Member, WorldDoc, WorldJudge } from "../../../lib/world/types";
 import { useKitImages } from "../Thumbs";
 import { EditorCanvas, type CanvasApi } from "./EditorCanvas";
 import { Inspector } from "./Inspector";
@@ -25,7 +25,8 @@ type Props = {
   initial: WorldDoc;
   version: number;
   members: Member[];
-  judgeNames: Record<string, string>;
+  judges: WorldJudge[];
+  judgesVary?: boolean;
   publishedVersion: number | null;
   mode: "default" | "custom" | null;
 };
@@ -39,7 +40,7 @@ const TOOLS: { id: Tool; label: string; key: string; icon: string }[] = [
   { id: "hand", label: "Pan", key: "H", icon: "M8 13V5a1.5 1.5 0 013 0v6M11 11V4a1.5 1.5 0 013 0v7M14 11V6a1.5 1.5 0 013 0v8a6 6 0 01-6 6h-1a6 6 0 01-5-3l-2-4a1.5 1.5 0 012.5-1.5L8 13" },
 ];
 
-export function WorldEditor({ initial, version, members, judgeNames, publishedVersion, mode }: Props) {
+export function WorldEditor({ initial, version, members, judges, judgesVary, publishedVersion, mode }: Props) {
   const router = useRouter();
   const [state, dispatch] = useReducer(reducer, initial, initState);
   const imgs = useKitImages();
@@ -57,7 +58,7 @@ export function WorldEditor({ initial, version, members, judgeNames, publishedVe
     if (state.placing?.via === "drag") setLibOpen(false);
   }, [state.placing]);
   const save = useAutosave(state.doc, state.revision, version);
-  const issues = useMemo(() => validateWorld(state.doc, KIT, members), [state.doc, members]);
+  const issues = useMemo(() => validateWorld(state.doc, KIT, members, judges), [state.doc, members, judges]);
   const errors = issues.filter((i) => i.level === "error").length;
   const warnings = issues.length - errors;
 
@@ -247,7 +248,8 @@ export function WorldEditor({ initial, version, members, judgeNames, publishedVe
               if (a.type === "placing" && a.placing?.via === "click") setLibOpen(false);
             }}
             members={members}
-            judgeNames={judgeNames}
+            judges={judges}
+            judgesVary={judgesVary}
             onPlaceAtCenter={(p) => {
               placeAtCenter(p);
               setLibOpen(false);
@@ -262,7 +264,7 @@ export function WorldEditor({ initial, version, members, judgeNames, publishedVe
             kit={KIT}
             imgs={imgs}
             members={members}
-            judgeNames={judgeNames}
+            judges={judges}
             issues={issues}
             onToast={(t) => say(t)}
             onZoom={setZoom}
@@ -291,7 +293,7 @@ export function WorldEditor({ initial, version, members, judgeNames, publishedVe
           </AnimatePresence>
         </div>
         <aside className="we-inspector">
-          <Inspector state={state} dispatch={dispatch} members={members} judgeNames={judgeNames} onToast={(t) => say(t)} onFocus={(x, y) => canvas.current?.centerOn(x, y)} />
+          <Inspector state={state} dispatch={dispatch} members={members} judges={judges} onToast={(t) => say(t)} onFocus={(x, y) => canvas.current?.centerOn(x, y)} />
         </aside>
       </div>
 
@@ -324,7 +326,7 @@ export function WorldEditor({ initial, version, members, judgeNames, publishedVe
           onLeave={() => router.push("/company/workplace")}
         />
       )}
-      {previewOpen && <PreviewModal doc={state.doc} members={members} judgeNames={judgeNames} onClose={() => setPreviewOpen(false)} />}
+      {previewOpen && <PreviewModal doc={state.doc} members={members} judges={judges} onClose={() => setPreviewOpen(false)} />}
     </div>
   );
 }
@@ -468,7 +470,7 @@ function PublishDialog({
 }
 
 /** Walk the draft in the real game engine with the judges and tools where you put them. */
-function PreviewModal({ doc, members, judgeNames, onClose }: { doc: WorldDoc; members: Member[]; judgeNames: Record<string, string>; onClose: () => void }) {
+function PreviewModal({ doc, members, judges, onClose }: { doc: WorldDoc; members: Member[]; judges: WorldJudge[]; onClose: () => void }) {
   const [prompt, setPrompt] = useState<string | null>(null);
   const map = useMemo(() => compileWorld(doc, KIT, members), [doc, members]);
   const world = useMemo<WorldView>(() => {
@@ -476,13 +478,13 @@ function PreviewModal({ doc, members, judgeNames, onClose }: { doc: WorldDoc; me
       .filter((p) => p.ref.startsWith("judge:"))
       .map((p) => {
         const slot = p.ref.slice(6);
-        const name = judgeNames[slot] ?? JUDGE_TITLES[slot] ?? slot;
+        const j = judges.find((x) => x.id === slot);
         return {
           id: slot,
-          name,
-          role: JUDGE_TITLES[slot] ?? slot,
-          sprite: ["manager", "qa", "coworker"].includes(slot) ? "blue_haired_woman" : "blonde_man",
-          location_id: JUDGE_HOME[slot] ?? "corridor_main",
+          name: j?.name ?? slot,
+          role: j?.title ?? slot,
+          sprite: j?.sheet.startsWith("f") ? "blue_haired_woman" : "blonde_man",
+          location_id: JUDGE_HOME[j?.role ?? ""] ?? "corridor_main",
           greeting: "",
           profile: null,
           questions: [],
@@ -490,7 +492,7 @@ function PreviewModal({ doc, members, judgeNames, onClose }: { doc: WorldDoc; me
       });
     const objects = Object.keys(map.object_slots).map((id) => ({ id, label: KIT.catalog.assets.find((a) => a.interactive === id)?.label ?? id, location_id: "engineering_workspace", marker: "misc" }));
     return { locations: [], characters, objects, actions: [] } as unknown as WorldView;
-  }, [doc, judgeNames, map]);
+  }, [doc, judges, map]);
   useEffect(() => {
     const k = (e: KeyboardEvent) => e.key === "Escape" && onClose();
     window.addEventListener("keydown", k);

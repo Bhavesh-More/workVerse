@@ -2,12 +2,23 @@
 // would break in the game); warnings are things a company can knowingly accept.
 import { PEOPLE_PREFIX, anchorFor, compileWorld } from "./compile.ts";
 import { floorAt, footprint, inBounds, rectsOverlap, roomRect } from "./doc.ts";
-import type { CompiledWorld, Kit, Member, WorldDoc } from "./types.ts";
+import type { CompiledWorld, Kit, Member, WorldDoc, WorldJudge } from "./types.ts";
 
 export type IssueTarget = { kind: "object" | "person" | "room" | "spawn"; id?: string; x: number; y: number };
 export type Issue = { level: "error" | "warning"; code: string; message: string; fix: string; target?: IssueTarget };
 
 export const JUDGE_SLOTS = ["manager", "teammate", "qa", "client_pm", "coworker"] as const;
+/** Role titles and editor looks for the five roles (legacy companies place exactly these). */
+export const JUDGE_TITLES: Record<string, string> = {
+  manager: "Manager",
+  teammate: "Senior teammate",
+  qa: "QA / reviewer",
+  client_pm: "Client stakeholder",
+  coworker: "Friendly coworker",
+};
+export const JUDGE_LOOK: Record<string, string> = { manager: "f1", teammate: "m1", qa: "f2", client_pm: "m2", coworker: "f3" };
+/** The judges a world can place: `id` is what `judge:<id>` refers to, `role` the scenario role. */
+export const DEFAULT_JUDGES: WorldJudge[] = JUDGE_SLOTS.map((s) => ({ id: s, name: JUDGE_TITLES[s]!, role: s, title: JUDGE_TITLES[s]!, sheet: JUDGE_LOOK[s]! }));
 export const JUDGE_HOME: Record<string, string> = {
   manager: "manager_office",
   teammate: "engineering_workspace",
@@ -40,7 +51,7 @@ export function reachable(cw: CompiledWorld, from: { x: number; y: number }): Ui
   return seen;
 }
 
-export function validateWorld(doc: WorldDoc, kit: Kit, members: Member[] = []): Issue[] {
+export function validateWorld(doc: WorldDoc, kit: Kit, members: Member[] = [], judges: WorldJudge[] = DEFAULT_JUDGES): Issue[] {
   const issues: Issue[] = [];
   const cw = compileWorld(doc, kit, members);
   const err = (code: string, message: string, fix: string, target?: IssueTarget) => issues.push({ level: "error", code, message, fix, target });
@@ -104,11 +115,12 @@ export function validateWorld(doc: WorldDoc, kit: Kit, members: Member[] = []): 
     let label = p.ref;
     if (p.ref.startsWith(PEOPLE_PREFIX.judge)) {
       const slot = p.ref.slice(PEOPLE_PREFIX.judge.length);
-      label = `The ${slot.replace("_", " ")} judge`;
-      if (!(JUDGE_SLOTS as readonly string[]).includes(slot)) {
-        err("unknown_person", `A placed judge (${slot}) doesn't exist.`, "Remove it.", at);
+      const judge = judges.find((j) => j.id === slot);
+      if (!judge) {
+        err("unknown_person", "A placed judge was removed from your AI judges.", "Remove the placement, or add the judge back in AI judges.", at);
         continue;
       }
+      label = judge.name;
       if (judgesPlaced.has(slot)) err("duplicate_person", `${label} is placed twice.`, "Remove one of the two placements.", at);
       judgesPlaced.add(slot);
     } else if (p.ref.startsWith(PEOPLE_PREFIX.member)) {
@@ -165,9 +177,9 @@ export function validateWorld(doc: WorldDoc, kit: Kit, members: Member[] = []): 
   const missing = REQUIRED_OBJECTS.filter((id) => !singletons.has(id));
   if (missing.length)
     warn("missing_objects", `${missing.length} scenario tool${missing.length > 1 ? "s are" : " is"} missing: ${missing.map((m) => m.replace(/_/g, " ")).join(", ")}.`, "Drag them in from Interactive, or candidates will see a marker in the team workspace instead.");
-  const unplaced = JUDGE_SLOTS.filter((s) => !judgesPlaced.has(s));
+  const unplaced = judges.filter((j) => !judgesPlaced.has(j.id));
   if (unplaced.length)
-    warn("judges_unplaced", `${unplaced.length} judge${unplaced.length > 1 ? "s aren't" : " isn't"} placed: ${unplaced.map((s) => s.replace("_", " ")).join(", ")}.`, "Drag them in from People; otherwise they stand in the middle of their room.");
+    warn("judges_unplaced", `${unplaced.length} judge${unplaced.length > 1 ? "s aren't" : " isn't"} placed: ${unplaced.map((j) => j.name).join(", ")}.`, "Drag them in from People; otherwise they stand in the middle of their room.");
   if (!doc.rooms.length) warn("no_rooms", "This world has no rooms yet.", "Add a room preset from the library.");
   return issues;
 }

@@ -7,16 +7,20 @@ import Link from "next/link";
 import { CompanyGate } from "../../../../components/CompanyGate";
 import { FormError } from "../../../../components/AuthShell";
 import { WorldThumb } from "../../../../components/world/Thumbs";
+import { effectiveRoster, worldJudges } from "../../../../components/judges/JudgeRoster";
+import { companyApi, type Company } from "../../../../lib/company";
+import { useApi } from "../../../../lib/useApi";
 import { workplaceApi, type WorkplaceState } from "../../../../lib/workplace";
 import { KIT } from "../../../../lib/world/kit";
 import { stats } from "../../../../lib/world/doc";
 import { hasErrors, validateWorld } from "../../../../lib/world/validate";
 
 export default function WorkplacePage() {
-  return <CompanyGate>{() => <Workplace />}</CompanyGate>;
+  return <CompanyGate>{(company) => <Workplace company={company} />}</CompanyGate>;
 }
 
-function Workplace() {
+function Workplace({ company }: { company: Company }) {
+  const { data: catalog } = useApi("/company/judges/catalog", companyApi.catalog);
   const [wp, setWp] = useState<WorkplaceState | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
@@ -46,7 +50,7 @@ function Workplace() {
   const w = wp.world;
   const draft = w?.draft;
   const unpublished = w && w.draft_version !== w.published_version;
-  const issues = draft ? validateWorld(draft, KIT, wp.members) : [];
+  const issues = draft ? validateWorld(draft, KIT, wp.members, catalog ? worldJudges(effectiveRoster(company, catalog), catalog) : undefined) : [];
   const s = draft ? stats(draft) : null;
   const usingCustom = wp.mode === "custom";
 

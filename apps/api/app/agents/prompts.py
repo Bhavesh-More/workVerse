@@ -10,7 +10,7 @@ from __future__ import annotations
 from typing import Any
 
 from app.agents.role_cards import VOICE_RULES, card_prompt
-from app.company.judges import behaviour_prompt
+from app.company.judges import behaviour_prompt, slot_of
 from app.schemas.runtime import SimulationState
 from app.schemas.scenario import CharacterBlueprint, ScenarioBlueprint
 from app.simulation.navigation import character_done, next_step_hint
@@ -57,7 +57,7 @@ def build_character_messages(
     *,
     voice: bool = False,
 ) -> list[dict[str, str]]:
-    card = card_prompt(character.id, character.name, character.role)
+    card = card_prompt(slot_of(blueprint, character.id), character.name, character.role)
     judge = (blueprint.metadata.get("judges") or {}).get(character.id)
     # Set by the hiring company: it shapes manner and focus only; the rules still win.
     behaviour = (

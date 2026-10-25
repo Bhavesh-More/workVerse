@@ -4,8 +4,8 @@
 // row directly above the room).
 import { carveDoor, clamp, emptyWorld, floorAt, footprint, paintCells, paintFloor, resizeWorld, uid, type Rect } from "./doc.ts";
 import { compileWorld } from "./compile.ts";
-import { JUDGE_HOME, JUDGE_SLOTS } from "./validate.ts";
-import type { Dir, FloorKind, Kit, Member, Paint, PlacedObject, Room, RoomPurpose, WorldDoc } from "./types.ts";
+import { DEFAULT_JUDGES, JUDGE_HOME } from "./validate.ts";
+import type { Dir, FloorKind, Kit, Member, Paint, PlacedObject, Room, RoomPurpose, WorldDoc, WorldJudge } from "./types.ts";
 
 export type PresetObject = { asset: string; x: number; y: number };
 export type RoomPreset = {
@@ -254,7 +254,7 @@ export function connectRoom(doc: WorldDoc, roomId: string): WorldDoc | null {
  * Lay out rooms like the default office: a top row and a bottom row of rooms either side of a
  * long corridor, every room with a doorway onto it. Rows are balanced by width.
  */
-export function generateLayout(kit: Kit, presetIds: string[], opts: { name?: string; members?: Member[] } = {}): WorldDoc {
+export function generateLayout(kit: Kit, presetIds: string[], opts: { name?: string; members?: Member[]; judges?: WorldJudge[] } = {}): WorldDoc {
   const presets = presetIds.map(presetById).filter((p): p is RoomPreset => !!p);
   const rows: [RoomPreset[], RoomPreset[]] = [[], []];
   const widths = [0, 0];
@@ -305,7 +305,7 @@ export function generateLayout(kit: Kit, presetIds: string[], opts: { name?: str
   doc.spawn = reception
     ? { x: reception.x + Math.floor(reception.w / 2), y: reception.y + reception.h - 1 }
     : { x: 3, y: corridorY + 1 };
-  return autoPlacePeople(doc, kit, opts.members ?? []);
+  return autoPlacePeople(doc, kit, opts.members ?? [], opts.judges);
 }
 
 /**
@@ -366,7 +366,7 @@ function stampCorridor(doc: WorldDoc, rect: Rect): WorldDoc {
  * Put each judge on a free, reachable tile in their home room (falling back to any reachable
  * tile), and members into workspaces. Existing placements are kept.
  */
-export function autoPlacePeople(doc: WorldDoc, kit: Kit, members: Member[]): WorldDoc {
+export function autoPlacePeople(doc: WorldDoc, kit: Kit, members: Member[], judges: WorldJudge[] = DEFAULT_JUDGES): WorldDoc {
   const cw = compileWorld(doc, kit, members);
   const used = new Set(doc.people.map((p) => `${p.x},${p.y}`));
   const placed = new Set(doc.people.map((p) => p.ref));
@@ -412,7 +412,7 @@ export function autoPlacePeople(doc: WorldDoc, kit: Kit, members: Member[]): Wor
     placed.add(ref);
     people.push({ id: uid("person"), ref, x: s.x, y: s.y, face });
   };
-  for (const slot of JUDGE_SLOTS) add(`judge:${slot}`, doc.rooms.filter((r) => r.purpose === JUDGE_HOME[slot]), "down");
+  for (const j of judges) add(`judge:${j.id}`, doc.rooms.filter((r) => r.purpose === JUDGE_HOME[j.role]), "down");
   // Spread team members across the rooms people work in, one room after another.
   const workRooms = doc.rooms.filter((r) => MEMBER_PURPOSES.includes(r.purpose));
   members.forEach((m, i) => {

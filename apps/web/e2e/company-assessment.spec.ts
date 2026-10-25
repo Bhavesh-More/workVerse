@@ -171,11 +171,15 @@ test.describe("Company assessments", () => {
     await expect(co.getByText("Test email sent to hr@e2e-hiring.test.")).toBeVisible();
     await shot(co, "02-settings-smtp");
 
-    // ---- company-wide judge defaults ---------------------------------------------------
+    // ---- the company's judges ------------------------------------------------------------
     await co.getByRole("link", { name: "AI judges" }).click();
-    const qa = co.getByTestId("judge-qa");
+    await co.getByTestId("judge-item-2").click(); // QA
+    const qa = co.getByTestId("judge-form");
     await qa.getByLabel("Tone").selectOption("warm");
-    await qa.getByLabel("Personality").fill("Patient mentor who explains what testing covers.");
+    await qa.getByTestId("judge-personality").fill("Patient mentor who explains what testing covers.");
+    await co.getByTestId("judge-item-0").click(); // manager
+    await qa.getByTestId("judge-name").fill("Amara Osei");
+    await qa.getByTestId("avatar-amara-osei").click();
     await co.getByTestId("save-judges").click();
     await expect(co.getByText(/Saved. Every new assessment session/)).toBeVisible();
     await shot(co, "03-judges-defaults");
@@ -188,11 +192,11 @@ test.describe("Company assessments", () => {
     await expect(co.getByLabel("Description")).not.toHaveValue("");
     await co.getByLabel("Topic", { exact: true }).fill(`Backend on-call ${RUN}`);
     const manager = co.getByTestId("judge-manager");
-    await manager.getByLabel("Name").selectOption("Amara Osei");
+    await expect(manager).toContainText("Amara Osei"); // the roster owns names; a topic tunes behaviour
     await manager.getByLabel("Tone").selectOption("blunt");
     await manager.getByLabel("How demanding").fill("5");
     await manager.getByLabel("What they probe for").fill("Never accepts an update without an ETA and an owner.");
-    await expect(co.getByTestId("judge-qa").getByText("company default", { exact: true })).toBeVisible();
+    await expect(co.getByTestId("judge-qa").getByText("company judge", { exact: true })).toBeVisible();
     await shot(co, "04-topic-form");
     await co.getByTestId("save-topic").click();
     await expect(co).toHaveURL(/\/company\/topics\/[0-9a-f-]+/);

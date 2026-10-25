@@ -1,10 +1,12 @@
 "use client";
 
-import { useState } from "react";
+// AI judges: the company's own team of simulated colleagues (any number, each on a scenario role,
+// with a name, avatar, voice and manner). The same editor opens full screen from workplace setup.
+import { useEffect, useMemo, useState } from "react";
 import { CompanyGate } from "../../../../components/CompanyGate";
 import { FormError } from "../../../../components/AuthShell";
-import { JudgeEditor } from "../../../../components/JudgeEditor";
-import { TRACK_LABELS, companyApi, type Company, type JudgeMap } from "../../../../lib/company";
+import { JudgeRosterEditor, effectiveRoster } from "../../../../components/judges/JudgeRoster";
+import { companyApi, type Company, type RosterJudge } from "../../../../lib/company";
 import { useApi } from "../../../../lib/useApi";
 
 export default function JudgesPage() {
@@ -13,21 +15,48 @@ export default function JudgesPage() {
 
 function Judges({ company, refresh }: { company: Company; refresh: (c: Company) => void }) {
   const { data: catalog } = useApi("/company/judges/catalog", companyApi.catalog);
-  const [value, setValue] = useState<JudgeMap>(company.judge_defaults);
-  const [preview, setPreview] = useState("backend");
+  const [roster, setRoster] = useState<RosterJudge[] | null>(null);
+  const [saved, setSaved] = useState<string>("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [saved, setSaved] = useState(false);
+  const [notice, setNotice] = useState(false);
+
+  useEffect(() => {
+    if (catalog && roster === null) {
+      const r = effectiveRoster(company, catalog);
+      setRoster(r);
+      setSaved(JSON.stringify(r));
+    }
+  }, [catalog, company, roster]);
+
+  const dirty = roster !== null && JSON.stringify(roster) !== saved;
+  const issue = useMemo(() => {
+    if (!roster) return null;
+    if (roster.some((j) => !j.name.trim())) return "Every judge needs a name.";
+    const names = roster.map((j) => j.name.trim().toLowerCase());
+    if (new Set(names).size !== names.length) return "Two judges have the same name.";
+    return null;
+  }, [roster]);
+
+  useEffect(() => {
+    if (!dirty) return;
+    const warn = (e: BeforeUnloadEvent) => e.preventDefault();
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [dirty]);
 
   const save = async () => {
+    if (!roster || issue) return;
     setBusy(true);
     setError(null);
-    setSaved(false);
+    setNotice(false);
     try {
-      const res = await companyApi.update({ judge_defaults: value });
+      const res = await companyApi.update({ judge_roster: roster.map((j) => ({ ...j, name: j.name.trim() })) });
       refresh(res.company);
-      setValue(res.company.judge_defaults);
-      setSaved(true);
+      const r = res.company.judge_roster ?? roster;
+      setRoster(r);
+      setSaved(JSON.stringify(r));
+      setNotice(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not save.");
     } finally {
@@ -39,34 +68,43 @@ function Judges({ company, refresh }: { company: Company; refresh: (c: Company) 
     <main className="app-main">
       <div className="co-head">
         <div>
-          <span className="eyebrow">AI judges · company defaults</span>
+          <span className="eyebrow">AI judges · your team</span>
           <h1 className="page-title">
             Who candidates <span className="hl">meet</span>
           </h1>
-          <p className="muted small" style={{ maxWidth: 640 }}>
-            Five AI colleagues run every assessment. Set how they behave across all your topics; a topic can still override any of
-            them. They stay in role and never give away the answer — these settings change their manner, how demanding they are and
-            what they probe.
+          <p className="muted small" style={{ maxWidth: 680 }}>
+            Build the team that runs your assessments: as many judges as you like, each playing a role in the incident, with their own
+            name, look, voice and manner. Topics can still fine-tune each role. Judges stay in role and never give away the answer.
           </p>
         </div>
         <div className="co-actions">
-          <label className="small muted" htmlFor="judge-preview">Preview roles for</label>
-          <select id="judge-preview" className="select" style={{ width: "auto" }} value={preview} onChange={(e) => setPreview(e.target.value)}>
-            {Object.entries(TRACK_LABELS).map(([id, label]) => (
-              <option key={id} value={id}>{label}</option>
-            ))}
-          </select>
+          {dirty && <span className="xsmall muted">Unsaved changes</span>}
+          {dirty && (
+            <button className="btn btn--ghost" onClick={() => setRoster(JSON.parse(saved) as RosterJudge[])} disabled={busy}>
+              Discard
+            </button>
+          )}
+          <button className="btn" onClick={save} disabled={busy || !dirty || !!issue} data-testid="save-judges">
+            {busy ? <span className="busy-dots">Saving</span> : "Save judges"}
+          </button>
         </div>
       </div>
       <div className="stack">
         <FormError message={error} />
-        {saved && <div className="banner banner--info" role="status">Saved. Every new assessment session uses these judges.</div>}
-        {catalog ? <JudgeEditor catalog={catalog} track={preview} value={value} onChange={setValue} /> : <div className="skeleton" style={{ height: 300 }} />}
-        <div className="co-actions">
-          <button className="btn" onClick={save} disabled={busy} data-testid="save-judges">
-            {busy ? <span className="busy-dots">Saving</span> : "Save judges"}
-          </button>
-        </div>
+        {issue && <div className="banner banner--warn" role="status">{issue}</div>}
+        {notice && !dirty && <div className="banner banner--info" role="status">Saved. Every new assessment session uses these judges.</div>}
+        {!company.judge_roster && (
+          <div className="banner" role="note">
+            You&apos;re using the standard five judges, with names that vary per candidate. Edit anything below and save to make this your own team.
+          </div>
+        )}
+        {catalog && roster ? (
+          <div className="jr-page">
+            <JudgeRosterEditor catalog={catalog} value={roster} onChange={setRoster} />
+          </div>
+        ) : (
+          <div className="skeleton" style={{ height: 420 }} />
+        )}
       </div>
     </main>
   );

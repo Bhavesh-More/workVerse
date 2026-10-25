@@ -5,10 +5,10 @@
 // keyboard users (Enter places at the centre of the view).
 import { useMemo, useState, type Dispatch } from "react";
 import Link from "next/link";
-import { KIT, JUDGE_TITLES } from "../../../lib/world/kit";
+import { KIT } from "../../../lib/world/kit";
 import { PRESETS } from "../../../lib/world/presets";
-import { REQUIRED_OBJECTS, JUDGE_SLOTS } from "../../../lib/world/validate";
-import type { AssetCategory, FloorKind, Member } from "../../../lib/world/types";
+import { REQUIRED_OBJECTS } from "../../../lib/world/validate";
+import type { AssetCategory, FloorKind, Member, WorldJudge } from "../../../lib/world/types";
 import { AssetThumb, CharThumb, PresetThumb } from "../Thumbs";
 import { FLOOR_SWATCH, sheetFor } from "./EditorCanvas";
 import type { Action, EditorState, Placing, PlacingTarget } from "./store";
@@ -38,11 +38,13 @@ type Props = {
   state: EditorState;
   dispatch: Dispatch<Action>;
   members: Member[];
-  judgeNames: Record<string, string>;
+  judges: WorldJudge[];
+  /** Legacy companies: names are drawn per candidate. */
+  judgesVary?: boolean;
   onPlaceAtCenter: (p: NonNullable<Placing>) => void;
 };
 
-export function Library({ state, dispatch, members, judgeNames, onPlaceAtCenter }: Props) {
+export function Library({ state, dispatch, members, judges, judgesVary, onPlaceAtCenter }: Props) {
   const [tab, setTab] = useState<Tab>("rooms");
   const [query, setQuery] = useState("");
   const q = query.trim().toLowerCase();
@@ -189,14 +191,14 @@ export function Library({ state, dispatch, members, judgeNames, onPlaceAtCenter 
           <div className="we-list">
             <h3 className="we-h">AI judges</h3>
             <p className="we-hint">Simulated colleagues who talk to candidates and shape their score. Placing sets where they start.</p>
-            {JUDGE_SLOTS.map((slot) => {
-              const ref = `judge:${slot}`;
+            {judges.map((j) => {
+              const ref = `judge:${j.id}`;
               return (
-                <div key={slot} className="we-person" {...source({ kind: "person", ref })} data-testid={`lib-person-${slot}`}>
-                  <CharThumb sheet={sheetFor(ref, members)} />
+                <div key={j.id} className="we-person" {...source({ kind: "person", ref })} data-testid={`lib-person-${j.id}`}>
+                  <CharThumb sheet={j.sheet} />
                   <span>
-                    <strong>{JUDGE_TITLES[slot]}</strong>
-                    <span className="xsmall muted">{judgeNames[slot] ? `${judgeNames[slot]} · AI judge` : "AI judge · name varies per candidate"}</span>
+                    <strong>{j.name}</strong>
+                    <span className="xsmall muted">{judgesVary ? "AI judge · name varies per candidate" : `${j.title} · AI judge`}</span>
                   </span>
                   <span className={`badge${placedPeople.has(ref) ? " badge--ok" : ""}`}>{placedPeople.has(ref) ? "Placed" : "Not placed"}</span>
                 </div>

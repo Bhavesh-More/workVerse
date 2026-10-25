@@ -4,7 +4,7 @@ import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { FormError } from "./AuthShell";
 import { JudgeEditor } from "./JudgeEditor";
-import { TRACK_LABELS, companyApi, suggestTrack, type Company, type Topic, type TopicInput } from "../lib/company";
+import { TRACK_LABELS, companyApi, suggestTrack, type Company, type JudgeCatalog, type JudgeMap, type RosterJudge, type Topic, type TopicInput } from "../lib/company";
 import { useApi } from "../lib/useApi";
 
 const EMPTY: TopicInput = { title: "", description: "", track: "backend", incident: null, difficulty: "standard", judges: {} };
@@ -145,7 +145,15 @@ export function TopicForm({ company, topic }: { company: Company; topic?: Topic 
           </p>
         </div>
         {catalog ? (
-          <JudgeEditor catalog={catalog} track={form.track} value={form.judges} base={company.judge_defaults} onChange={(judges) => setForm({ ...form, judges })} />
+          <JudgeEditor
+            catalog={catalog}
+            track={form.track}
+            value={form.judges}
+            base={company.judge_roster ? rosterBase(company.judge_roster) : company.judge_defaults}
+            baseLabel={company.judge_roster ? "company judge" : "company default"}
+            leads={company.judge_roster ? rosterLeads(company.judge_roster, catalog) : undefined}
+            onChange={(judges) => setForm({ ...form, judges })}
+          />
         ) : (
           <div className="skeleton" style={{ height: 300 }} />
         )}
@@ -166,4 +174,21 @@ export function TopicForm({ company, topic }: { company: Company; topic?: Topic 
       </div>
     </form>
   );
+}
+
+/** Per role, the first roster judge playing it: the one a topic tunes. */
+function leadsOf(roster: RosterJudge[]): Map<string, RosterJudge> {
+  const out = new Map<string, RosterJudge>();
+  for (const j of roster) if (!out.has(j.role)) out.set(j.role, j);
+  return out;
+}
+function rosterBase(roster: RosterJudge[]): JudgeMap {
+  const out: JudgeMap = {};
+  for (const [role, j] of leadsOf(roster)) out[role] = { personality: j.personality, tone: j.tone, strictness: j.strictness, focus: j.focus, greeting: j.greeting };
+  return out;
+}
+function rosterLeads(roster: RosterJudge[], catalog: JudgeCatalog): Record<string, { name: string; portrait?: string }> {
+  const out: Record<string, { name: string; portrait?: string }> = {};
+  for (const [role, j] of leadsOf(roster)) out[role] = { name: j.name, portrait: catalog.avatars.find((a) => a.id === j.avatar)?.portrait };
+  return out;
 }

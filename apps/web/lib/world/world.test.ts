@@ -164,3 +164,19 @@ test("duplicating a room copies its floor and furniture into free space, not its
   assert.equal(res.doc.people.length, doc.people.length);
   assert.equal(hasErrors(validateWorld(res.doc, kit)), false);
 });
+
+test("custom judge rosters: every judge placed in their role's room; removed judges are errors", () => {
+  const judges = [
+    { id: "boss", name: "Zara Quinn", role: "manager", title: "Manager", sheet: "f2" },
+    { id: "j_a1", name: "Pat Doe", role: "teammate", title: "Senior teammate", sheet: "m1" },
+    { id: "j_b2", name: "Lee Roy", role: "teammate", title: "Senior teammate", sheet: "m3" },
+  ];
+  const doc = generateLayout(kit, ALL, { judges });
+  const refs = doc.people.map((p) => p.ref).filter((r) => r.startsWith("judge:"));
+  assert.deepEqual(refs.sort(), ["judge:boss", "judge:j_a1", "judge:j_b2"]);
+  const boss = doc.people.find((p) => p.ref === "judge:boss")!;
+  assert.equal(doc.rooms.find((r) => boss.x >= r.x && boss.y >= r.y && boss.x < r.x + r.w && boss.y < r.y + r.h)?.purpose, "manager_office");
+  assert.equal(hasErrors(validateWorld(doc, kit, [], judges)), false);
+  const issues = validateWorld(doc, kit, [], judges.slice(0, 2));
+  assert.ok(issues.some((i) => i.code === "unknown_person" && i.level === "error"));
+});
