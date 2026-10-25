@@ -65,7 +65,7 @@ function Judges({ company, refresh }: { company: Company; refresh: (c: Company) 
   };
 
   return (
-    <main className="app-main">
+    <main className="app-main app-main--wide">
       <div className="co-head">
         <div>
           <span className="eyebrow">AI judges · your team</span>

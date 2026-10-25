@@ -3241,8 +3241,8 @@ blockquote {
 .jr-voice__play:hover { border-color: var(--color-ink); }
 .jr-empty { display: grid; place-items: center; align-content: center; gap: 12px; }
 .jr-page { height: max(560px, calc(100dvh - 260px)); border: 1px solid var(--color-hairline); border-radius: var(--radius-card); overflow: hidden; background: var(--color-canvas); }
-/* The judges editor uses the whole area right of the sidebar, not the 1240px reading column. */
-.app-main:has(.jr-page) { max-width: none; }
+/* Wide pages (judges editor, candidate tables) use the whole area right of the sidebar, not the 1240px reading column. */
+.app-main--wide { max-width: none; }
 @media (max-width: 860px) {
   .jr-modal__bar { flex-wrap: wrap; }
   .jr-modal__body { overflow-y: auto; }

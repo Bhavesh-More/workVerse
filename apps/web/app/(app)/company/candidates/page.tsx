@@ -59,15 +59,15 @@ function Candidates() {
     }
   };
 
-  if (error) return <main className="app-main"><FormError message={error} /></main>;
-  if (!data) return <main className="app-main"><div className="skeleton" style={{ height: 300 }} /></main>;
+  if (error) return <main className="app-main app-main--wide"><FormError message={error} /></main>;
+  if (!data) return <main className="app-main app-main--wide"><div className="skeleton" style={{ height: 300 }} /></main>;
   const sm = data.summary;
   const th = (key: SortKey, label: string) => (
     <th><button onClick={() => setSort(key)}>{label}{sort === key ? " ↓" : ""}</button></th>
   );
 
   return (
-    <main className="app-main">
+    <main className="app-main app-main--wide">
       {pdfOpen && (
         <GroupPdfDialog
           title="Download reports"
