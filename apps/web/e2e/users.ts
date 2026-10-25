@@ -92,6 +92,15 @@ export async function testUser(request: APIRequestContext, opts: { owner?: boole
     if (opts.owner && emails.some((e) => /^e2e-(company|world|editor|iso-[ab]|default|play)-\d+@/.test(e))) return false;
     return true;
   });
+  // Empty pool (e.g. a new Clerk instance) with quota left: make a fresh e2e account.
+  if (!pick && users.length < 98) {
+    const email = `e2e-auto-${Date.now()}-${Math.random().toString(36).slice(2, 7)}${opts.clerkTestEmail ? "+clerk_test" : ""}@${opts.clerkTestEmail ? "example.com" : "gmail.com"}`;
+    const created = await request.post(`${CLERK}/users`, { headers: auth(), data: { email_address: [email], password: "WorkVerse!234", skip_password_checks: true } });
+    expect(created.ok(), await created.text()).toBeTruthy();
+    const u = (await created.json()) as ClerkUser;
+    usedThisRun.add(u.id);
+    return { id: u.id, email, ticket: await ticketFor(request, u.id), reused: false };
+  }
   if (!pick && opts.owner) return recycleOwner(request, users, state);
   if (!pick) throw new Error("No reusable E2E test account left. Delete old e2e-* users in the Clerk dashboard to free quota.");
   usedThisRun.add(pick.id);

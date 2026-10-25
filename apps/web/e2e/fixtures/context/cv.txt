@@ -1,0 +1,3 @@
+Sam Lee
+Data analyst. SQL, Python, pandas, dbt, Looker. Built churn dashboards for a subscription app.
+https://github.com/octocat
