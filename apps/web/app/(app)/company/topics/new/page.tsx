@@ -15,7 +15,7 @@ export default function NewTopicPage() {
             <h1 className="page-title">
               Describe the <span className="hl">job</span>
             </h1>
-            <p className="muted">Give it a topic and a description — or press <strong>Fill with sample</strong> to see one.</p>
+            <p className="muted">Or try <strong>Fill with sample</strong>.</p>
           </div>
           <TopicForm company={company} />
         </main>

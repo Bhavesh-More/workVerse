@@ -193,7 +193,7 @@ function InvitePanel({ detail, onDone }: { detail: AssessmentDetail; onDone: () 
     return (
       <section className="card stack co-section" style={{ marginTop: 0 }}>
         <h2 className="section-title" style={{ margin: 0 }}>Invite candidates</h2>
-        <p className="small muted" style={{ margin: 0 }}>The deadline has passed. Move the due date (Edit details) to invite more people.</p>
+        <p className="small muted" style={{ margin: 0 }}>Deadline passed. Move the due date to invite more.</p>
       </section>
     );
 
@@ -201,13 +201,12 @@ function InvitePanel({ detail, onDone }: { detail: AssessmentDetail; onDone: () 
     <section className="card stack co-section" style={{ marginTop: 0 }}>
       <div>
         <h2 className="section-title">Invite candidates</h2>
-        <p className="small muted">Each candidate gets a personal invitation they can accept or decline. Already-invited emails are skipped; inviting someone who declined or was withdrawn sends a fresh invitation.</p>
       </div>
       <fieldset className="co-channel" style={{ border: 0, padding: 0, margin: 0 }}>
         <legend className="eyebrow" style={{ marginBottom: 8 }}>Deliver</legend>
         {(
           [
-            ["app", "In WorkVerse", "A notification and a live popup in the app"],
+            ["app", "In WorkVerse", "In-app notification"],
             ["email", "By email", "Sent from your SMTP server"],
             ["both", "Both", "In the app and by email"],
           ] as const
@@ -220,11 +219,6 @@ function InvitePanel({ detail, onDone }: { detail: AssessmentDetail; onDone: () 
           </label>
         ))}
       </fieldset>
-      {channel === "app" && (
-        <p className="xsmall muted" style={{ margin: 0 }}>
-          Candidates with a WorkVerse account get it right away. Anyone else sees it as soon as they sign up with the same email — choose <b>Both</b> to also email them a link.
-        </p>
-      )}
       {needsSmtp && !detail.smtp_ready && (
         <div className="banner banner--error">
           SMTP isn&apos;t set up yet, so invites can&apos;t be emailed. <Link className="text-link" href="/company/settings">Add your SMTP server →</Link>
@@ -265,7 +259,7 @@ function Brief({ detail }: { detail: AssessmentDetail }) {
       <div className="co-brief__grid">
         <div>
           <span className="eyebrow">Description</span>
-          <p className="small">{a.description || <span className="muted">Not written — the topic&apos;s description is shown.</span>}</p>
+          <p className="small">{a.description || <span className="muted">Using topic description.</span>}</p>
         </div>
         <div>
           <span className="eyebrow">What you&apos;re looking for</span>
@@ -312,7 +306,7 @@ function EditDialog({ detail, onClose, onSaved }: { detail: AssessmentDetail; on
         </div>
         <BriefFields idPrefix="ed" value={fields} onChange={(p) => setFields((f) => ({ ...f, ...p }))} />
         <DeadlineField idPrefix="ed" dueAt={fields.due_at} timezone={fields.timezone} onChange={(v) => setFields((f) => ({ ...f, ...v }))} />
-        {dueChanged && <p className="xsmall muted" data-testid="due-change-note">Everyone who hasn&apos;t finished will be notified of the new deadline.</p>}
+        {dueChanged && <p className="xsmall muted" data-testid="due-change-note">Unfinished candidates will be notified.</p>}
         <FormError message={error} />
         <div className="we-actions" style={{ display: "flex", gap: 10 }}>
           <button className="btn" onClick={save} disabled={busy || !title.trim()} data-testid="save-assessment">{busy ? <span className="busy-dots">Saving</span> : "Save changes"}</button>

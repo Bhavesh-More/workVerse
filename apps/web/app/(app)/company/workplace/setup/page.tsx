@@ -134,14 +134,14 @@ function Setup({ company, refresh }: { company: Company; refresh: (c: Company) =
             <h1 className="page-title">
               Where will candidates <span className="hl">work</span>?
             </h1>
-            <p className="muted">Candidates walk around this office, talk to your AI judges and use the tools. You can change your mind later — both options stay available in Workplace.</p>
+            <p className="muted">You can switch later.</p>
           </div>
           <div className="ws-choice">
             <article className="ws-option" data-testid="choice-custom">
               <div className="ws-option__art">{layout ? <WorldThumb doc={layout} members={members} width={460} maxHeight={250} /> : null}</div>
               <span className="eyebrow">Option 1</span>
               <h2 className="section-title">Build your workplace</h2>
-              <p className="small muted">Design a virtual workplace that reflects your company: choose room layouts and position your team in a world you control.</p>
+              <p className="small muted">Your own layout and team.</p>
               <ul className="list-reset ws-bullets small">
                 <li>Six editable room presets, or start blank</li>
                 <li>Drag-and-drop editor with a real grid</li>
@@ -160,7 +160,7 @@ function Setup({ company, refresh }: { company: Company; refresh: (c: Company) =
               </div>
               <span className="eyebrow">Option 2</span>
               <h2 className="section-title">Use the default workplace</h2>
-              <p className="small muted">Get started immediately with the ready-made office. You can customise your workplace later.</p>
+              <p className="small muted">Ready-made office. Start now.</p>
               <ul className="list-reset ws-bullets small">
                 <li>Seven rooms, fully furnished</li>
                 <li>Tested with the incident scenario</li>
@@ -182,7 +182,7 @@ function Setup({ company, refresh }: { company: Company; refresh: (c: Company) =
               Pick your <span className="hl">rooms</span>
             </h1>
             <p className="muted">
-              Each one becomes a furnished room in your starting layout, joined by a corridor with doorways. Every desk, chair and plant stays editable — this is a starting point, not a template.
+              Every room stays fully editable.
             </p>
           </div>
           <div className="ws-presets">
@@ -238,7 +238,7 @@ function Setup({ company, refresh }: { company: Company; refresh: (c: Company) =
             <h1 className="page-title">
               Who&apos;s in the <span className="hl">office</span>?
             </h1>
-            <p className="muted">We&apos;ll place everyone in a sensible spot to start; you can move them in the editor.</p>
+            <p className="muted">Move anyone later in the editor.</p>
           </div>
           <div className="ws-people">
             <section className="card stack">
@@ -246,7 +246,7 @@ function Setup({ company, refresh }: { company: Company; refresh: (c: Company) =
                 <h2 className="section-title">AI judges</h2>
                 <span className="badge" data-testid="judge-badge">{roster.length} · simulated</span>
               </div>
-              <p className="small muted">Simulated colleagues who talk to candidates and shape the evaluation. Choose how many, who they are, how they sound and how they behave.</p>
+              <p className="small muted">AI colleagues who talk to candidates and score them.</p>
               {judgesSaved && <div className="banner banner--info small" role="status">Judges saved. New candidates meet this team.</div>}
               {catalog ? <RosterSummary catalog={catalog} roster={roster} legacy={!company.judge_roster} /> : <div className="skeleton" style={{ height: 160 }} />}
               <button type="button" className="btn btn--ghost btn--small" style={{ justifySelf: "start" }} onClick={() => setJudgesOpen(true)} disabled={!catalog} data-testid="configure-judges">
@@ -258,7 +258,7 @@ function Setup({ company, refresh }: { company: Company; refresh: (c: Company) =
                 <h2 className="section-title">Team members</h2>
                 <span className="badge">{members.length} · display only</span>
               </div>
-              <p className="small muted">People shown in your office for atmosphere — named desk neighbours candidates walk past. Not logins and not judges.</p>
+              <p className="small muted">Background people. Not judges, no logins.</p>
               <ul className="list-reset ws-members">
                 {members.map((mm, i) => (
                   <li key={mm.id} data-testid={`member-row-${i}`}>
@@ -280,7 +280,7 @@ function Setup({ company, refresh }: { company: Company; refresh: (c: Company) =
                 <h2 className="section-title">Company accounts</h2>
                 <span className="badge">real logins</span>
               </div>
-              <p className="small muted">People who sign in to manage assessments. They aren&apos;t placed in the office.</p>
+              <p className="small muted">Can sign in to manage assessments.</p>
               <ul className="list-reset ws-roster">
                 <li>
                   <CharThumb sheet="player" box={36} />

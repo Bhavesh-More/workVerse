@@ -133,7 +133,7 @@ function Wizard({ company }: { company: Company }) {
           <div className="nw-two">
             <div className="stack">
               <h2 className="section-title" style={{ margin: 0 }}>Choose the scenario</h2>
-              <p className="small muted" style={{ margin: 0 }}>A topic is the incident candidates work through and the AI judges they meet. Every candidate gets the same scenario.</p>
+              <p className="small muted" style={{ margin: 0 }}>The incident and AI judges every candidate gets.</p>
               <ul className="list-reset nw-topics" role="radiogroup" aria-label="Topic">
                 {items.map((t) => (
                   <li key={t.id}>
@@ -155,7 +155,7 @@ function Wizard({ company }: { company: Company }) {
           <div className="nw-two">
             <div className="stack">
               <h2 className="section-title" style={{ margin: 0 }}>Brief & deadline</h2>
-              <p className="small muted" style={{ margin: 0 }}>Candidates read this on their briefing before they decide to start.</p>
+              <p className="small muted" style={{ margin: 0 }}>Shown on the candidate briefing.</p>
               <div className="field">
                 <label htmlFor="nw-title">Assessment title</label>
                 <input id="nw-title" className="input" value={title} maxLength={160} onChange={(e) => setTitle(e.target.value)} data-testid="field-title" />
@@ -175,7 +175,7 @@ function Wizard({ company }: { company: Company }) {
           <div className="stack" style={{ maxWidth: 760 }}>
             <h2 className="section-title" style={{ margin: 0 }}>Who should take it?</h2>
             <p className="small muted" style={{ margin: 0 }}>
-              Add candidates by email. Each gets their own invitation; someone without a WorkVerse account can sign up with that email and it will be waiting. You can also add people later.
+              Add by email. You can add more later.
             </p>
             <CandidateEntry onChange={setPeople} />
           </div>
@@ -281,7 +281,7 @@ function ProfileCard({ company }: { company: Company }) {
         {Array.from({ length: 5 }, (_, i) => <span key={i} className={i < filled ? "is-on" : ""} />)}
       </div>
       <p className="xsmall muted" style={{ margin: 0 }}>
-        Your company profile (about, mission, vision, values) is shown to every candidate. It&apos;s managed once in Settings, not per assessment.
+        Shown to every candidate. Managed in Settings.
       </p>
       <Link className="text-link small" href="/company/settings#profile" target="_blank">{filled ? "Edit company profile ↗" : "Add your company profile ↗"}</Link>
     </aside>
@@ -322,7 +322,7 @@ function Review(props: {
           {fields.due_at ? (
             <>
               <strong data-testid="review-due">{formatWhen(fields.due_at, fields.timezone, true)} {zoneAbbr(fields.due_at, fields.timezone)}</strong>
-              <span className="small muted">Same moment for everyone; each candidate sees it in their local time.</span>
+              <span className="small muted">Shown in each candidate's local time.</span>
             </>
           ) : (
             <strong>No deadline</strong>
@@ -337,7 +337,7 @@ function Review(props: {
               {people.length > 12 && <li className="muted">and {people.length - 12} more</li>}
             </ul>
           ) : (
-            <span className="small muted">Nobody yet — you can invite people from the assessment page after publishing.</span>
+            <span className="small muted">Nobody yet — invite after publishing.</span>
           )}
         </ReviewBlock>
       </div>
@@ -365,9 +365,6 @@ function Review(props: {
           ))}
         </fieldset>
       )}
-      <p className="xsmall muted" style={{ margin: 0 }}>
-        Candidates first see an invitation they can accept or decline. Accepting doesn&apos;t start the test — they read the briefing and start when ready{fields.due_at ? ", before the deadline" : ""}.
-      </p>
     </div>
   );
 }
@@ -415,7 +412,7 @@ function Published({ company, result, title, people, channel, onOpen }: { compan
             )}
           </ul>
         ) : (
-          <p className="small muted">No one invited yet. Add candidates from the assessment page.</p>
+          <p className="small muted">No one invited yet.</p>
         )}
         <div className="row" style={{ gap: 10 }}>
           <button className="btn" onClick={onOpen} data-testid="open-assessment">Manage this assessment →</button>

@@ -148,7 +148,6 @@ export default function OnboardingPage() {
             setStack((prev) => prev.filter((t) => toolsFor(role).includes(t)));
           }}
         />
-        <span className="field__hint">The job you&apos;re aiming for — your first one counts.</span>
       </div>
       <div className="field">
         <label htmlFor="lvl">Experience level</label>
@@ -185,10 +184,7 @@ export default function OnboardingPage() {
       </div>
     </div>,
     <div key="s2" className="stack">
-      <p className="xsmall muted">
-        We read these to build your learner context — what you know, what you&apos;ve built and what to
-        train next. All optional; from files we keep only the extracted text.
-      </p>
+      <p className="small muted">All optional. We keep only extracted text.</p>
       <DocumentUpload kind="cv" label="CV / résumé" hint="PDF, Word or text, up to 5 MB." source={docs.cv} onChange={(s) => onDocument("cv", s)} />
       <div className="field">
         <label htmlFor="gh">GitHub</label>
@@ -197,7 +193,7 @@ export default function OnboardingPage() {
       <div className="field">
         <label htmlFor="li">LinkedIn</label>
         <input id="li" className="input" value={linkedin} onChange={(e) => setLinkedin(e.target.value)} placeholder="linkedin.com/in/your-name" autoComplete="url" />
-        <span className="field__hint">LinkedIn often blocks automated reading — add its PDF below for the best result.</span>
+        <span className="field__hint">Tip: the PDF below reads better.</span>
       </div>
       <DocumentUpload
         kind="linkedin_pdf"
@@ -230,9 +226,6 @@ export default function OnboardingPage() {
           onChange={(e) => setSituation(e.target.value)}
           placeholder="Describe a moment at work you'd like to rehearse…"
         />
-        <span className="field__hint">
-          We always cover the major situations of your role. This adds one scenario built around your moment.
-        </span>
       </div>
       <div className="chip-row" role="group" aria-label="Examples">
         {SITUATION_EXAMPLES.map((ex) => (
@@ -280,10 +273,7 @@ export default function OnboardingPage() {
       <h1 className="page-title">
         Let&apos;s set up your <span className="hl">practice</span>
       </h1>
-      <p className="muted small" style={{ marginTop: 12 }}>
-        This only tunes which scenarios you get and how hard they are. It&apos;s never treated as
-        proof of skill.
-      </p>
+      <p className="muted small" style={{ marginTop: 12 }}>Tunes your scenarios. Never a skill score.</p>
       <div className="track" style={{ margin: "24px 0 28px" }} aria-hidden="true">
         <m.span
           initial={false}

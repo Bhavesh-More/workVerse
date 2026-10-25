@@ -45,7 +45,7 @@ export function ProfileForm({ company, refresh }: { company: Company; refresh: (
       <div>
         <h2 className="section-title">Company profile</h2>
         <p className="small muted" style={{ margin: 0 }}>
-          Shown to candidates you invite, on each assessment&apos;s briefing. Leave anything blank to hide it. Changes apply to every assessment straight away.
+          Shown to candidates. Blank fields are hidden.
         </p>
       </div>
       <FormError message={error} />

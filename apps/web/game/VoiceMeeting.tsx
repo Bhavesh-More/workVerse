@@ -299,7 +299,7 @@ function VoiceSession({
 
       <div className="voice-transcript" ref={logRef} data-testid="voice-transcript" aria-live="polite">
         {entries.length === 0 ? (
-          <p className="xsmall muted">Speak naturally — {npc.name} will reply. Your words appear here.</p>
+          <p className="xsmall muted">Speak naturally</p>
         ) : (
           entries.map((entry) => (
             <div

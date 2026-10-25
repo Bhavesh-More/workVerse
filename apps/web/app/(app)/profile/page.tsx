@@ -171,9 +171,6 @@ export default function ProfilePage() {
           <form className="card stack" onSubmit={save}>
             <div>
               <h2 className="section-title">About you</h2>
-              <p className="xsmall muted" style={{ marginTop: 6 }}>
-                This tunes which scenarios you get. It&apos;s never treated as proof of skill.
-              </p>
             </div>
             <FormError message={error} />
             <div className="field">
@@ -227,7 +224,6 @@ export default function ProfilePage() {
             <div className="field">
               <label htmlFor="sit">A situation you want to experience</label>
               <textarea id="sit" className="textarea" maxLength={1000} value={profile.custom_situation ?? ""} onChange={(e) => setProfile({ ...profile, custom_situation: e.target.value })} placeholder="Explaining a delay to an anxious client…" />
-              <span className="field__hint">Adds one personalised scenario built around this moment.</span>
             </div>
             <div className="row">
               <button className="btn" type="submit" disabled={busy}>
@@ -256,7 +252,7 @@ export default function ProfilePage() {
               <div>
                 <h2 className="section-title">Learner context</h2>
                 <p className="xsmall muted" style={{ marginTop: 6 }} aria-live="polite">
-                  {ctxBusy ? <span className="busy-dots">Rebuilding from your profile and sources</span> : ctx ? builtLabel(ctx) : "Loading…"}
+                  {ctxBusy ? <span className="busy-dots">Rebuilding</span> : ctx ? builtLabel(ctx) : "Loading…"}
                 </p>
               </div>
               <button type="button" className="btn btn--ghost btn--small" onClick={() => rebuild(true)} disabled={ctxBusy} title="Re-read every source and rebuild">
@@ -283,9 +279,6 @@ export default function ProfilePage() {
           <div className="card stack">
             <div>
               <h2 className="section-title">Self-reported skills</h2>
-              <p className="xsmall muted" style={{ marginTop: 6 }}>
-                Recorded as self-reported unless a validated task provides evidence.
-              </p>
             </div>
             <FormError message={skillError} />
             <ul className="list-reset chip-row" aria-label="Your skills">
@@ -309,7 +302,7 @@ export default function ProfilePage() {
                 ))}
               </AnimatePresence>
             </ul>
-            {profile.skills.length === 0 && <p className="small muted">No skills added yet — add what you&apos;ve used, even in class.</p>}
+            {profile.skills.length === 0 && <p className="small muted">No skills yet</p>}
             <form className="field" onSubmit={addSkill}>
               <label htmlFor="sk">Add a skill</label>
               <div className="row" style={{ flexWrap: "nowrap" }}>

@@ -72,10 +72,7 @@ function Judges({ company, refresh }: { company: Company; refresh: (c: Company) 
           <h1 className="page-title">
             Who candidates <span className="hl">meet</span>
           </h1>
-          <p className="muted small" style={{ maxWidth: 680 }}>
-            Build the team that runs your assessments: as many judges as you like, each playing a role in the incident, with their own
-            name, look, voice and manner. Topics can still fine-tune each role. Judges stay in role and never give away the answer.
-          </p>
+          <p className="muted small">They stay in role and never give away the answer.</p>
         </div>
         <div className="co-actions">
           {dirty && <span className="xsmall muted">Unsaved changes</span>}

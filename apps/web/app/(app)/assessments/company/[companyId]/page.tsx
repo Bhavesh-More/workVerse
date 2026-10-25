@@ -37,7 +37,7 @@ export default function CompanyAssessmentsCompanyPage() {
         <Link className="text-link small" href="/assessments">← Company assessments</Link>
         <div className="card stack" style={{ marginTop: 20, maxWidth: 560 }} data-testid="ca-not-found">
           <h1 className="section-title">Nothing to show here</h1>
-          <p className="muted small">You don&apos;t have assessments from this company, or the link is wrong.</p>
+          <p className="muted small">No assessments from this company.</p>
           <FormError message={error} />
         </div>
       </main>

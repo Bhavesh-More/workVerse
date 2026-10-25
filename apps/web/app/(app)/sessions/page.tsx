@@ -49,10 +49,6 @@ export default function SessionsPage() {
       <div className="page-head">
         <span className="eyebrow">History</span>
         <h1 className="page-title">Previous sessions</h1>
-        <p className="small muted">
-          Click a finished session to see its report. Click an unfinished one to start it again with a fresh incident, or use{" "}
-          <strong>Resume</strong> to continue it.
-        </p>
       </div>
       {(failed || error) && (
         <p className="banner banner--error" role="alert">

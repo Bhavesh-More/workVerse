@@ -10,6 +10,7 @@ import { api } from "../../../lib/api";
 import { useApi } from "../../../lib/useApi";
 import type { ScenarioSpec } from "../../../lib/types";
 import { builtLabel } from "../../../components/ContextBuilder";
+import { Glyph } from "../../../components/Glyph";
 
 const SPEC_KIND: Record<ScenarioSpec["kind"], string> = {
   major: "Core to your role",
@@ -31,9 +32,9 @@ const item = {
 };
 
 const DIFFICULTIES = [
-  { value: "introductory", hint: "Extra hints, forgiving timeline — great for a first go." },
-  { value: "standard", hint: "A realistic day: some ambiguity, some pressure." },
-  { value: "challenging", hint: "Less help, more red herrings, tighter deadlines." },
+  { value: "introductory", hint: "Extra hints, relaxed pace" },
+  { value: "standard", hint: "A realistic day" },
+  { value: "challenging", hint: "Less help, tighter deadlines" },
 ];
 
 export default function ScenariosPage() {
@@ -111,10 +112,7 @@ export default function ScenariosPage() {
           <h1 className="page-title">
             Pick a <span className="hl">scenario</span>
           </h1>
-          <p className="muted small">
-            Each attempt generates a fresh, validated variation with the same competency rubric — so
-            retries are fair comparisons.
-          </p>
+          <p className="muted small">Fresh variation every attempt, same rubric.</p>
         </m.div>
 
         <m.div variants={item} className="stack stack--sm" style={{ marginBottom: 28 }}>
@@ -156,7 +154,7 @@ export default function ScenariosPage() {
                 </h2>
                 <p className="xsmall muted" style={{ marginTop: 6 }}>
                   {ctx.status === "empty"
-                    ? "Add your CV, GitHub or LinkedIn and we'll build scenarios around your background."
+                    ? "Add your CV for scenarios built around you."
                     : ctx.context?.headline
                       ? `Built for: ${ctx.context.headline}. ${builtLabel(ctx)}`
                       : builtLabel(ctx)}
@@ -184,12 +182,18 @@ export default function ScenariosPage() {
                     <span className="badge">{s.difficulty}</span>
                   </div>
                   <h3 className="section-title">{s.title}</h3>
-                  <p className="xsmall muted">
-                    {s.track_label} at <strong>{s.company}</strong>, {s.product}
+                  <p className="small muted">
+                    {s.track_label} at <strong>{s.company}</strong>
                   </p>
-                  {s.story && <p className="small">{s.story}</p>}
-                  {s.why && <p className="small muted">{s.why}</p>}
-                  {s.kind === "custom" && ctx.custom_note && <p className="xsmall muted">{ctx.custom_note}</p>}
+                  {(s.story || s.why) && (
+                    <details className="disclosure">
+                      <summary>Details</summary>
+                      <div className="stack stack--sm">
+                        {s.story && <p className="small">{s.story}</p>}
+                        {s.why && <p className="small muted">{s.why}</p>}
+                      </div>
+                    </details>
+                  )}
                   <div className="chip-row">
                     {s.focus.map((f) => (
                       <span key={f} className="badge">
@@ -222,37 +226,41 @@ export default function ScenariosPage() {
               <div className="stack stack--sm" style={{ padding: "8px 8px 4px" }}>
                 <div className="row between" style={{ alignItems: "flex-start" }}>
                   <h2 className="section-title">{t.title}</h2>
-                  <span className="badge">~{t.estimated_minutes} min</span>
+                  <span className="badge icon-label"><Glyph name="clock" size={14} /> {t.estimated_minutes} min</span>
                 </div>
-                <p className="small muted">{t.story ?? t.summary}</p>
+                <p className="small muted clamp-2" title={t.story ?? t.summary}>{t.story ?? t.summary}</p>
                 {t.you_will && (
                   <>
                     <span className="eyebrow" style={{ marginTop: 8 }}>You will</span>
-                    <ul className="list-reset stack stack--sm">
+                    <ul className="list-reset checklist checklist--todo">
                       {t.you_will.map((w) => (
-                        <li key={w} className="small row" style={{ gap: 8, alignItems: "baseline", flexWrap: "nowrap" }}>
-                          <span className="dot" aria-hidden="true" /> {w}
-                        </li>
+                        <li key={w}>{w}</li>
                       ))}
                     </ul>
                   </>
                 )}
-                {t.people && (
-                  <>
-                    <span className="eyebrow" style={{ marginTop: 8 }}>Who you&apos;ll meet</span>
-                    <ul className="list-reset stack stack--sm">
-                      {t.people.map((p) => (
-                        <li key={p.role} className="xsmall">
-                          <strong>{p.role}</strong> <span className="muted">— {p.knows}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </>
-                )}
-                {t.report && (
-                  <p className="xsmall muted" style={{ marginTop: 4 }}>
-                    <span className="mono">Your report →</span> {t.report}
-                  </p>
+                {(t.people || t.report) && (
+                  <details className="disclosure">
+                    <summary>
+                      <Glyph name="users" size={16} /> Who you&apos;ll meet
+                    </summary>
+                    <div className="stack stack--sm">
+                      {t.people && (
+                        <ul className="list-reset stack stack--sm">
+                          {t.people.map((p) => (
+                            <li key={p.role} className="small">
+                              <strong>{p.role}</strong> <span className="muted">— {p.knows}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                      {t.report && (
+                        <p className="small muted">
+                          <span className="icon-label"><Glyph name="file" size={15} /> Report:</span> {t.report}
+                        </p>
+                      )}
+                    </div>
+                  </details>
                 )}
                 <div className="chip-row" style={{ margin: "4px 0 8px" }}>
                   {(t.skills ?? t.categories).map((c) => (
@@ -289,7 +297,7 @@ export default function ScenariosPage() {
           <div className="card" style={{ paddingBlock: 6 }}>
             {sessions.length === 0 ? (
               <p className="small muted" style={{ padding: "14px 0" }}>
-                No sessions yet. Start a scenario above — your attempts will collect here.
+                No sessions yet
               </p>
             ) : (
               <ul className="list-reset">

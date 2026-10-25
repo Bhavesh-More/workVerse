@@ -62,7 +62,7 @@ function Workplace({ company }: { company: Company }) {
           <h1 className="page-title">
             Your <span className="hl">office</span>
           </h1>
-          <p className="muted small">Where candidates walk around, meet your AI judges and use the tools.</p>
+          <p className="muted small">Where candidates work.</p>
         </div>
         <div className="co-actions">
           <Link className="btn" href={draft ? "/company/workplace/editor" : "/company/workplace/setup?step=choose"} data-testid="open-editor-hub">
@@ -81,7 +81,7 @@ function Workplace({ company }: { company: Company }) {
         </div>
         <p className="small muted">
           {usingCustom
-            ? `Published ${w?.published_at ? new Date(w.published_at).toLocaleString() : ""}. Runs already in progress keep the version they started with.`
+            ? `Published ${w?.published_at ? new Date(w.published_at).toLocaleString() : ""}`
             : "The ready-made seven-room office."}
         </p>
         <div className="co-actions">
@@ -132,7 +132,7 @@ function Workplace({ company }: { company: Company }) {
             </>
           ) : (
             <>
-              <p className="small muted">No custom world yet. Pick room presets and we&apos;ll build a connected starting layout you can edit.</p>
+              <p className="small muted">No custom world yet.</p>
               <Link className="btn btn--small" style={{ justifySelf: "start" }} href="/company/workplace/setup?step=choose">Build your workplace</Link>
             </>
           )}
@@ -145,7 +145,7 @@ function Workplace({ company }: { company: Company }) {
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src="/assets/game/map/walls.png" alt="" />
           </div>
-          <p className="small muted">Shared by every company and never changed by your edits.</p>
+          <p className="small muted">Shared, never changed by your edits.</p>
         </section>
       </div>
     </main>

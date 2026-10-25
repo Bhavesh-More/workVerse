@@ -8,6 +8,7 @@ import { Snap } from "../../../../components/Snap";
 import { api } from "../../../../lib/api";
 import type { ScenarioInstance } from "../../../../lib/types";
 import { preloadGame, whenIdle } from "../../../../game/preload";
+import { Glyph } from "../../../../components/Glyph";
 
 const container = { hidden: {}, show: { transition: { staggerChildren: 0.08 } } };
 const item = {
@@ -71,8 +72,7 @@ export default function BriefingPage() {
           <span className="eyebrow">Briefing · {b.difficulty} · ~{b.estimated_minutes} min</span>
           <h1 className="page-title">{b.title}</h1>
           <p className="muted small">
-            You&apos;re the <strong style={{ color: "var(--color-ink)" }}>{b.role}</strong>. Read the
-            brief, then walk in when you&apos;re ready — there&apos;s no timer on this page.
+            You&apos;re the <strong style={{ color: "var(--color-ink)" }}>{b.role}</strong>
           </p>
         </m.div>
 
@@ -98,9 +98,9 @@ export default function BriefingPage() {
             <h2 className="section-title" style={{ marginTop: 8 }}>
               Controls
             </h2>
-            <ul className="list-reset stack stack--sm">
+            <ul className="list-reset chip-row">
               {b.controls.map((c) => (
-                <li key={c} className="small muted">
+                <li key={c} className="badge">
                   {c}
                 </li>
               ))}
@@ -132,12 +132,9 @@ export default function BriefingPage() {
             <div className="people-grid">
               {b.people.map((p) => (
                 <div key={p.id} className="person">
-                  <strong className="small">{p.name}</strong>
-                  <p className="xsmall muted">{p.role}</p>
-                  <p className="xsmall" style={{ marginTop: 6 }}>
-                    <span className="mono">@</span> {p.location}
-                    {p.knows_about ? "" : " · just chatting"}
-                  </p>
+                  <strong>{p.name}</strong>
+                  <p className="small muted">{p.role}</p>
+                  <span className="badge" style={{ marginTop: 8 }}>@ {p.location}</span>
                 </div>
               ))}
             </div>
@@ -149,24 +146,24 @@ export default function BriefingPage() {
             {b.assessed && (
               <m.section variants={item} className="card stack">
                 <h2 className="section-title">How you&apos;re scored</h2>
-                <p className="xsmall muted">Each skill is 0–4. Here&apos;s what a 4 looks like:</p>
-                <ul className="list-reset stack stack--sm">
+                <div className="stack stack--sm">
                   {b.assessed.map((a) => (
-                    <li key={a.id} className="small">
-                      <strong>{a.name}.</strong> <span className="muted">{a.great}</span>
-                    </li>
+                    <details key={a.id} className="disclosure">
+                      <summary>{a.name}</summary>
+                      <p className="small muted">
+                        <span className="icon-label"><Glyph name="star" size={15} /> 4/4:</span> {a.great}
+                      </p>
+                    </details>
                   ))}
-                </ul>
+                </div>
               </m.section>
             )}
             {b.tips && (
               <m.section variants={item} className="card stack">
                 <h2 className="section-title">Tips</h2>
-                <ul className="list-reset stack stack--sm">
+                <ul className="list-reset checklist checklist--todo">
                   {b.tips.map((t) => (
-                    <li key={t} className="small row" style={{ gap: 8, alignItems: "baseline", flexWrap: "nowrap" }}>
-                      <span className="dot" aria-hidden="true" /> {t}
-                    </li>
+                    <li key={t}>{t}</li>
                   ))}
                 </ul>
               </m.section>
@@ -178,7 +175,6 @@ export default function BriefingPage() {
           <button className="btn" onClick={enter} disabled={busy}>
             {busy ? <span className="busy-dots">Entering the office</span> : "Enter the office"}
           </button>
-          <span className="small muted">Stuck inside? Hit “Need help?” and a guide walks you through it.</span>
         </m.div>
       </m.div>
     </main>

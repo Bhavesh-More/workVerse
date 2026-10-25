@@ -20,7 +20,7 @@ function Topics({ roster }: { roster: number | null }) {
           <h1 className="page-title">
             What candidates <span className="hl">face</span>
           </h1>
-          <p className="muted small">A topic is the brief and the AI judges for an assessment. Reuse it across hiring rounds.</p>
+          <p className="muted small">Brief + AI judges. Reusable.</p>
         </div>
         <Link className="btn" href="/company/topics/new">New topic</Link>
       </div>

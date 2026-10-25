@@ -150,8 +150,8 @@ export function TopicForm({ company, topic }: { company: Company; topic?: Topic 
           <h2 className="section-title">AI judges for this topic</h2>
           <p className="small muted">
             {company.judge_roster
-              ? "Choose which of your judges take part in this scenario, and fine-tune how they behave for it. Names, looks and voices come from AI judges."
-              : "These colleagues talk with the candidate and shape the evidence they're scored on. Anything you leave empty uses your company defaults from AI judges."}
+              ? "Pick and tune judges for this scenario."
+              : "Empty fields use your company defaults."}
           </p>
         </div>
         {catalog && company.judge_roster ? (

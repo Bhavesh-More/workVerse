@@ -13,6 +13,7 @@ import { averageScore, strongestCriterion } from "../../../lib/practice";
 import { useApi } from "../../../lib/useApi";
 import { preloadGame } from "../../../game/preload";
 import { candidateApi } from "../../../lib/candidate";
+import { Glyph } from "../../../components/Glyph";
 
 const container = { hidden: {}, show: { transition: { staggerChildren: 0.07 } } };
 const item = {
@@ -69,7 +70,6 @@ export default function DashboardPage() {
         <m.div variants={item} className="row page-head" style={{ gap: 20, alignItems: "center" }}>
           <Avatar imageUrl={user?.imageUrl} name={name ?? "Learner"} size={64} />
           <div>
-            <span className="eyebrow">Dashboard</span>
             <h1 className="page-title" style={{ marginBottom: 8 }}>
               {name ? (
                 <>
@@ -93,9 +93,8 @@ export default function DashboardPage() {
             <Link href="/assessments" className="banner ca-dashlink" data-testid="dashboard-invites">
               <span>
                 <strong>
-                  {invites} company invitation{invites === 1 ? "" : "s"} waiting.
-                </strong>{" "}
-                Review {invites === 1 ? "it" : "them"} in Company assessments — separate from your practice.
+                  {invites} company invitation{invites === 1 ? "" : "s"} waiting
+                </strong>
               </span>
               <span aria-hidden="true">→</span>
             </Link>
@@ -104,35 +103,32 @@ export default function DashboardPage() {
 
         <m.div variants={item} className="grid-3" style={{ marginBottom: 24 }}>
           <div className="card">
-            <span className="eyebrow">Attempts</span>
+            <span className="eyebrow icon-label"><Glyph name="play" size={15} /> Attempts</span>
             <p className="stat" data-testid="stat-attempts">
               {progress ? <CountUp value={progress.sessions.length} /> : <span className="skeleton skeleton--stat" aria-label="Loading" />}
             </p>
           </div>
           <div className="card">
-            <span className="eyebrow">Average score</span>
+            <span className="eyebrow icon-label"><Glyph name="chart" size={15} /> Average score</span>
             <p className="stat">
               {progress ? <CountUp value={avg} /> : <span className="skeleton skeleton--stat" aria-label="Loading" />}
               {avg !== null && <span className="small muted"> / 100</span>}
             </p>
-            <p className="xsmall muted" style={{ marginTop: 8 }}>
-              Formative — a direction, not a grade
-            </p>
           </div>
           <div className="card">
-            <span className="eyebrow">Strongest so far</span>
+            <span className="eyebrow icon-label"><Glyph name="star" size={15} /> Strongest so far</span>
             {strongest ? (
               <>
                 <p className="section-title" style={{ marginTop: 4 }}>
                   {strongest.criterion_name}
                 </p>
-                <p className="xsmall muted" style={{ marginTop: 8 }}>
-                  {strongest.average_score?.toFixed(1)} / {strongest.score_max} across {strongest.attempts} attempts
+                <p className="small muted" style={{ marginTop: 8 }}>
+                  {strongest.average_score?.toFixed(1)} / {strongest.score_max}
                 </p>
               </>
             ) : (
               <p className="small muted" style={{ marginTop: 4 }}>
-                Finish a couple of scenarios and we&apos;ll show what you&apos;re best at.
+                Unlocks after 2 scenarios
               </p>
             )}
           </div>
@@ -144,10 +140,8 @@ export default function DashboardPage() {
               <span className="eyebrow row" style={{ gap: 8, margin: 0 }}>
                 <span className="dot dot--live" aria-hidden="true" /> In progress
               </span>
-              <h2 className="section-title">Continue where you left off</h2>
-              <p className="small muted">
-                {active.title} · {active.difficulty}
-              </p>
+              <h2 className="section-title">{active.title}</h2>
+              <p className="small muted">{active.difficulty}</p>
               <div className="row" style={{ gap: 8 }}>
                 <Link className="btn" href={`/session/${active.id}`} onMouseEnter={preloadGame} onFocus={preloadGame}>
                   Resume session <span className="arrow" aria-hidden="true">→</span>
@@ -170,11 +164,7 @@ export default function DashboardPage() {
               <h2 className="section-title">
                 {firstTime ? "Walk into your first incident" : "Start a fresh scenario"}
               </h2>
-              <p className="small muted">
-                {firstTime
-                  ? "About 15 minutes. Nobody's watching and nothing breaks for real — mistakes are the point."
-                  : "Every attempt is a new variation with the same rubric, so you can see yourself improve."}
-              </p>
+              <p className="small muted">{firstTime ? "~15 min · mistakes are the point" : "New variation, same rubric"}</p>
               <Link className="btn" href="/scenarios" style={{ alignSelf: "flex-start" }}>
                 Choose a scenario <span className="arrow" aria-hidden="true">→</span>
               </Link>
@@ -182,17 +172,15 @@ export default function DashboardPage() {
           )}
           {completed[0] ? (
             <div className="card stack">
-              <span className="eyebrow" style={{ margin: 0 }}>
-                Latest report
+              <span className="eyebrow icon-label" style={{ margin: 0 }}>
+                <Glyph name="file" size={15} /> Latest report
               </span>
               <h2 className="section-title">
                 {completed[0].overall_score === null
                   ? "Report ready"
                   : `Scored ${Math.round(completed[0].overall_score)}/100`}
               </h2>
-              <p className="small muted">
-                {completed[0].difficulty} · read what went well and what to try next time.
-              </p>
+              <p className="small muted">{completed[0].difficulty}</p>
               <Link
                 className="btn btn--ghost"
                 href={`/session/${completed[0].session_id}/debrief`}
@@ -222,7 +210,7 @@ export default function DashboardPage() {
               </div>
             ) : sessions.length === 0 ? (
               <p className="small muted" style={{ padding: "14px 0" }}>
-                Nothing yet — your first session will show up here.
+                No sessions yet
               </p>
             ) : (
               <ul className="list-reset">

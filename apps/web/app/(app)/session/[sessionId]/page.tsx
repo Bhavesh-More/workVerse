@@ -24,6 +24,7 @@ import { SoundToggles } from "../../../../components/Sound";
 import { ShiftComplete } from "../../../../components/ShiftComplete";
 import { ToolPopup, type ToolView } from "../../../../components/ToolPopup";
 import { TeamIntro } from "../../../../components/TeamIntro";
+import { Glyph } from "../../../../components/Glyph";
 
 // Browser-only SDK; never evaluated during SSR.
 const VoiceMeeting = dynamic(
@@ -820,22 +821,24 @@ export default function SessionPage() {
             />
           )}
 
-          <div className="overlay hud-objectives" aria-label="Objectives">
-            <div className="hud-objectives__head">
-              <span className="eyebrow">Objectives</span>
-              <span className="mono">
-                {doneCount}/{session.objectives.length}
+          <details className="overlay hud-objectives" aria-label="Objectives" open>
+            <summary className="hud-objectives__summary">
+              <span className="hud-objectives__head">
+                <span className="eyebrow">Objectives</span>
+                <span className="mono">
+                  {doneCount}/{session.objectives.length}
+                </span>
               </span>
-            </div>
-            <div className="track" style={{ height: 4, marginBottom: 8 }} aria-hidden="true">
-              <m.span
-                initial={false}
-                animate={{ width: `${(doneCount / Math.max(1, session.objectives.length)) * 100}%` }}
-                transition={{ type: "spring", stiffness: 200, damping: 28 }}
-                style={{ background: "var(--color-signal-green)" }}
-              />
-            </div>
-            <ul className="list-reset">
+              <span className="track" style={{ display: "block", height: 4 }} aria-hidden="true">
+                <m.span
+                  initial={false}
+                  animate={{ width: `${(doneCount / Math.max(1, session.objectives.length)) * 100}%` }}
+                  transition={{ type: "spring", stiffness: 200, damping: 28 }}
+                  style={{ background: "var(--color-signal-green)" }}
+                />
+              </span>
+            </summary>
+            <ul className="list-reset hud-objectives__list">
               {session.objectives.map((o) => {
                 const done = o.status === "completed";
                 const isNext = !done && o.id === nextObjective?.id;
@@ -870,7 +873,7 @@ export default function SessionPage() {
                 </p>
               </div>
             )}
-          </div>
+          </details>
 
           <AnimatePresence>
             {objectMenu && (
@@ -1048,20 +1051,19 @@ export default function SessionPage() {
               <span className="panel__count">{session.facts_known.length}</span>
             </summary>
             {session.facts_known.length === 0 ? (
-              <p className="xsmall muted">Nothing confirmed yet. Ask around and check the evidence.</p>
+              <p className="small muted">Nothing confirmed yet</p>
             ) : (
-              <ul className="list-reset stack stack--sm">
+              <ul className="list-reset checklist">
                 <AnimatePresence initial={false}>
                   {session.facts_known.map((f) => (
                     <m.li
                       key={f.id}
-                      className="xsmall"
-                      initial={{ opacity: 0, backgroundColor: "rgba(254, 204, 51, 0.6)" }}
-                      animate={{ opacity: 1, backgroundColor: "rgba(254, 204, 51, 0)" }}
+                      initial={{ opacity: 0, x: -8, backgroundColor: "rgba(254, 204, 51, 0.6)" }}
+                      animate={{ opacity: 1, x: 0, backgroundColor: "rgba(254, 204, 51, 0)" }}
                       transition={{ duration: 1.4 }}
-                      style={{ borderRadius: 4, padding: "2px 4px", margin: "0 -4px" }}
                     >
-                      <strong>{f.label}.</strong> <span className="muted">{f.detail}</span>
+                      <strong>{f.label}</strong>
+                      {f.detail && <span className="muted">{f.detail}</span>}
                     </m.li>
                   ))}
                 </AnimatePresence>
@@ -1103,7 +1105,11 @@ export default function SessionPage() {
               <summary className="panel__head">
                 <h2 className="section-title">Stakeholder update</h2>
               </summary>
-              <p className="xsmall muted">Cover impact, cause, action taken, next update time and owner.</p>
+              <ul className="list-reset chip-row" aria-label="Cover these">
+                {["Impact", "Cause", "Action", "Next update", "Owner"].map((k) => (
+                  <li key={k} className="badge">{k}</li>
+                ))}
+              </ul>
               <label className="sr-only" htmlFor="status-update">
                 Stakeholder update
               </label>
@@ -1116,9 +1122,9 @@ export default function SessionPage() {
                 onChange={(e) => setUpdateText(e.target.value)}
               />
               <div className="row between">
-                <span className="xsmall muted">{updateText.trim().length < 10 ? "A few sentences is plenty." : `${updateText.trim().split(/\s+/).length} words`}</span>
+                <span className="small muted">{updateText.trim().length < 10 ? "" : `${updateText.trim().split(/\s+/).length} words`}</span>
                 <button
-                  className="btn btn--small"
+                  className="btn"
                   data-testid="send-status-update"
                   disabled={busy || updateText.trim().length < 10}
                   onClick={() => {
@@ -1126,7 +1132,7 @@ export default function SessionPage() {
                     if (action) runAction(action, { text: updateText.trim() });
                   }}
                 >
-                  Send status update
+                  Send update
                 </button>
               </div>
             </m.details>
@@ -1153,7 +1159,7 @@ export default function SessionPage() {
               </div>
             {activeChar && (
               <button className="btn btn--ghost btn--small" data-testid="chat-skip" style={{ alignSelf: "flex-start" }} onClick={() => void skipTo(activeChar.id)}>
-                Skip ▶ what {activeChar.name.split(" ")[0]} knows + next step
+                Skip ▶ get {activeChar.name.split(" ")[0]}&apos;s info
               </button>
             )}
             {activeProfile && activeChar && (
@@ -1163,7 +1169,6 @@ export default function SessionPage() {
                 <div className="who-card__id">
                   <strong>{activeChar.name}</strong>
                   <span>{activeChar.role}</span>
-                  <p>{activeProfile.personality}</p>
                 </div>
                 <button
                   className="btn btn--ghost btn--small who-card__more"
@@ -1175,12 +1180,12 @@ export default function SessionPage() {
                 </button>
                 <dl className="who-card__split">
                   <div>
-                    <dt>{activeFirst} can tell you</dt>
+                    <dt className="icon-label"><Glyph name="bulb" size={15} /> Knows</dt>
                     <dd>{activeProfile.knows}</dd>
                   </div>
                   {activeProfile.needs && (
                     <div>
-                      <dt>{activeFirst} needs from you</dt>
+                      <dt className="icon-label"><Glyph name="target" size={15} /> Needs</dt>
                       <dd>{activeProfile.needs}</dd>
                     </div>
                   )}
@@ -1188,12 +1193,12 @@ export default function SessionPage() {
               </div>
             )}
             {!activeCharacter ? (
-              <p className="xsmall muted">Pick a colleague above and ask a question — or walk up to them and press E to talk out loud.</p>
+              <p className="small muted">Pick a colleague, or walk up and press <span className="kbd">E</span></p>
             ) : (
               <>
                 <div ref={transcriptRef} className="chat-log" data-testid="chat-log" aria-live="polite">
                   {chatMessages.length === 0 && !pendingText && (
-                    <p className="xsmall muted">Say hello, or jump straight to your question. Specific questions get specific answers.</p>
+                    <p className="small muted">Say hello or ask a question</p>
                   )}
                   {chatMessages.map((msg) => (
                     <m.div
@@ -1236,7 +1241,7 @@ export default function SessionPage() {
                       <strong>✓ {characters.find((c) => c.id === handoff.from)?.name.split(" ")[0]} has told you what they know.</strong>
                       {handoff.to ? (
                         <>
-                          <span className="xsmall">
+                          <span className="small">
                             Next: talk to {characters.find((c) => c.id === handoff.to)?.name}
                             {voice ? " after this call." : ` — switching in ${handoff.secs}s…`}
                           </span>
@@ -1251,7 +1256,7 @@ export default function SessionPage() {
                         </>
                       ) : (
                         <>
-                          <span className="xsmall">
+                          <span className="small">
                             Next: {navigation?.action_label ?? navigation?.objective_label ?? "check the guide"}
                             {navigation?.location_id && ` in the ${session.world.locations.find((l) => l.id === navigation.location_id)?.name ?? "office"}`}
                             {" "}— follow the arrow in the office.
@@ -1277,7 +1282,7 @@ export default function SessionPage() {
                     >
                       <span className="coach-nudge__spark" aria-hidden="true" />
                       <strong>{activeName} is waiting for you.</strong>
-                      <span className="xsmall">Not sure what to ask {activeFirst}? Tap one:</span>
+                      <span className="small">Try one:</span>
                       <div className="chip-row">
                         {suggestions.slice(0, 2).map((q, i) => (
                           <m.button
@@ -1299,7 +1304,7 @@ export default function SessionPage() {
                 </AnimatePresence>
                 {suggestions.length > 0 && !idleHint && (
                   <div className="stack stack--sm" aria-label="Suggested questions">
-                    <span className="xsmall muted">Ask {activeFirst} (short questions get real answers):</span>
+                    <span className="eyebrow" style={{ margin: 0 }}>Ask {activeFirst}</span>
                     <div className="chip-row">
                       {suggestions.map((q) => (
                         <button
@@ -1339,13 +1344,10 @@ export default function SessionPage() {
                   </button>
                 </div>
                 {draftWords > 30 && (
-                  <p className="xsmall" style={{ color: "var(--color-ember)" }} role="status">
-                    {draftWords} words — colleagues talk in short turns. Try one question at a time.
+                  <p className="small" style={{ color: "var(--color-ember)" }} role="status">
+                    {draftWords} words — keep it short
                   </p>
                 )}
-                <p className="xsmall muted">
-                  <span className="kbd">Enter</span> to send · <span className="kbd">Shift</span>+<span className="kbd">Enter</span> for a new line
-                </p>
               </>
             )}
             </div>

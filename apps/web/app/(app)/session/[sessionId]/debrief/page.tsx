@@ -247,7 +247,7 @@ export default function DebriefPage() {
                 </span>
                 <ul className="list-reset stack stack--sm">
                   {strengths.length === 0 ? (
-                    <li className="xsmall muted">Nothing rated highly yet — that&apos;s what retries are for.</li>
+                    <li className="xsmall muted">Nothing yet — try again</li>
                   ) : (
                     strengths.map((i) => (
                       <li key={i.criterion_id} className="small">
@@ -303,7 +303,6 @@ export default function DebriefPage() {
           <m.section variants={item} className="card stack" style={{ marginBottom: 32 }}>
             <div>
               <h2 className="section-title">Say this next time</h2>
-              <p className="small muted">Real colleagues talk in short turns. Here&apos;s how to sound like one.</p>
             </div>
             <div className="grid-2" style={{ gap: 12 }}>
               {evaluation.coaching.map((c) => (
@@ -331,9 +330,7 @@ export default function DebriefPage() {
           <h2 className="section-title" style={{ marginBottom: 4 }}>
             Evidence Ledger
           </h2>
-          <p className="small muted" style={{ marginBottom: 12 }}>
-            Why you got each score. Every check links to the exact moment in your session that proves it.
-          </p>
+          <p className="small muted" style={{ marginBottom: 16 }}>Each check links to its proof.</p>
         </m.div>
         <div className="stack" style={{ marginBottom: 32 }}>
           {evaluation.items.map((it) => {
@@ -341,7 +338,7 @@ export default function DebriefPage() {
             return (
               <m.article key={it.criterion_id} variants={item} className="card stack">
                 <div className="row between">
-                  <h3 className="section-title" style={{ fontSize: 18 }}>
+                  <h3 className="section-title" style={{ fontSize: 22 }}>
                     {it.criterion_name}
                   </h3>
                   <span className="row" style={{ gap: 10 }}>
@@ -426,8 +423,7 @@ export default function DebriefPage() {
             <div>
               <h2 className="section-title">Message length, turn by turn</h2>
               <p className="small muted">
-                Average {conv.avg_words} words from you vs {conv.npc_avg_words} from colleagues. Shorter turns with a
-                question keep the conversation moving.
+                You: {conv.avg_words} words · colleagues: {conv.npc_avg_words}
               </p>
             </div>
             <TurnLengths stats={conv} names={names} />
@@ -438,8 +434,7 @@ export default function DebriefPage() {
           <div>
             <h2 className="section-title">Your transcript</h2>
             <p className="small muted">
-              Everything you said and did, in order. <span className="hl">Highlighted</span> messages were cited as
-              evidence.
+              <span className="hl">Highlighted</span> = cited as evidence
             </p>
           </div>
           {timeline.length === 0 ? (

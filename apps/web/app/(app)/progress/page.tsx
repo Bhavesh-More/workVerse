@@ -49,10 +49,7 @@ export default function ProgressPage() {
           <h1 className="page-title">
             How you&apos;re <span className="hl">growing</span>
           </h1>
-          <p className="muted small">
-            Trends appear once a skill has enough attempts to mean something. Scores are formative
-            feedback across comparable attempts — not a prediction of job performance.
-          </p>
+          <p className="muted small">Formative feedback, not a job prediction.</p>
         </m.div>
 
         <m.div variants={container} className="grid-3" style={{ marginBottom: 48 }}>
@@ -74,19 +71,18 @@ export default function ProgressPage() {
                       transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1], delay: 0.2 }}
                     />
                   </div>
-                  <p className="xsmall muted">across {t.attempts} attempts</p>
+                  <p className="small muted">{t.attempts} attempts</p>
                 </>
               ) : (
                 <p className="small muted">
-                  {t.attempts} attempt{t.attempts === 1 ? "" : "s"} so far — a few more and a trend
-                  will show up here.
+                  {t.attempts} attempt{t.attempts === 1 ? "" : "s"} · trend soon
                 </p>
               )}
             </m.div>
           ))}
           {trends.length === 0 && (
             <m.p variants={item} className="small muted">
-              No skill data yet — finish a scenario to start tracking.
+              No skill data yet
             </m.p>
           )}
         </m.div>

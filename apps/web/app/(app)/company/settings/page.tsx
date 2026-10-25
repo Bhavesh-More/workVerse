@@ -86,13 +86,12 @@ function Settings({ company, refresh }: { company: Company; refresh: (c: Company
           <div className="field">
             <label htmlFor="co-name">Company name</label>
             <input id="co-name" className="input" value={name} onChange={(e) => setName(e.target.value)} required maxLength={120} />
-            <span className="field__hint xsmall muted">Shown to candidates in invites and at the start of the assessment.</span>
           </div>
         </section>
         <section className="card stack">
           <div>
             <h2 className="section-title">SMTP server</h2>
-            <p className="small muted">Candidate invites are sent through your mail server, from your address.</p>
+            <p className="small muted">Invites are sent from your mail server.</p>
           </div>
           <div className="grid-2">
             {field("host", "Host", { placeholder: "smtp.gmail.com" })}

@@ -86,7 +86,7 @@ function Overview({ company }: { company: Company }) {
           <h2 className="section-title">Assessments</h2>
           <Link className="text-link small" href="/company/assessments">View all →</Link>
         </div>
-        {list && !items.length && <p className="muted small">No assessments yet. Create a topic, then an assessment.</p>}
+        {list && !items.length && <p className="muted small">No assessments yet.</p>}
         <div className="grid-2">
           {items.slice(0, 6).map((a) => (
             <Link key={a.id} href={`/company/assessments/${a.id}`} className="card card--lift stack" style={{ textDecoration: "none", color: "inherit" }}>

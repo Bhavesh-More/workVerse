@@ -45,7 +45,7 @@ export default function InvitePage() {
             <span className="eyebrow">Assessment invitation</span>
             <h1 className="page-title" style={{ fontSize: 30 }}>This link doesn&apos;t work</h1>
             <FormError message={error} />
-            <p className="small muted">Check that you copied the whole link from the email, or ask the company to send the invitation again.</p>
+            <p className="small muted">Check the link, or ask for a new invite.</p>
           </div>
         ) : (
           <div className="skeleton" style={{ height: 220 }} />
@@ -57,7 +57,7 @@ export default function InvitePage() {
           {invite.tagline && <p className="small" style={{ margin: 0 }}>{invite.tagline}</p>}
           <p className="small muted" style={{ margin: 0 }}>
             {invite.candidate_name ? `Hi ${invite.candidate_name}, ` : ""}
-            {invite.company} invited you to a short simulated workday on WorkVerse (about 15 minutes, not timed).
+            {invite.company} invited you to a ~15 min simulated workday.
           </p>
           {invite.due_at && (
             <div className="banner">

@@ -45,7 +45,7 @@ export function CompanyGate({ children }: { children: (company: Company, refresh
           Set up your <span className="hl">company</span>
         </h1>
         <p className="muted">
-          One step: name your company. Then add a topic, tune your AI judges and invite candidates.
+          Just a name to start.
         </p>
       </div>
       <form className="card stack" style={{ maxWidth: 520 }} onSubmit={submit}>

@@ -25,10 +25,7 @@ export default function CompanyAssessmentsPage() {
         <h1 className="page-title">
           Invitations from <span className="hl">companies</span>
         </h1>
-        <p className="muted" style={{ maxWidth: 680 }}>
-          Assessments companies have asked you to take, kept apart from your practice. Opening anything here never starts a test — you
-          review the details first and start when you&apos;re ready.
-        </p>
+        <p className="muted">Opening one never starts the test.</p>
       </div>
       <FormError message={error} />
       {!data && !error && <Skeleton />}
@@ -41,7 +38,7 @@ export default function CompanyAssessmentsPage() {
                 <h2 id="upnext" className="section-title">Up next</h2>
                 <span className="small muted">
                   {pending > 0 && <>{pending} invitation{pending === 1 ? "" : "s"} waiting · </>}
-                  {upNext.length} to do, nearest deadline first
+                  {upNext.length} to do
                 </span>
               </div>
               <ol className="list-reset ca-timeline" data-testid="up-next">
@@ -146,10 +143,7 @@ function Empty() {
         </svg>
       </span>
       <h2 className="section-title">No company assessments yet</h2>
-      <p className="muted" style={{ maxWidth: 520 }}>
-        When a company invites you to an assessment, it appears here — grouped by company, with the deadline and what they&apos;re looking
-        for. You&apos;ll also get a notification. Your practice stays in Practice and Sessions.
-      </p>
+      <p className="muted">Company invites will show up here.</p>
       <Link className="btn btn--ghost" href="/scenarios">Practise in the meantime</Link>
     </div>
   );
