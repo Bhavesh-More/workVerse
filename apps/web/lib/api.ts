@@ -125,7 +125,11 @@ export async function download(path: string, fallbackName: string): Promise<void
     headers: token ? { Authorization: `Bearer ${token}` } : {},
     cache: "no-store",
   });
-  if (!res.ok) throw new ApiError(res.status, "download_failed", `Download failed (${res.status}).`);
+  if (!res.ok) {
+    // Prefer the server's own explanation (e.g. "none of the selected candidates has finished").
+    const err = await res.json().then((d: { error?: { code?: string; message?: string } }) => d.error, () => undefined);
+    throw new ApiError(res.status, err?.code ?? "download_failed", err?.message ?? `Download failed (${res.status}).`);
+  }
   const name = /filename="([^"]+)"/.exec(res.headers.get("Content-Disposition") ?? "")?.[1] ?? fallbackName;
   const url = URL.createObjectURL(await res.blob());
   const a = document.createElement("a");

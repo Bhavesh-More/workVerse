@@ -653,7 +653,12 @@ async def candidate_report(principal: CurrentUser, crepo: CRepo, repo: Repo, ass
     row = next((r for r in rows if r["id"] == invite_id), None)
     if row is None:
         raise NotFoundError("Candidate not found.")
-    out: dict[str, Any] = {"candidate": row, "summary": sm, "evaluation": None, "transcript": [], "people": []}
+    return {"summary": sm, **(await _candidate_detail(repo, row))}
+
+
+async def _candidate_detail(repo: Any, row: dict[str, Any]) -> dict[str, Any]:
+    """A candidate's row plus their evaluation, the people they met and the transcript."""
+    out: dict[str, Any] = {"candidate": row, "evaluation": None, "transcript": [], "people": []}
     if row["session_id"]:
         from app.evaluation.evaluator import evaluation_view
 
@@ -778,16 +783,60 @@ async def all_candidates_pdf(principal: CurrentUser, crepo: CRepo) -> Response:
     )
 
 
-@router.get("/company/assessments/{assessment_id}/report.pdf")
-async def report_pdf(principal: CurrentUser, crepo: CRepo, assessment_id: str) -> Response:
+@router.get("/company/assessments/{assessment_id}/candidate-reports.pdf")
+async def candidate_reports_pdf(
+    principal: CurrentUser,
+    crepo: CRepo,
+    repo: Repo,
+    assessment_id: str,
+    kind: Literal["summary", "detailed"] = "summary",
+    ids: str = "",
+) -> Response:
+    """Per-candidate reports: a one-page visual summary or the in-detail review, for the selected
+    candidates (comma-separated invite ids; empty = everyone who completed), best score first."""
     import asyncio
 
+    from app.company.candidate_report import build_candidate_pdf
+
     company, a, rows, sm = await _assessment_bundle(principal, crepo, assessment_id)
-    pdf = await asyncio.to_thread(build_pdf, company=company["name"], assessment=a, rows=rows, sm=sm)
+    wanted = {i for i in ids.split(",") if i.strip()}
+    done = sorted((r for r in rows if r["status"] == "completed"), key=lambda r: -(r["score"] or 0))
+    rank = {r["id"]: i for i, r in enumerate(done, 1)}
+    picked = [r for r in done if not wanted or r["id"] in wanted]
+    if wanted - {r["id"] for r in rows}:
+        raise NotFoundError("Some selected candidates aren't part of this assessment.", code="candidate_not_found")
+    if not picked:
+        raise ConflictError("None of the selected candidates has finished yet, so there's no report to build.", code="no_completed_candidates")
+    candidates = []
+    for r in picked:
+        detail = await _candidate_detail(repo, r)
+        candidates.append({"row": r, "evaluation": detail["evaluation"], "transcript": detail["transcript"], "rank": rank[r["id"]], "ranked": len(done)})
+    cohort = {s["id"]: s["average"] for s in sm["skills"]}
+    pdf = await asyncio.to_thread(build_candidate_pdf, kind=kind, company=company["name"], assessment=a, candidates=candidates, cohort=cohort)
+    who = _slug(picked[0]["name"]) if len(picked) == 1 else f"{len(picked)}-candidates"
     return Response(
         content=pdf,
         media_type="application/pdf",
-        headers={"Content-Disposition": f'attachment; filename="{_slug(a["title"])}-report.pdf"'},
+        headers={"Content-Disposition": f'attachment; filename="{who}-{"summary" if kind == "summary" else "detailed-review"}.pdf"'},
+    )
+
+
+@router.get("/company/assessments/{assessment_id}/report.pdf")
+async def report_pdf(
+    principal: CurrentUser, crepo: CRepo, assessment_id: str, kind: Literal["summary", "detailed"] = "detailed"
+) -> Response:
+    """The whole assessment: a one-page group summary, or the detailed group overview."""
+    import asyncio
+
+    from app.company.cohort_report import build_cohort_summary
+
+    company, a, rows, sm = await _assessment_bundle(principal, crepo, assessment_id)
+    builder = build_cohort_summary if kind == "summary" else build_pdf
+    pdf = await asyncio.to_thread(builder, company=company["name"], assessment=a, rows=rows, sm=sm)
+    return Response(
+        content=pdf,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{_slug(a["title"])}-group-{"summary" if kind == "summary" else "overview"}.pdf"'},
     )
 
 

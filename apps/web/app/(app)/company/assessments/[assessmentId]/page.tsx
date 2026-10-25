@@ -8,6 +8,7 @@ import { FormError } from "../../../../../components/AuthShell";
 import { BandDot, BandStack, FunnelChart, HistogramChart, RankingBars, SkillBars } from "../../../../../components/CompanyCharts";
 import { BriefFields, DeadlineField, SKILL_OPTIONS } from "../../../../../components/company/AssessmentFields";
 import { CandidateEntry, type Person } from "../../../../../components/company/CandidateEntry";
+import { ReportExportDialog } from "../../../../../components/company/ReportExport";
 import { STATUS_FILTERS, STATUS_ORDER, companyApi, statusBadge, type AssessmentDetail, type AssessmentFields, type InviteChannel, type InviteResult } from "../../../../../lib/company";
 import { formatWhen, relative, zoneAbbr } from "../../../../../lib/time";
 import { useApi } from "../../../../../lib/useApi";
@@ -24,6 +25,7 @@ function Assessment() {
   const [actionError, setActionError] = useState<string | null>(null);
   const [editing, setEditing] = useState(false);
   const [confirmClose, setConfirmClose] = useState(false);
+  const [reports, setReports] = useState(false);
 
   const reload = async () => setData(await companyApi.assessment(assessmentId));
 
@@ -67,8 +69,8 @@ function Assessment() {
           <button className="btn btn--ghost" disabled={busy !== null} onClick={() => run("csv", () => companyApi.downloadCsv(a.id))} data-testid="export-csv">
             {busy === "csv" ? <span className="busy-dots">Exporting</span> : "Export CSV"}
           </button>
-          <button className="btn" disabled={busy !== null} onClick={() => run("pdf", () => companyApi.downloadPdf(a.id))} data-testid="export-pdf">
-            {busy === "pdf" ? <span className="busy-dots">Building PDF</span> : "Export PDF report"}
+          <button className="btn" disabled={busy !== null} onClick={() => setReports(true)} data-testid="export-pdf">
+            Download reports
           </button>
           <button className="btn btn--ghost" disabled={busy !== null} onClick={() => setEditing(true)} data-testid="edit-assessment">Edit details</button>
           {a.status === "active" ? (
@@ -92,6 +94,7 @@ function Assessment() {
         </div>
       )}
       {editing && <EditDialog detail={data} onClose={() => setEditing(false)} onSaved={async () => { setEditing(false); await reload(); }} />}
+      {reports && <ReportExportDialog detail={data} initialKind={sm.completed ? "summary" : "group-summary"} onClose={() => setReports(false)} />}
       <Brief detail={data} />
 
       <div className="co-kpis">

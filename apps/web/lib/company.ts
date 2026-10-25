@@ -279,8 +279,13 @@ export const companyApi = {
   removeInvite: (id: string, inviteId: string) =>
     request<void>(`/company/assessments/${id}/invites/${inviteId}`, { method: "DELETE" }),
   candidate: (id: string, inviteId: string) => request<CandidateReport>(`/company/assessments/${id}/candidates/${inviteId}`),
-  downloadPdf: (id: string) => download(`/company/assessments/${id}/report.pdf`, "assessment-report.pdf"),
+  /** The whole assessment: one-page group summary, or the detailed group overview. */
+  downloadPdf: (id: string, kind: "summary" | "detailed" = "detailed") =>
+    download(`/company/assessments/${id}/report.pdf?kind=${kind}`, `group-${kind}.pdf`),
   downloadCsv: (id: string) => download(`/company/assessments/${id}/report.csv`, "assessment-results.csv"),
+  /** Per-candidate PDF: a one-page summary each, or the in-detail review. Empty ids = everyone who completed. */
+  downloadCandidateReports: (id: string, kind: "summary" | "detailed", ids: string[], filename: string) =>
+    download(`/company/assessments/${id}/candidate-reports.pdf?kind=${kind}&ids=${encodeURIComponent(ids.join(","))}`, filename),
 
   allCandidates: () => request<AllCandidates>("/company/candidates"),
   downloadAllCsv: () => download("/company/candidates.csv", "all-candidates.csv"),

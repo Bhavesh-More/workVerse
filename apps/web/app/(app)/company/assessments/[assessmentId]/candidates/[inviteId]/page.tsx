@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { CompanyGate } from "../../../../../../../components/CompanyGate";
@@ -16,6 +17,36 @@ const SKILLS = [
   { id: "ownership", name: "Ownership & teamwork", description: "Takes responsibility, involves the right people and follows up." },
   { id: "adaptation", name: "Adaptability", description: "Changes course when new information appears and confirms the result." },
 ];
+
+/** This candidate's PDFs: the one-page summary or the in-detail review. */
+function CandidatePdfButtons({ assessmentId, inviteId, name }: { assessmentId: string; inviteId: string; name: string }) {
+  const [busy, setBusy] = useState<"summary" | "detailed" | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const get = async (kind: "summary" | "detailed") => {
+    setBusy(kind);
+    setError(null);
+    try {
+      await companyApi.downloadCandidateReports(assessmentId, kind, [inviteId], `${name}-${kind}.pdf`);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not build the PDF.");
+    } finally {
+      setBusy(null);
+    }
+  };
+  return (
+    <div className="stack--sm stack" style={{ marginTop: 12 }}>
+      <div className="row" style={{ gap: 8, flexWrap: "wrap" }}>
+        <button className="btn btn--small" onClick={() => get("summary")} disabled={busy !== null} data-testid="candidate-summary-pdf">
+          {busy === "summary" ? <span className="busy-dots">Building</span> : "Summary PDF · 1 page"}
+        </button>
+        <button className="btn btn--ghost btn--small" onClick={() => get("detailed")} disabled={busy !== null} data-testid="candidate-detailed-pdf">
+          {busy === "detailed" ? <span className="busy-dots">Building</span> : "In-detail review PDF"}
+        </button>
+      </div>
+      {error && <span className="xsmall jr-err" role="alert">{error}</span>}
+    </div>
+  );
+}
 
 export default function CandidatePage() {
   return <CompanyGate>{() => <CandidateReport />}</CompanyGate>;
@@ -37,6 +68,7 @@ function CandidateReport() {
           <span className="eyebrow" style={{ marginTop: 16 }}>Candidate report · {c.status_label}</span>
           <h1 className="page-title">{c.name}</h1>
           <p className="small muted">{c.email}{c.minutes !== null && ` · finished in ${c.minutes} min`}</p>
+          {c.status === "completed" && <CandidatePdfButtons assessmentId={assessmentId} inviteId={inviteId} name={c.name} />}
         </div>
         <div className="card" style={{ minWidth: 220 }}>
           <span className="eyebrow">Overall</span>

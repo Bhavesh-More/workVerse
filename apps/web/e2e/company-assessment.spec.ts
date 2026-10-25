@@ -316,29 +316,66 @@ test.describe("Company assessments", () => {
     await expect(co.getByText("Score distribution")).toBeVisible();
     await shot(co, "07-assessment-results");
 
-    // Exports
-    for (const [testId, ext] of [["export-csv", "csv"], ["export-pdf", "pdf"]] as const) {
+    // Exports: CSV, then the reports dialog (pick the report and the candidates).
+    const pdfPages = (file: string) => (fs.readFileSync(file).toString("latin1").match(/\/Type\s*\/Page[^s]/g) ?? []).length;
+    {
       const dl = co.waitForEvent("download", { timeout: 120_000 });
-      await co.getByTestId(testId).click();
-      const file = await dl;
-      const target = path.join(SHOTS, `report.${ext}`);
-      await file.saveAs(target);
-      const size = fs.statSync(target).size;
-      expect(size).toBeGreaterThan(ext === "pdf" ? 20_000 : 200);
-      if (ext === "csv") {
-        const csv = fs.readFileSync(target, "utf8");
-        expect(csv).toContain("Overall score (0-100)");
-        expect(csv).toContain(cand(1));
-      } else {
-        expect(fs.readFileSync(target).subarray(0, 4).toString()).toBe("%PDF");
-      }
+      await co.getByTestId("export-csv").click();
+      const target = path.join(SHOTS, "report.csv");
+      await (await dl).saveAs(target);
+      const csv = fs.readFileSync(target, "utf8");
+      expect(csv).toContain("Overall score (0-100)");
+      expect(csv).toContain(cand(1));
     }
+    const saveDownload = async (name: string) => {
+      const dl = co.waitForEvent("download", { timeout: 180_000 });
+      await co.getByTestId("report-download").click();
+      const target = path.join(SHOTS, name);
+      await (await dl).saveAs(target);
+      expect(fs.readFileSync(target).subarray(0, 4).toString()).toBe("%PDF");
+      return target;
+    };
+    await co.getByTestId("export-pdf").click();
+    const dialog = co.getByTestId("report-dialog");
+    await expect(dialog).toBeVisible();
+    await expect(co.getByTestId("report-kind-summary").locator("input")).toBeChecked();
+    // Only people who finished can be picked; both completed candidates are pre-selected.
+    await expect(co.getByTestId("report-candidates").locator("li")).toHaveCount(2);
+    await expect(co.getByTestId("report-summary")).toContainText("2 candidates");
+    await co.getByTestId("report-select-none").click();
+    await expect(co.getByTestId("report-download")).toBeDisabled();
+    await co.getByTestId(`report-pick-${cand(1)}`).check();
+    await expect(co.getByTestId("report-summary")).toContainText("1 candidate · one PDF · 1 page");
+    await shot(co, "07b-report-dialog");
+    // One candidate's single summary is exactly one page.
+    expect(pdfPages(await saveDownload("summary-one.pdf"))).toBe(1);
+    // Both candidates' in-detail reviews: a long, multi-page document.
+    await co.getByTestId("export-pdf").click();
+    await co.getByTestId("report-kind-detailed").click();
+    await co.getByTestId("report-select-all").click();
+    expect(pdfPages(await saveDownload("detailed-all.pdf"))).toBeGreaterThanOrEqual(8);
+    // The whole assessment: a one-page group summary, and the detailed group overview.
+    await co.getByTestId("export-pdf").click();
+    await co.getByTestId("report-kind-group-summary").click();
+    await expect(co.getByTestId("report-candidates")).toHaveCount(0);
+    expect(pdfPages(await saveDownload("group-summary.pdf"))).toBe(1);
+    await co.getByTestId("export-pdf").click();
+    await co.getByTestId("report-kind-group-detailed").click();
+    expect(pdfPages(await saveDownload("group-detailed.pdf"))).toBeGreaterThanOrEqual(4);
 
-    // Candidate drill-down
+    // Candidate drill-down, with that candidate's two PDFs.
     await co.getByTestId("candidate-table").getByRole("link", { name: "View report" }).first().click();
     await expect(co.getByText("Skill profile vs. group")).toBeVisible();
     await expect(co.getByRole("heading", { name: "Transcript" })).toBeVisible();
     await shot(co, "08-candidate-report");
+    for (const [testId, name] of [["candidate-summary-pdf", "cand-summary.pdf"], ["candidate-detailed-pdf", "cand-detailed.pdf"]] as const) {
+      const dl = co.waitForEvent("download", { timeout: 180_000 });
+      await co.getByTestId(testId).click();
+      const target = path.join(SHOTS, name);
+      await (await dl).saveAs(target);
+      expect(fs.readFileSync(target).subarray(0, 4).toString()).toBe("%PDF");
+      if (testId === "candidate-summary-pdf") expect(pdfPages(target)).toBe(1);
+    }
 
     // Company-wide candidates: everyone across assessments, filters and exports
     await co.getByRole("link", { name: "Candidates", exact: true }).click();

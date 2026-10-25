@@ -126,6 +126,18 @@ def _histogram(hist: list[dict[str, Any]]) -> Any:
     return fig
 
 
+def _score_vs_time(rows: list[dict[str, Any]]) -> Any:
+    fig, ax = plt.subplots(figsize=(6.4, 2.6))
+    ax.scatter([r["minutes"] for r in rows], [r["score"] for r in rows], c=[BAND_COLORS.get((r["band"] or {}).get("label", ""), INK) for r in rows], s=28, alpha=0.85, edgecolors="white", linewidths=0.6, zorder=2)
+    for y, label in ((80, "Strong"), (65, "Good"), (50, "Developing")):
+        ax.axhline(y, color=HAIR, linewidth=0.8, zorder=1)
+        ax.text(ax.get_xlim()[1], y, f" {label}", va="center", fontsize=7, color=MUTED)
+    ax.set_xlabel("Minutes on task")
+    ax.set_ylabel("Overall score")
+    ax.set_ylim(0, 100)
+    return fig
+
+
 def _kpis(items: list[tuple[str, str, str]]) -> Table:
     # Each KPI cell is a mini stack: label / value / sub.
     cells = [[Paragraph(_esc(label).upper(), S["kpil"]), Paragraph(_esc(value), S["kpi"]), Paragraph(sub, S["muted"])] for label, value, sub in items]
@@ -212,8 +224,11 @@ def build_pdf(*, company: str, assessment: dict[str, Any], rows: list[dict[str, 
         Spacer(1, 12),
         Paragraph("At a glance", S["h2"]),
         Paragraph(_headline(sm), S["body"]),
-        Spacer(1, 10),
+        Spacer(1, 8),
     ]
+    from app.company.cohort_report import insights  # local: cohort_report builds on this module
+
+    story += [_box([Paragraph("KEY INSIGHTS", S["kpil"]), Spacer(1, 3), *[Paragraph(f"• {line}", S["body"]) for line in insights(rows, sm)]], bg="#fff8dc"), Spacer(1, 10)]
     shortlist = [r for r in sorted(rows, key=lambda r: -(r["score"] or 0)) if (r["band"] or {}).get("label") in ("Strong", "Good")]
     if sm["completed"]:
         lines = [Paragraph("Shortlist — suggested to advance", S["h3"])]
@@ -262,6 +277,17 @@ def build_pdf(*, company: str, assessment: dict[str, Any], rows: list[dict[str, 
         bt = Table(band_rows, colWidths=[32 * mm, 20 * mm, 24 * mm, CONTENT_W - 76 * mm])
         bt.setStyle(_table_style())
         story.append(bt)
+        from app.company.cohort_report import _skills_spread
+
+        done = [r for r in rows if r["status"] == "completed" and r["score"] is not None]
+        story.append(KeepTogether([
+            Paragraph("How spread out each skill is", S["h2"]),
+            Paragraph("Dot = group average. Grey bar = where the middle half of candidates landed; a wide bar means candidates differ a lot on that skill.", S["muted"]),
+            _png(_skills_spread(done), CONTENT_W * 0.8),
+        ]))
+        timed = [r for r in done if r.get("minutes") is not None]
+        if len(timed) >= 3:
+            story.append(KeepTogether([Paragraph("Score against time taken", S["h2"]), Paragraph("Each dot is a candidate, coloured by band. Spending longer doesn't have to mean scoring higher.", S["muted"]), _png(_score_vs_time(timed), CONTENT_W * 0.8)]))
         if sm.get("avg_question_ratio") is not None:
             story += [
                 Spacer(1, 10),
