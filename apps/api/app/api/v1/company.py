@@ -10,22 +10,25 @@ import csv
 import io
 import re
 import secrets
+from datetime import UTC, datetime
 from typing import Annotated, Any, Literal
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from fastapi import APIRouter, Depends
 from fastapi.responses import Response
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.company import analytics, judges
+from app.company import analytics, judges, lifecycle
 from app.company.judges import MAX_JUDGES
 from app.company.report_pdf import build_pdf
-from app.core.errors import ConflictError, ForbiddenError, NotFoundError, ValidationAppError
+from app.core.config import get_settings
+from app.core.errors import ConflictError, NotFoundError, ValidationAppError
 from app.db.company_repository import CompanyRepository
 from app.db.session import get_db
-from app.deps import AIDep, CurrentUser, Repo, SettingsDep
-from app.notifications import NotificationRepository, notify_company
-from app.services import mailer, scenario_service, session_service
+from app.deps import CurrentUser, Repo, SettingsDep
+from app.notifications import NotificationRepository
+from app.services import mailer, scenario_service
 
 router = APIRouter(tags=["company"])
 
@@ -49,9 +52,12 @@ def _company_view(c: dict[str, Any]) -> dict[str, Any]:
         "id": str(c["id"]),
         "name": c["name"],
         "smtp": mailer.public_smtp(c.get("smtp")),
+        # Whether email can actually be sent (the company's SMTP, or the app's own).
+        "smtp_ready": mailer.smtp_config(c.get("smtp"), get_settings()) is not None,
         "judge_defaults": c.get("judge_defaults") or {},
         "judge_roster": c.get("judge_roster"),
         "world_mode": c.get("world_mode"),
+        "profile": {k: c.get(col) or "" for k, col in PROFILE_FIELDS.items()},
         "created_at": c["created_at"].isoformat(),
     }
 
@@ -72,11 +78,26 @@ class SmtpSettings(BaseModel):
     security: Literal["starttls", "ssl", "none"] = "starttls"
 
 
+# Profile shown to invited candidates: API key -> column. All optional.
+PROFILE_FIELDS = {"tagline": "tagline", "about": "about", "mission": "mission", "vision": "vision", "values": "company_values", "industry": "industry", "website": "website"}
+
+
+class CompanyProfile(BaseModel):
+    tagline: str = Field(default="", max_length=160)
+    about: str = Field(default="", max_length=1200)
+    mission: str = Field(default="", max_length=600)
+    vision: str = Field(default="", max_length=600)
+    values: str = Field(default="", max_length=600)
+    industry: str = Field(default="", max_length=80)
+    website: str = Field(default="", max_length=200)
+
+
 class CompanyUpdate(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=120)
     smtp: SmtpSettings | None = None
     judge_defaults: dict[str, Any] | None = None
     judge_roster: list[Any] | None = None
+    profile: CompanyProfile | None = None
 
 
 @router.get("/company")
@@ -105,6 +126,16 @@ async def update_company(principal: CurrentUser, crepo: CRepo, body: CompanyUpda
         if bad := judges.bad_names(body.judge_defaults):
             raise ValidationAppError("Pick judge names from the existing cast.", code="invalid_judge_name", details={"names": bad})
         fields["judge_defaults"] = judges.clean_judges(body.judge_defaults)
+    if body.profile is not None:
+        p = body.profile.model_dump()
+        site = p["website"].strip()
+        if site and not re.match(r"^https?://[^\s]+\.[^\s]+$", site):
+            if re.match(r"^[^\s/]+\.[^\s]+$", site):
+                site = f"https://{site}"
+            else:
+                raise ValidationAppError("Enter a website like https://example.com.", code="invalid_website")
+        p["website"] = site
+        fields.update({col: (p[k].strip() or None) for k, col in PROFILE_FIELDS.items()})
     if body.judge_roster is not None:
         try:
             fields["judge_roster"] = judges.clean_roster(body.judge_roster)
@@ -204,6 +235,37 @@ async def get_topic(principal: CurrentUser, crepo: CRepo, topic_id: str) -> dict
     return _topic_view(topic)
 
 
+@router.get("/company/topics/{topic_id}/preview")
+async def preview_topic(principal: CurrentUser, crepo: CRepo, topic_id: str) -> dict:
+    """What candidates will get from this topic: the same deterministic scenario build a run uses
+    (fixed seed, nothing saved), so the company can check it before assigning it."""
+    company = await _company(principal, crepo)
+    topic = await crepo.get_topic(str(company["id"]), topic_id)
+    if topic is None:
+        raise NotFoundError("Topic not found.")
+    from app.services.scenario_service import TRACK_ROLES, _build_blueprint
+    from app.simulation.validation import validate_blueprint
+
+    bp = _build_blueprint(
+        seed=0, difficulty=topic.get("difficulty") or "standard", mode="quick",
+        role=TRACK_ROLES.get(topic.get("track") or "backend", "Backend Engineer"),
+        variation_request="", profile_goals=[], incident=topic.get("incident"),
+    )
+    judges.apply_topic(bp, topic, company)
+    report = validate_blueprint(bp)
+    return {
+        "valid": report.ok,
+        "title": bp.title,
+        "briefing": bp.briefing,
+        "role": TRACK_ROLES.get(topic.get("track") or "backend", "Backend Engineer"),
+        "team": [{"name": c.name, "role": c.role} for c in bp.characters],
+        "objectives": [o.label for o in bp.objectives if o.required],
+        "tools": [o.label for o in bp.objects if o.location_id == "engineering_workspace"][:8],
+        "skills": [{"id": k, "name": n, "description": d} for k, (n, d) in analytics.SKILLS.items()],
+        "estimated_minutes": 15,
+    }
+
+
 @router.put("/company/topics/{topic_id}")
 async def update_topic(principal: CurrentUser, crepo: CRepo, topic_id: str, body: TopicBody) -> dict:
     company = await _company(principal, crepo)
@@ -221,78 +283,6 @@ async def delete_topic(principal: CurrentUser, crepo: CRepo, topic_id: str) -> R
         raise ConflictError("This topic is used by an assessment and can't be deleted.", code="topic_in_use")
     await crepo.delete_topic(str(company["id"]), topic_id)
     return Response(status_code=204)
-
-
-# ---- assessments ----------------------------------------------------------------
-class AssessmentCreate(BaseModel):
-    topic_id: str
-    title: str = Field(min_length=1, max_length=160)
-    message: str = Field(default="", max_length=2000)
-
-
-def _assessment_view(a: dict[str, Any]) -> dict[str, Any]:
-    return {
-        "id": str(a["id"]),
-        "title": a["title"],
-        "message": a.get("message") or "",
-        "status": a["status"],
-        "topic_id": str(a["topic_id"]),
-        "topic_title": a.get("topic_title"),
-        "track": a.get("track"),
-        "invited": int(a.get("invited") or 0),
-        "opened": int(a.get("opened") or 0),
-        "started": int(a.get("started") or 0),
-        "completed": int(a.get("completed") or 0),
-        "avg_score": round(float(a["avg_score"]), 1) if a.get("avg_score") is not None else None,
-        "created_at": a["created_at"].isoformat(),
-    }
-
-
-@router.get("/company/assessments")
-async def list_assessments(principal: CurrentUser, crepo: CRepo) -> dict:
-    company = await _company(principal, crepo)
-    return {"items": [_assessment_view(a) for a in await crepo.list_assessments(str(company["id"]))]}
-
-
-@router.post("/company/assessments", status_code=201)
-async def create_assessment(principal: CurrentUser, crepo: CRepo, body: AssessmentCreate) -> dict:
-    company = await _company(principal, crepo)
-    if await crepo.get_topic(str(company["id"]), body.topic_id) is None:
-        raise NotFoundError("Topic not found.")
-    row = await crepo.insert_assessment(str(company["id"]), body.topic_id, body.title.strip(), body.message.strip())
-    return _assessment_view(row)
-
-
-async def _assessment_bundle(principal: Any, crepo: CompanyRepository, assessment_id: str) -> tuple[dict, dict, list, dict]:
-    company = await _company(principal, crepo)
-    a = await crepo.get_assessment(str(company["id"]), assessment_id)
-    if a is None:
-        raise NotFoundError("Assessment not found.")
-    rows = analytics.candidates(await crepo.list_invites(assessment_id), await crepo.invite_item_scores(assessment_id))
-    return company, a, rows, analytics.summary(rows)
-
-
-@router.get("/company/assessments/{assessment_id}")
-async def get_assessment(principal: CurrentUser, crepo: CRepo, settings: SettingsDep, assessment_id: str) -> dict:
-    company, a, rows, sm = await _assessment_bundle(principal, crepo, assessment_id)
-    return {
-        "assessment": {**_assessment_view(a), "topic_description": a.get("topic_description")},
-        "candidates": rows,
-        "summary": sm,
-        "skills": [{"id": k, "name": n, "description": d} for k, (n, d) in analytics.SKILLS.items()],
-        "smtp_ready": mailer.smtp_config(company.get("smtp"), settings) is not None,
-    }
-
-
-class StatusBody(BaseModel):
-    status: Literal["active", "closed"]
-
-
-@router.patch("/company/assessments/{assessment_id}")
-async def set_status(principal: CurrentUser, crepo: CRepo, assessment_id: str, body: StatusBody) -> dict:
-    company = await _company(principal, crepo)
-    await crepo.set_assessment_status(str(company["id"]), assessment_id, body.status)
-    return {"status": body.status}
 
 
 _EMAIL = re.compile(r"^[^@\s,;<>]+@[^@\s,;<>]+\.[^@\s,;<>]+$")
@@ -314,38 +304,233 @@ class InviteBody(BaseModel):
     channel: Channel = "email"
 
 
+# ---- assessments ----------------------------------------------------------------
+class AssessmentFields(BaseModel):
+    description: str = Field(default="", max_length=2000)
+    expectations: str = Field(default="", max_length=2000)
+    instructions: str = Field(default="", max_length=3000)
+    skills: list[str] = Field(default_factory=list, max_length=10)
+    # One deadline for everyone, as an absolute instant; timezone is how the company sees it.
+    due_at: datetime | None = None
+    timezone: str | None = Field(default=None, max_length=64)
+
+
+class AssessmentCreate(AssessmentFields):
+    topic_id: str
+    title: str = Field(min_length=1, max_length=160)
+    message: str = Field(default="", max_length=2000)
+    # Publish in one step: invite these people over `channel` (the wizard's final confirmation).
+    candidates: list[InviteEntry] = Field(default_factory=list, max_length=500)
+    channel: Channel = "email"
+    # Makes publishing idempotent: a retry or double click returns the same assessment.
+    client_request_id: str | None = Field(default=None, min_length=8, max_length=80)
+
+
+def _clean_fields(body: AssessmentFields | Any, fields: set[str]) -> dict[str, Any]:
+    out: dict[str, Any] = {}
+    for k in ("description", "expectations", "instructions"):
+        if k in fields:
+            out[k] = (getattr(body, k) or "").strip()
+    if "skills" in fields:
+        out["skills"] = [s for s in dict.fromkeys(body.skills) if s in analytics.SKILLS]
+    if "timezone" in fields:
+        tz = (body.timezone or "").strip() or None
+        if tz:
+            try:
+                ZoneInfo(tz)
+            except (ZoneInfoNotFoundError, ValueError) as exc:
+                raise ValidationAppError("Unknown timezone.", code="invalid_timezone") from exc
+        out["timezone"] = tz
+    if "due_at" in fields:
+        due = body.due_at
+        if due is not None and due.tzinfo is None:
+            raise ValidationAppError("The due date needs a timezone.", code="invalid_due_at")
+        out["due_at"] = due
+    return out
+
+
+def _assessment_view(a: dict[str, Any]) -> dict[str, Any]:
+    due = a.get("due_at")
+    return {
+        "id": str(a["id"]),
+        "title": a["title"],
+        "message": a.get("message") or "",
+        "description": a.get("description") or "",
+        "expectations": a.get("expectations") or "",
+        "instructions": a.get("instructions") or "",
+        "skills": a.get("skills") or [],
+        "due_at": due.isoformat() if due else None,
+        "timezone": a.get("timezone"),
+        "past_due": bool(due and due <= datetime.now(UTC)),
+        "closed_at": a["closed_at"].isoformat() if a.get("closed_at") else None,
+        "status": a["status"],
+        "topic_id": str(a["topic_id"]),
+        "topic_title": a.get("topic_title"),
+        "track": a.get("track"),
+        "invited": int(a.get("invited") or 0),
+        "opened": int(a.get("opened") or 0),
+        "started": int(a.get("started") or 0),
+        "completed": int(a.get("completed") or 0),
+        "avg_score": round(float(a["avg_score"]), 1) if a.get("avg_score") is not None else None,
+        "created_at": a["created_at"].isoformat(),
+    }
+
+
+@router.get("/company/assessments")
+async def list_assessments(principal: CurrentUser, crepo: CRepo) -> dict:
+    company = await _company(principal, crepo)
+    return {"items": [_assessment_view(a) for a in await crepo.list_assessments(str(company["id"]))]}
+
+
+@router.post("/company/assessments", status_code=201)
+async def create_assessment(principal: CurrentUser, crepo: CRepo, settings: SettingsDep, body: AssessmentCreate) -> dict:
+    """Create (and, with candidates, publish) an assessment. Retrying with the same
+    client_request_id returns the first result instead of creating a second assessment."""
+    company = await _company(principal, crepo)
+    if await crepo.get_topic(str(company["id"]), body.topic_id) is None:
+        raise NotFoundError("Topic not found.")
+    extra = _clean_fields(body, {"description", "expectations", "instructions", "skills", "due_at", "timezone"})
+    if extra.get("due_at") and extra["due_at"] <= datetime.now(UTC):
+        raise ValidationAppError("The due date is in the past.", code="due_in_past")
+    row = await crepo.insert_assessment(
+        str(company["id"]), body.topic_id, body.title.strip(), body.message.strip(), {**extra, "client_request_id": body.client_request_id}
+    )
+    created = row.pop("_created", True)
+    delivery = None
+    if created and body.candidates:
+        a = await crepo.get_assessment(str(company["id"]), str(row["id"]))
+        delivery = await _invite_people(settings, company, a, crepo, body.candidates, body.channel, resend=False)  # type: ignore[arg-type]
+    return {**_assessment_view(row), "created": created, "delivery": delivery}
+
+
+async def _assessment_bundle(principal: Any, crepo: CompanyRepository, assessment_id: str) -> tuple[dict, dict, list, dict]:
+    company = await _company(principal, crepo)
+    a = await crepo.get_assessment(str(company["id"]), assessment_id)
+    if a is None:
+        raise NotFoundError("Assessment not found.")
+    rows = analytics.candidates(await crepo.list_invites(assessment_id), await crepo.invite_item_scores(assessment_id), a)
+    return company, a, rows, analytics.summary(rows)
+
+
+@router.get("/company/assessments/{assessment_id}")
+async def get_assessment(principal: CurrentUser, crepo: CRepo, settings: SettingsDep, assessment_id: str) -> dict:
+    company, a, rows, sm = await _assessment_bundle(principal, crepo, assessment_id)
+    return {
+        "assessment": {**_assessment_view(a), "topic_description": a.get("topic_description")},
+        "candidates": rows,
+        "summary": sm,
+        "skills": [{"id": k, "name": n, "description": d} for k, (n, d) in analytics.SKILLS.items()],
+        "smtp_ready": mailer.smtp_config(company.get("smtp"), settings) is not None,
+    }
+
+
+class AssessmentPatch(AssessmentFields):
+    status: Literal["active", "closed"] | None = None
+    title: str | None = Field(default=None, min_length=1, max_length=160)
+    message: str | None = Field(default=None, max_length=2000)
+
+
+async def _tell_candidates(crepo: CompanyRepository, assessment_id: str, kind: str, title: str, body: str, key: str, stages: set[str]) -> int:
+    """Notify everyone whose assignment is in `stages` (once per event via the dedupe key)."""
+    nrepo = NotificationRepository(crepo.session)
+    company_rows = await crepo.list_invites(assessment_id)
+    sent = 0
+    for inv in company_rows:
+        st = lifecycle.stage({**inv, "assessment_status": "active", "due_at": None})["stage"]
+        if st not in stages:
+            continue
+        n = await nrepo.create(
+            kind=kind, title=title, body=body, link=f"/assessments/{inv['id']}",
+            data={"invite_id": str(inv["id"]), "assessment_id": assessment_id},
+            profile_id=str(inv["profile_id"]) if inv.get("profile_id") else None,
+            email=None if inv.get("profile_id") else inv["email"],
+            dedupe_key=f"{key}:{inv['id']}",
+        )
+        sent += n is not None
+    return sent
+
+
+@router.patch("/company/assessments/{assessment_id}")
+async def update_assessment(principal: CurrentUser, crepo: CRepo, assessment_id: str, body: AssessmentPatch) -> dict:
+    """Edit details or the deadline, or withdraw/reopen. People who still have work to do hear
+    about a changed deadline or a withdrawal; finished work is never touched."""
+    company = await _company(principal, crepo)
+    before = await crepo.get_assessment(str(company["id"]), assessment_id)
+    if before is None:
+        raise NotFoundError("Assessment not found.")
+    sent = body.model_fields_set
+    fields = _clean_fields(body, sent & {"description", "expectations", "instructions", "skills", "due_at", "timezone"})
+    if "title" in sent and body.title:
+        fields["title"] = body.title.strip()
+    if "message" in sent:
+        fields["message"] = (body.message or "").strip()
+    if "due_at" in fields and fields["due_at"] and fields["due_at"] <= datetime.now(UTC):
+        raise ValidationAppError("The new due date is in the past.", code="due_in_past")
+    after = await crepo.update_assessment(str(company["id"]), assessment_id, fields)
+    assert after is not None
+    if "due_at" in fields and fields["due_at"] != before.get("due_at"):
+        due = fields["due_at"]
+        when = due.astimezone(ZoneInfo(after.get("timezone") or "UTC")).strftime("%a %d %b, %H:%M") + f" ({after.get('timezone') or 'UTC'})" if due else "no deadline"
+        await _tell_candidates(
+            crepo, assessment_id, "due_changed", f"New deadline for {after['title']}",
+            f"{company['name']} changed the deadline to {when}.", f"due:{int(due.timestamp()) if due else 0}",
+            {"invited", "ready", "in_progress"},
+        )
+    if body.status and body.status != before["status"]:
+        await crepo.set_assessment_status(str(company["id"]), assessment_id, body.status)
+        if body.status == "closed":
+            await _tell_candidates(
+                crepo, assessment_id, "assessment_withdrawn", f"{after['title']} was withdrawn",
+                f"{company['name']} closed this assessment, so it can no longer be started.", "withdrawn",
+                {"invited", "ready"},
+            )
+        after = await crepo.get_assessment(str(company["id"]), assessment_id)
+    return {"status": after["status"], "assessment": _assessment_view(after)}  # type: ignore[index]
+
+
+def _due_text(a: dict) -> str:
+    tz = a.get("timezone") or "UTC"
+    return a["due_at"].astimezone(ZoneInfo(tz)).strftime("%a %d %b %Y, %H:%M") + f" ({tz})"
+
+
 def _delivered(inv: dict) -> bool:
     return inv.get("email_status") == "sent" or inv.get("notified_at") is not None
 
 
 async def _deliver(
     settings: Any, company: dict, a: dict, invites: list[dict], crepo: CompanyRepository, channel: str
-) -> tuple[dict[str, str | None], list[str]]:
-    """Deliver invites over `channel`. Returns ({invite id: error or None}, emails without an account yet).
-    An invite counts as delivered when any of its channels worked."""
+) -> tuple[dict[str, str | None], list[str], dict[str, str]]:
+    """Deliver invites over `channel`. Returns ({invite id: error or None}, emails without an account
+    yet, {email: error} for emails that failed). An invite counts as delivered when any channel
+    worked; a failed email is still reported, never hidden behind the in-app success."""
     errors: dict[str, str | None] = {}
     waiting: list[str] = []
+    email_failed: dict[str, str] = {}
     if channel in ("app", "both"):
         nrepo = NotificationRepository(crepo.session)
         for inv in invites:
             n = await nrepo.create(
                 kind="assessment_invite",
                 title=f"{company['name']} invited you to an assessment",
-                body=f"{a['title']}. {(a.get('message') or '').strip()}".strip()[:1000],
-                link=f"/invite/{inv['token']}",
-                data={"assessment_id": str(a["id"]), "company": company["name"], "assessment": a["title"]},
+                body=(f"{a['title']}." + (f" Due {_due_text(a)}." if a.get("due_at") else "") + f" {(a.get('message') or '').strip()}").strip()[:1000],
+                # Opens the invitation review in Company assessments; never the test itself.
+                link=f"/assessments/{inv['id']}",
+                data={"assessment_id": str(a["id"]), "invite_id": str(inv["id"]), "company": company["name"], "assessment": a["title"]},
                 email=inv["email"],
             )
             await crepo.mark_invite_notified(str(inv["id"]), channel)
             errors[str(inv["id"])] = None
-            if n["recipient_profile_id"] is None:
+            if n is not None and n["recipient_profile_id"] is None:
                 waiting.append(inv["email"])
     if channel in ("email", "both"):
         mail = await _send_invites(settings, company, a, invites, crepo)
+        by_id = {str(inv["id"]): inv["email"] for inv in invites}
         for iid, err in mail.items():
             if channel == "email" or err is None:
                 errors[iid] = err
-    return errors, waiting
+            if err:
+                email_failed[by_id[iid]] = err
+    return errors, waiting, email_failed
 
 
 async def _send_invites(settings: Any, company: dict, a: dict, invites: list[dict], crepo: CompanyRepository) -> dict[str, str | None]:
@@ -363,6 +548,7 @@ async def _send_invites(settings: Any, company: dict, a: dict, invites: list[dic
             assessment=a["title"],
             message=a.get("message") or "",
             link=f"{settings.web_base_url.rstrip('/')}/invite/{inv['token']}",
+            due=_due_text(a) if a.get("due_at") else None,
         )
         for inv in invites
     ]
@@ -378,11 +564,19 @@ async def invite(principal: CurrentUser, crepo: CRepo, settings: SettingsDep, as
     a = await crepo.get_assessment(str(company["id"]), assessment_id)
     if a is None:
         raise NotFoundError("Assessment not found.")
+    return await _invite_people(settings, company, a, crepo, body.candidates, body.channel, resend=body.resend)
+
+
+async def _invite_people(settings: Any, company: dict, a: dict, crepo: CompanyRepository, people: list[InviteEntry], channel: str, *, resend: bool) -> dict:
+    """Create (or reopen) invitations and deliver them. Reports exactly what happened per person."""
     if a["status"] != "active":
         raise ConflictError("This assessment is closed.", code="assessment_closed")
+    if a.get("due_at") and a["due_at"] <= datetime.now(UTC):
+        raise ConflictError("The deadline has passed. Move the due date before inviting more people.", code="assessment_past_due")
+    assessment_id = str(a["id"])
     invalid, to_send, skipped = [], [], []
     seen: set[str] = set()
-    for entry in body.candidates:
+    for entry in people:
         email = entry.email.strip().lower()
         if not _EMAIL.match(email):
             invalid.append(entry.email)
@@ -391,18 +585,23 @@ async def invite(principal: CurrentUser, crepo: CRepo, settings: SettingsDep, as
             continue
         seen.add(email)
         inv, created = await crepo.upsert_invite(assessment_id, email, (entry.name or "").strip() or None, secrets.token_urlsafe(24))
-        if created or body.resend or not _delivered(inv):
+        if not created and inv.get("status") in ("declined", "revoked") and not inv.get("session_id"):
+            # Inviting someone again (a correction, or they changed their mind) reopens it.
+            inv = await crepo.reopen_invite(str(inv["id"])) or inv
+            to_send.append(inv)
+        elif created or resend or not _delivered(inv):
             to_send.append(inv)
         else:
             skipped.append(email)
-    errors, waiting = await _deliver(settings, company, a, to_send, crepo, body.channel)
+    errors, waiting, email_failed = await _deliver(settings, company, a, to_send, crepo, channel)
     return {
         "sent": sum(1 for e in errors.values() if e is None),
         "failed": [{"email": inv["email"], "error": errors[str(inv["id"])]} for inv in to_send if errors[str(inv["id"])]],
         "invalid": invalid,
         "already_invited": skipped,
-        "channel": body.channel,
+        "channel": channel,
         "awaiting_signup": waiting,
+        "email_failed": [{"email": e, "error": err} for e, err in email_failed.items()],
     }
 
 
@@ -413,9 +612,29 @@ async def resend(principal: CurrentUser, crepo: CRepo, settings: SettingsDep, as
     inv = await crepo.get_invite(assessment_id, invite_id) if a else None
     if inv is None:
         raise NotFoundError("Invite not found.")
-    errors, _ = await _deliver(settings, company, a, [inv], crepo, inv.get("channel") or "email")
+    errors, _, _ = await _deliver(settings, company, a, [inv], crepo, inv.get("channel") or "email")
     err = errors[invite_id]
     return {"ok": err is None, "error": err}
+
+
+@router.post("/company/assessments/{assessment_id}/invites/{invite_id}/revoke")
+async def revoke(principal: CurrentUser, crepo: CRepo, assessment_id: str, invite_id: str) -> dict:
+    """Withdraw one person's invitation (before they start). They're told; history is kept."""
+    company = await _company(principal, crepo)
+    a = await crepo.get_assessment(str(company["id"]), assessment_id)
+    if a is None:
+        raise NotFoundError("Assessment not found.")
+    inv = await crepo.revoke_invite(assessment_id, invite_id)
+    if inv is None:
+        raise ConflictError("Only an invitation that hasn't been started can be withdrawn.", code="invite_not_revocable")
+    await NotificationRepository(crepo.session).create(
+        kind="assessment_withdrawn", title=f"{a['title']} was withdrawn",
+        body=f"{company['name']} withdrew your invitation to this assessment.", link=f"/assessments/{invite_id}",
+        data={"invite_id": invite_id, "assessment_id": assessment_id},
+        profile_id=str(inv["profile_id"]) if inv.get("profile_id") else None,
+        email=None if inv.get("profile_id") else inv["email"], dedupe_key=f"revoked:{invite_id}",
+    )
+    return {"ok": True}
 
 
 @router.delete("/company/assessments/{assessment_id}/invites/{invite_id}", status_code=204)
@@ -518,7 +737,7 @@ async def _all_candidates(principal: Any, crepo: CompanyRepository) -> tuple[dic
     rows: list[dict[str, Any]] = []
     for a in await crepo.list_assessments(str(company["id"])):
         aid = str(a["id"])
-        for r in analytics.candidates(await crepo.list_invites(aid), await crepo.invite_item_scores(aid)):
+        for r in analytics.candidates(await crepo.list_invites(aid), await crepo.invite_item_scores(aid), a):
             rows.append({**r, "assessment_id": aid, "assessment_title": a["title"], "topic_title": a["topic_title"]})
     return company, rows
 
@@ -574,17 +793,23 @@ async def report_pdf(principal: CurrentUser, crepo: CRepo, assessment_id: str) -
 
 # ---- candidate side of an invite -----------------------------------------------
 def _invite_preview(inv: dict[str, Any]) -> dict[str, Any]:
+    """Public summary for the emailed link: enough to recognise the invitation before signing in."""
+    st = lifecycle.stage(inv)
+    due = inv.get("due_at")
     return {
         "company": inv["company_name"],
+        "tagline": inv.get("tagline") or "",
         "assessment": inv["assessment_title"],
+        "description": inv.get("assessment_description") or inv.get("topic_description") or "",
         "message": inv.get("message") or "",
-        "topic": inv["topic_title"],
-        "description": inv.get("topic_description") or "",
-        "difficulty": inv["difficulty"],
+        "due_at": due.isoformat() if due else None,
+        "timezone": inv.get("timezone"),
         "email": inv["email"],
         "candidate_name": inv.get("candidate_name"),
-        "open": inv["assessment_status"] == "active",
-        "started": bool(inv.get("session_id")),
+        "stage": st["stage"],
+        "label": st["label"],
+        "note": st["note"],
+        "open": st["stage"] not in ("expired", "withdrawn", "declined", "missed"),
     }
 
 
@@ -598,44 +823,6 @@ async def invite_preview(crepo: CRepo, token: str) -> dict:
     return _invite_preview(inv)
 
 
-@router.post("/invites/{token}/accept")
-async def accept_invite(principal: CurrentUser, crepo: CRepo, repo: Repo, ai: AIDep, token: str) -> dict:
-    inv = await crepo.get_invite_by_token(token)
-    if inv is None:
-        raise NotFoundError("This invite link is not valid.", code="invite_not_found")
-    if inv.get("profile_id") and str(inv["profile_id"]) != str(principal.user_id):
-        raise ForbiddenError("This invite was already used by another account.", code="invite_claimed")
-    if inv.get("session_id"):
-        session = await repo.get_session(str(inv["session_id"]))
-        if session is not None:
-            return {"session_id": str(session["id"]), "scenario_instance_id": str(session["scenario_version_id"]), "status": session["status"]}
-    if inv["assessment_status"] != "active":
-        raise ConflictError("This assessment is closed.", code="assessment_closed")
-    company = await crepo.get_company(str(inv["company_id"]))
-    topic = await crepo.get_topic(str(inv["company_id"]), str(inv["topic_id"]))
-    if company is None or topic is None:
-        raise NotFoundError("This assessment is no longer available.")
-    profile = await repo.get_profile(principal.user_id)
-    from app.api.v1.workplace import published_world_for
-
-    instance = await scenario_service.create_instance(
-        repo=repo,
-        ai=ai,
-        user_id=principal.user_id,
-        profile=profile,
-        topic=topic,
-        company=company,
-        world=await published_world_for(crepo, company),
-    )
-    session = await session_service.start_session(
-        repo=repo, user_id=principal.user_id, scenario_instance_id=instance["scenario_instance_id"], mode="quick"
-    )
-    if await crepo.claim_invite(str(inv["id"]), principal.user_id, str(session["id"])) is None:
-        raise ForbiddenError("This invite was already used by another account.", code="invite_claimed")
-    await notify_company(crepo.session, str(session["id"]), "candidate_started")
-    return {"session_id": str(session["id"]), "scenario_instance_id": instance["scenario_instance_id"], "status": "active"}
-
-
 @router.get("/sessions/{session_id}/assessment")
 async def session_assessment(principal: CurrentUser, crepo: CRepo, repo: Repo, session_id: str) -> dict:
     """Which company assessment (if any) a candidate's session belongs to, for the debrief banner."""
@@ -643,4 +830,4 @@ async def session_assessment(principal: CurrentUser, crepo: CRepo, repo: Repo, s
     if row is None or str(row["user_id"]) != str(principal.user_id):
         raise NotFoundError("Session not found.")
     inv = await crepo.invite_for_session(session_id)
-    return {"assessment": {"company": inv["company_name"], "title": inv["assessment_title"]} if inv else None}
+    return {"assessment": {"company": inv["company_name"], "title": inv["assessment_title"], "invite_id": str(inv["id"])} if inv else None}

@@ -90,6 +90,7 @@ def invite_email(
     message: str,
     link: str,
     minutes: int = 15,
+    due: str | None = None,
 ) -> EmailMessage:
     msg = EmailMessage()
     msg["Subject"] = f"{company} invited you to a workplace assessment: {assessment}"
@@ -97,13 +98,16 @@ def invite_email(
     msg["To"] = to
     hello = f"Hi {candidate_name}," if candidate_name else "Hi,"
     note = f"\n\nA note from {company}:\n{message}" if message else ""
+    due_line = f"\n\nPlease complete it by {due}." if due else ""
     msg.set_content(
         f"{hello}\n\n{company} has invited you to complete \"{assessment}\" on WorkVerse, a short "
         f"simulated workday (about {minutes} minutes). You'll talk to AI colleagues, investigate a "
-        f"realistic problem and decide what to do. There are no trick questions.{note}\n\n"
-        f"Start here: {link}\n\nGood luck!\n— {company} via WorkVerse"
+        f"realistic problem and decide what to do. There are no trick questions.{note}{due_line}\n\n"
+        f"Review the invitation: {link}\n\nOpening the link doesn't start the assessment: you'll see the details "
+        f"first and start when you're ready.\n\nGood luck!\n— {company} via WorkVerse"
     )
     e = html.escape
+    due_html = f'<p style="margin:0 0 16px;line-height:1.5"><b>Due:</b> {e(due)}</p>' if due else ""
     note_html = (
         f'<p style="margin:0 0 16px;padding:12px 14px;background:#f5f5f5;border-radius:8px">'
         f"<b>A note from {e(company)}:</b><br>{e(message)}</p>"
@@ -120,8 +124,9 @@ def invite_email(
 <p style="margin:0 0 16px;line-height:1.5">{e(hello)}</p>
 <p style="margin:0 0 16px;line-height:1.5">{e(company)} has invited you to a short simulated workday (about {minutes} minutes).
 You'll talk to AI colleagues, investigate a realistic problem and decide what to do. There are no trick questions.</p>
-{note_html}
-<p style="margin:24px 0"><a href="{e(link)}" style="background:#141414;color:#fff;text-decoration:none;padding:12px 22px;border-radius:8px;font-family:monospace;letter-spacing:.06em;text-transform:uppercase;font-size:13px">Start assessment</a></p>
+{note_html}{due_html}
+<p style="margin:24px 0"><a href="{e(link)}" style="background:#141414;color:#fff;text-decoration:none;padding:12px 22px;border-radius:8px;font-family:monospace;letter-spacing:.06em;text-transform:uppercase;font-size:13px">Review invitation</a></p>
+<p style="margin:0 0 16px;line-height:1.5;color:#6b6b6b;font-size:13px">Opening the link doesn't start anything: you'll see the company's details and instructions first, and start when you're ready.</p>
 <p style="margin:0;font-size:12px;color:#6b6b6b;line-height:1.5">Or paste this link into your browser:<br>{e(link)}</p>
 </td></tr></table></td></tr></table></body></html>""",
         subtype="html",

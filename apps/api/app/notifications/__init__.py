@@ -37,15 +37,18 @@ class NotificationRepository:
         data: dict[str, Any] | None = None,
         profile_id: str | None = None,
         email: str | None = None,
-    ) -> dict[str, Any]:
+        dedupe_key: str | None = None,
+    ) -> dict[str, Any] | None:
+        """Create a notification. With dedupe_key, a repeat of the same event creates nothing (None)."""
         if profile_id is None and email:
             known = await self.profile_by_email(email)
             profile_id = str(known["id"]) if known else None
-        return _row(  # type: ignore[return-value]
+        return _row(
             await self.session.execute(
                 text(
-                    "insert into public.notifications (recipient_profile_id, recipient_email, kind, title, body, link, data) "
-                    "values (:pid, :email, :kind, :title, :body, :link, cast(:data as jsonb)) returning *"
+                    "insert into public.notifications (recipient_profile_id, recipient_email, kind, title, body, link, data, dedupe_key) "
+                    "values (:pid, :email, :kind, :title, :body, :link, cast(:data as jsonb), :dk) "
+                    "on conflict (dedupe_key) where dedupe_key is not null do nothing returning *"
                 ),
                 {
                     "pid": profile_id,
@@ -55,6 +58,7 @@ class NotificationRepository:
                     "body": body[:1000],
                     "link": link,
                     "data": json.dumps(data or {}),
+                    "dk": dedupe_key,
                 },
             )
         )
@@ -94,6 +98,16 @@ class NotificationRepository:
                 ),
                 {"pid": profile_id, "lim": limit},
             )
+        )
+
+    async def mark_for_invite(self, profile_id: str, invite_id: str) -> None:
+        """An invitation was answered: its invite notifications no longer need attention."""
+        await self.session.execute(
+            text(
+                "update public.notifications set read_at = coalesce(read_at, now()), popped_at = coalesce(popped_at, now()) "
+                "where recipient_profile_id = :pid and kind = 'assessment_invite' and data->>'invite_id' = :iid"
+            ),
+            {"pid": profile_id, "iid": invite_id},
         )
 
     async def unread_count(self, profile_id: str) -> int:
@@ -139,16 +153,46 @@ async def verified_clerk_email(settings: Settings, clerk_user_id: str) -> str | 
     return None
 
 
-async def sync_inbox(nrepo: NotificationRepository, settings: Settings, profile_id: str, clerk_user_id: str | None, dev_email: str | None) -> None:
-    """Learn the profile's verified email once, then claim anything sent to it before sign-up."""
+async def resolve_email(nrepo: NotificationRepository, settings: Settings, profile_id: str, clerk_user_id: str | None, dev_email: str | None) -> str | None:
+    """The profile's verified email: cached on the profile, looked up in Clerk once per process."""
     email = await nrepo.profile_email(profile_id)
     if email is None and profile_id not in _email_checked:
         _email_checked.add(profile_id)
         email = dev_email or (await verified_clerk_email(settings, clerk_user_id or ""))
         if email:
             await nrepo.set_profile_email(profile_id, email)
+    return email
+
+
+async def sync_inbox(nrepo: NotificationRepository, settings: Settings, profile_id: str, clerk_user_id: str | None, dev_email: str | None) -> None:
+    """Claim anything sent to the verified email before sign-up, and add due-soon reminders."""
+    email = await resolve_email(nrepo, settings, profile_id, clerk_user_id, dev_email)
     if email:
         await nrepo.claim(profile_id, email)
+    await remind_due_soon(nrepo.session, profile_id)
+
+
+async def remind_due_soon(session: AsyncSession, profile_id: str) -> None:
+    """One reminder per assignment and deadline when an accepted, unfinished assessment is due
+    within 24 hours. Created lazily (no scheduler); the dedupe key keeps it to one."""
+    await session.execute(
+        text(
+            "insert into public.notifications (recipient_profile_id, kind, title, body, link, data, dedupe_key) "
+            "select i.profile_id, 'due_soon', a.title || ' is due soon', "
+            " c.name || ' asked for it by ' || to_char(a.due_at at time zone coalesce(a.timezone, 'UTC'), 'Dy DD Mon, HH24:MI') "
+            "   || ' (' || coalesce(a.timezone, 'UTC') || ').', "
+            " '/assessments/' || i.id, jsonb_build_object('invite_id', i.id), "
+            " 'due_soon:' || i.id || ':' || extract(epoch from a.due_at)::bigint "
+            "from public.assessment_invites i join public.assessments a on a.id = i.assessment_id "
+            "join public.companies c on c.id = a.company_id "
+            "left join public.simulation_sessions s on s.id = i.session_id "
+            "where i.profile_id = :pid and i.status = 'accepted' and a.status = 'active' and a.due_at is not null "
+            " and a.due_at > now() and a.due_at <= now() + interval '24 hours' "
+            " and (s.id is null or s.status in ('created', 'active')) "
+            "on conflict (dedupe_key) where dedupe_key is not null do nothing"
+        ),
+        {"pid": profile_id},
+    )
 
 
 def view(n: dict[str, Any]) -> dict[str, Any]:
@@ -194,4 +238,38 @@ async def notify_company(session: AsyncSession, session_id: str, kind: str, scor
         link=f"/company/assessments/{row['assessment_id']}/candidates/{row['invite_id']}",
         data={"assessment_id": str(row["assessment_id"]), "invite_id": str(row["invite_id"]), "score": score},
         profile_id=str(row["owner_profile_id"]),
+        dedupe_key=f"{kind}:{session_id}",
+    )
+
+
+async def notify_company_response(session: AsyncSession, invite_id: str, kind: str) -> None:
+    """Tell the company owner a candidate accepted or declined (once per invitation)."""
+    row = _row(
+        await session.execute(
+            text(
+                "select i.id as invite_id, i.email, i.candidate_name, i.decline_reason, p.display_name, "
+                " a.id as assessment_id, a.title as assessment_title, c.owner_profile_id "
+                "from public.assessment_invites i join public.assessments a on a.id = i.assessment_id "
+                "join public.companies c on c.id = a.company_id "
+                "left join public.profiles p on p.id = i.profile_id where i.id = :id"
+            ),
+            {"id": invite_id},
+        )
+    )
+    if row is None:
+        return
+    who = row.get("candidate_name") or row.get("display_name") or row["email"]
+    if kind == "invite_accepted":
+        title, body = f"{who} accepted {row['assessment_title']}", "They can start whenever they're ready, before the deadline."
+    else:
+        reason = (row.get("decline_reason") or "").strip()
+        title, body = f"{who} declined {row['assessment_title']}", (f"Their note: {reason}" if reason else "No reason given.")
+    await NotificationRepository(session).create(
+        kind=kind,
+        title=title,
+        body=body[:1000],
+        link=f"/company/assessments/{row['assessment_id']}",
+        data={"assessment_id": str(row["assessment_id"]), "invite_id": str(row["invite_id"])},
+        profile_id=str(row["owner_profile_id"]),
+        dedupe_key=f"{kind}:{invite_id}",
     )

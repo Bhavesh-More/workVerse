@@ -96,7 +96,7 @@ def test_analytics_statuses_bands_and_summary():
     assert rows[0]["minutes"] == 12.0
     sm = analytics.summary(rows)
     assert sm["completed"] == 2 and sm["completion_rate"] == 50 and sm["avg_score"] == 62.5
-    assert [f["count"] for f in sm["funnel"]] == [3, 3, 2, 2]
+    assert [f["count"] for f in sm["funnel"]] == [3, 3, 2, 2, 2]  # invited, opened, accepted, started, completed
     assert sm["top_candidate"] == "a" and sm["skills"][0]["average"] == 62
 
 

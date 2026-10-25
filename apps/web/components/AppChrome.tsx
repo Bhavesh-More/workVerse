@@ -16,8 +16,11 @@ export function AppChrome({ children }: { children: ReactNode }) {
     pathname.startsWith("/company/login") ||
     pathname.startsWith("/company/signup") ||
     pathname.startsWith("/invite");
+  // Full screen: the office, the world editor, and a company assessment's briefing.
   const isSimulation =
-    (pathname.startsWith("/session/") && !pathname.endsWith("/debrief")) || pathname.startsWith("/company/workplace/editor");
+    (pathname.startsWith("/session/") && !pathname.endsWith("/debrief")) ||
+    pathname.startsWith("/company/workplace/editor") ||
+    /^\/assessments\/(?!company\/)[^/]+$/.test(pathname);
 
   return (
     <NotificationsProvider>

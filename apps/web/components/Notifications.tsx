@@ -13,6 +13,26 @@ import { play } from "../lib/sfx";
 const POLL_VISIBLE_MS = 12_000;
 const POLL_HIDDEN_MS = 30_000;
 const POPUP_MS = 9_000;
+const ICON: Record<string, string> = {
+  assessment_invite: "✉",
+  candidate_completed: "★",
+  candidate_started: "▶",
+  invite_accepted: "✓",
+  invite_declined: "✕",
+  due_changed: "⟳",
+  due_soon: "!",
+  assessment_withdrawn: "–",
+};
+const CTA: Record<string, string> = {
+  assessment_invite: "Review invitation",
+  candidate_completed: "View report",
+  candidate_started: "View candidate",
+  invite_accepted: "View assessment",
+  invite_declined: "View assessment",
+  due_changed: "View details",
+  due_soon: "View details",
+  assessment_withdrawn: "View details",
+};
 
 type Ctx = {
   items: AppNotification[];
@@ -47,6 +67,8 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
   const [popups, setPopups] = useState<AppNotification[]>([]);
   const [desktop, setDesktop] = useState<NotificationPermission | "unsupported">("unsupported");
   const shown = useRef(new Set<string>());
+  const here = useRef(pathname);
+  here.current = pathname;
   const inflight = useRef(false);
 
   useEffect(() => setDesktop(desktopPermission()), []);
@@ -85,7 +107,12 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
       setItems(res.items);
       setUnread(res.unread);
       setLoaded(true);
-      const fresh = res.items.filter((n) => !n.popped && !n.read && !shown.current.has(n.id));
+      const unseen = res.items.filter((n) => !n.popped && !n.read && !shown.current.has(n.id));
+      // Already looking at it: no popup for the page you're on.
+      const onPage = unseen.filter((n) => n.link === here.current);
+      if (onPage.length) seen(onPage.map((n) => n.id));
+      const fresh = unseen.filter((n) => n.link !== here.current);
+      onPage.forEach((n) => shown.current.add(n.id));
       if (!fresh.length) return;
       fresh.forEach((n) => shown.current.add(n.id));
       const hidden = document.visibilityState === "hidden";
@@ -181,7 +208,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
                   {n.body && <span>{n.body}</span>}
                   {n.link && (
                     <button type="button" className="nt-popup__cta" onClick={() => open(n)} data-testid="notification-popup-open">
-                      {n.kind === "assessment_invite" ? "Open invite" : "View report"} →
+                      {CTA[n.kind] ?? "Open"} →
                     </button>
                   )}
                 </div>
@@ -200,7 +227,7 @@ export function NotificationsProvider({ children }: { children: ReactNode }) {
 function KindIcon({ kind }: { kind: AppNotification["kind"] }) {
   return (
     <span className="nt-icon" aria-hidden="true">
-      {kind === "assessment_invite" ? "✉" : kind === "candidate_completed" ? "★" : "▶"}
+      {ICON[kind] ?? "•"}
     </span>
   );
 }

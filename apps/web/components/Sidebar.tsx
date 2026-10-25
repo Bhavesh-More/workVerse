@@ -9,12 +9,14 @@ import { clearCache } from "../lib/api";
 import { prefetchRoute } from "../lib/useApi";
 import { Avatar } from "./Avatar";
 import { SoundToggles } from "./Sound";
-import { NotificationBell } from "./Notifications";
+import { NotificationBell, useNotifications } from "./Notifications";
+import { candidateApi } from "../lib/candidate";
 
 const NAV = [
   { href: "/dashboard", label: "Dashboard", icon: "grid" },
   { href: "/scenarios", label: "Practice", icon: "target" },
   { href: "/sessions", label: "Sessions", icon: "clock" },
+  { href: "/assessments", label: "Company assessments", icon: "briefcase" },
   { href: "/progress", label: "Progress", icon: "chart" },
   { href: "/profile", label: "Profile", icon: "user" },
 ];
@@ -90,6 +92,13 @@ function Icon({ name }: { name: string }) {
         <path d="M16 4.6a3.5 3.5 0 0 1 0 6.8M18 14.8c2.2.6 3.5 2.4 3.5 5.2" />
       </svg>
     );
+  if (name === "briefcase")
+    return (
+      <svg {...common} aria-hidden="true">
+        <rect x="3" y="7" width="18" height="13" rx="2" />
+        <path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M3 13h18" />
+      </svg>
+    );
   if (name === "sliders")
     return (
       <svg {...common} aria-hidden="true">
@@ -110,6 +119,26 @@ function Icon({ name }: { name: string }) {
       <circle cx="12" cy="8" r="4" />
       <path d="M4 21c0-4 3.6-6 8-6s8 2 8 6" />
     </svg>
+  );
+}
+
+/** Pending company invitations, refreshed on navigation and when a notification arrives. */
+function InviteBadge({ collapsed }: { collapsed: boolean }) {
+  const pathname = usePathname();
+  const unread = useNotifications()?.unread ?? 0;
+  const [n, setN] = useState(0);
+  useEffect(() => {
+    let live = true;
+    candidateApi.overview().then((r) => live && setN(r.assignments.filter((a) => a.state.stage === "invited").length), () => {});
+    return () => {
+      live = false;
+    };
+  }, [pathname, unread]);
+  if (!n) return null;
+  return (
+    <span className={`nt-bell__count${collapsed ? " is-dot" : ""}`} aria-label={`${n} pending invitation${n === 1 ? "" : "s"}`} data-testid="invite-badge">
+      {n > 9 ? "9+" : n}
+    </span>
   );
 }
 
@@ -236,6 +265,7 @@ export function Sidebar({ variant = "learner" }: { variant?: "learner" | "compan
                 <Icon name={item.icon} />
               </span>
               {!collapsed && <span className="sidebar__label">{item.label}</span>}
+              {item.href === "/assessments" && <InviteBadge collapsed={collapsed} />}
             </Link>
           );
         })}
@@ -243,7 +273,11 @@ export function Sidebar({ variant = "learner" }: { variant?: "learner" | "compan
       </nav>
 
       <div className="sidebar__foot">
-        {!collapsed && <SoundToggles />}
+        {!collapsed && (
+          <span className="sidebar__sound">
+            <SoundToggles />
+          </span>
+        )}
         <Link href={isCompany ? "/company/settings" : "/profile"} className="sidebar__user" title={name}>
           <span className="sidebar__avatar">
             <Avatar imageUrl={user?.imageUrl} name={name} size={collapsed ? 34 : 38} />

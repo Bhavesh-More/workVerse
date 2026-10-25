@@ -1,93 +1,98 @@
 "use client";
 
-import { useEffect, useState } from "react";
+// The emailed invitation link. Signed in: the invitation is linked to this account and you land on
+// its briefing in Company assessments (nothing is accepted or started). Signed out: a short
+// preview, then sign in or create an account and come straight back here.
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useAuth as useClerkAuth } from "@clerk/nextjs";
 import { AuthShell, FormError } from "../../../../components/AuthShell";
 import { companyApi, type InvitePreview } from "../../../../lib/company";
 import { useAuth } from "../../../../lib/auth";
+import { formatWhen, zoneAbbr } from "../../../../lib/time";
 
 export default function InvitePage() {
   const { token } = useParams<{ token: string }>();
   const router = useRouter();
   const { isSignedIn, isLoaded } = useClerkAuth();
-  const { user, signOut } = useAuth();
+  const { signOut } = useAuth();
   const [invite, setInvite] = useState<InvitePreview | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [busy, setBusy] = useState(false);
+  const [claimError, setClaimError] = useState<string | null>(null);
+  const claimed = useRef(false);
   const back = `/invite/${token}`;
 
   useEffect(() => {
     companyApi.invitePreview(token).then(setInvite, (e: unknown) => setError(e instanceof Error ? e.message : "This invite link is not valid."));
   }, [token]);
 
-  const start = async () => {
-    setBusy(true);
-    setError(null);
-    try {
-      const res = await companyApi.acceptInvite(token);
-      router.push(
-        res.status === "completed" ? `/session/${res.session_id}/debrief` : `/briefing/${res.scenario_instance_id}?session=${res.session_id}`,
-      );
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not start the assessment.");
-      setBusy(false);
-    }
-  };
-
-  const signedInAs = user?.primaryEmailAddress?.emailAddress;
+  // Signed in: link it to this account and open the briefing. This never accepts or starts it.
+  useEffect(() => {
+    if (!isLoaded || !isSignedIn || !invite || claimed.current) return;
+    claimed.current = true;
+    companyApi.claimInvite(token).then(
+      (r) => router.replace(`/assessments/${r.invite_id}`),
+      (e: unknown) => setClaimError(e instanceof Error ? e.message : "Could not open this invitation."),
+    );
+  }, [isLoaded, isSignedIn, invite, token, router]);
 
   return (
     <AuthShell>
       {!invite ? (
-        error ? <FormError message={error} /> : <div className="skeleton" style={{ height: 200 }} />
+        error ? (
+          <div className="stack" data-testid="invite-invalid">
+            <span className="eyebrow">Assessment invitation</span>
+            <h1 className="page-title" style={{ fontSize: 30 }}>This link doesn&apos;t work</h1>
+            <FormError message={error} />
+            <p className="small muted">Check that you copied the whole link from the email, or ask the company to send the invitation again.</p>
+          </div>
+        ) : (
+          <div className="skeleton" style={{ height: 220 }} />
+        )
       ) : (
-        <div className="stack">
-          <span className="eyebrow">{invite.company} · assessment invite</span>
-          <h1 className="page-title" style={{ fontSize: 34 }}>{invite.assessment}</h1>
-          <p className="small muted">
+        <div className="stack" data-testid="invite-preview">
+          <span className="eyebrow">{invite.company} · assessment invitation</span>
+          <h1 className="page-title" style={{ fontSize: 32 }}>{invite.assessment}</h1>
+          {invite.tagline && <p className="small" style={{ margin: 0 }}>{invite.tagline}</p>}
+          <p className="small muted" style={{ margin: 0 }}>
             {invite.candidate_name ? `Hi ${invite.candidate_name}, ` : ""}
-            {invite.company} invited you to a short simulated workday (about 15 minutes). You&apos;ll talk to AI colleagues, investigate a
-            realistic problem and decide what to do.
+            {invite.company} invited you to a short simulated workday on WorkVerse (about 15 minutes, not timed).
           </p>
-          {invite.message && <div className="banner"><span><strong>Note from {invite.company}:</strong> {invite.message}</span></div>}
-          {invite.description && (
-            <div className="card card--flat">
-              <span className="eyebrow">About this assessment</span>
-              <p className="small">{invite.description}</p>
+          {invite.due_at && (
+            <div className="banner">
+              <span>
+                <strong>Due {formatWhen(invite.due_at, undefined, true)}</strong> <span className="muted">your time ({zoneAbbr(invite.due_at)})</span>
+              </span>
             </div>
           )}
-          <ul className="list-reset small stack--sm stack">
-            <li>• Walk the office or use the quick panel; chat by text or voice.</li>
-            <li>• Ask short questions — colleagues know different things.</li>
-            <li>• Your report is shared with {invite.company} when you finish.</li>
-          </ul>
-          <FormError message={error} />
-          {!invite.open ? (
-            <div className="banner banner--error">This assessment is closed.</div>
-          ) : !isLoaded ? null : isSignedIn ? (
-            <>
-              <button className="btn btn--block" onClick={start} disabled={busy} data-testid="start-assessment">
-                {busy ? <span className="busy-dots">Preparing your office</span> : invite.started ? "Continue assessment →" : "Start assessment →"}
-              </button>
-              <p className="xsmall muted" style={{ textAlign: "center" }}>
-                Signed in as {signedInAs}
-                {signedInAs && signedInAs.toLowerCase() !== invite.email && <> (invite was sent to {invite.email})</>} ·{" "}
-                <button className="text-link xsmall" style={{ background: "none", border: 0, padding: 0, cursor: "pointer" }} onClick={() => signOut({ redirectUrl: back })}>
-                  switch account
-                </button>
-              </p>
-            </>
+          {!invite.open && (
+            <div className="banner banner--error" role="alert" data-testid="invite-closed">
+              <span>
+                <strong>{invite.label}.</strong> {invite.note}
+              </span>
+            </div>
+          )}
+          {claimError && (
+            <div className="stack--sm stack">
+              <FormError message={claimError} />
+              <button className="btn btn--ghost btn--block" onClick={() => signOut({ redirectUrl: back })}>Sign in with a different account</button>
+            </div>
+          )}
+          {!isLoaded ? null : isSignedIn ? (
+            !claimError && <p className="small muted" data-testid="invite-opening"><span className="busy-dots">Opening the invitation</span></p>
           ) : (
             <div className="stack--sm stack">
-              <Link className="btn btn--block" href={`/signup?redirect=${encodeURIComponent(back)}`} data-testid="invite-signup">
-                Create an account to start →
+              <p className="small" style={{ margin: 0 }}>
+                Sign in to review the details. <b>Nothing starts until you choose to.</b>
+              </p>
+              <Link className="btn btn--block" href={`/login?redirect=${encodeURIComponent(back)}`} data-testid="invite-login">
+                Sign in to review →
               </Link>
-              <Link className="btn btn--ghost btn--block" href={`/login?redirect=${encodeURIComponent(back)}`}>
-                I already have an account
+              <Link className="btn btn--ghost btn--block" href={`/signup?redirect=${encodeURIComponent(back)}`} data-testid="invite-signup">
+                Create an account
               </Link>
-              <p className="xsmall muted" style={{ textAlign: "center" }}>Use {invite.email} so {invite.company} can match your result.</p>
+              <p className="xsmall muted" style={{ textAlign: "center" }}>Use {invite.email} so it&apos;s matched to you automatically.</p>
             </div>
           )}
         </div>

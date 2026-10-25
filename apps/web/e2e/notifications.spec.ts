@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { expect, test, type APIRequestContext, type Browser, type Page } from "@playwright/test";
 import { clerk, setupClerkTestingToken } from "@clerk/testing/playwright";
-import { companyPage } from "./helpers";
+import { acceptAndStart, companyPage } from "./helpers";
 import { testUser, type TestUser } from "./users";
 
 // In-app notifications: a company delivers an assessment invite inside WorkVerse (no email), the
@@ -86,12 +86,13 @@ test("in-app invites, live popups and company alerts", async ({ browser, request
   await expect(cand.getByTestId("notification-panel")).toContainText("Umbrella Talent invited you");
   await shot(cand, "62-candidate-bell-panel");
   await cand.getByTestId("notification-item").first().click();
-  await expect(cand).toHaveURL(/\/invite\//);
-  await expect(cand.getByTestId("notification-count")).toHaveCount(0);
+  // The notification opens the invitation review, never the test.
+  await expect(cand).toHaveURL(/\/assessments\/[0-9a-f-]+$/);
+  await expect(cand.getByTestId("accept-invitation")).toBeVisible({ timeout: 30_000 });
 
-  // Starting the assessment pops up on the company's screen.
-  await cand.getByTestId("start-assessment").click();
-  await expect(cand).toHaveURL(/\/briefing\/.*session=/, { timeout: 120_000 });
+  // Starting the assessment (after accepting) pops up on the company's screen.
+  await acceptAndStart(cand);
+  await expect(cand.getByTestId("notification-count")).toHaveCount(0);
   const sessionId = new URL(cand.url()).searchParams.get("session")!;
   const coPopup = co.getByTestId("notification-popup");
   await expect(coPopup.filter({ hasText: "started" })).toBeVisible({ timeout: 30_000 });
@@ -119,7 +120,7 @@ test("in-app invites, live popups and company alerts", async ({ browser, request
   await expect(late.getByTestId("notification-popup")).toContainText("Umbrella Talent invited you", { timeout: 40_000 });
   await shot(late, "65-late-signup-popup");
   await late.getByTestId("notification-popup-open").click();
-  await expect(late).toHaveURL(/\/invite\//);
+  await expect(late).toHaveURL(/\/assessments\/[0-9a-f-]+$/);
   await expect(late.getByRole("heading", { name: new RegExp(`Umbrella round ${RUN}`) }).or(late.getByText(`Umbrella round ${RUN}`)).first()).toBeVisible();
 
   // Other users never see these.

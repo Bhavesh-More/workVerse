@@ -2,7 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { expect, test, type APIRequestContext, type Browser, type Page } from "@playwright/test";
 import { clerk, setupClerkTestingToken } from "@clerk/testing/playwright";
-import { companyPage } from "./helpers";
+import { acceptAndStart, companyPage } from "./helpers";
 import { testUser } from "./users";
 
 // Company workplace builder: onboarding choice, presets, participants, the world editor
@@ -497,8 +497,7 @@ test.describe("Workplace builder", () => {
     await setupClerkTestingToken({ page: cand });
     await clerk.signIn({ page: cand, signInParams: { strategy: "ticket", ticket } });
     await cand.goto(link);
-    await cand.getByTestId("start-assessment").click();
-    await expect(cand).toHaveURL(/\/briefing\/.*session=/, { timeout: 120_000 });
+    await acceptAndStart(cand);
     const sessionId = new URL(cand.url()).searchParams.get("session")!;
     await cand.getByRole("button", { name: "Enter the office" }).click();
     await expect(cand).toHaveURL(/\/session\//, { timeout: 60_000 });

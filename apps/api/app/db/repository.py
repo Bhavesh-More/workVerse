@@ -301,7 +301,9 @@ class Repository:
                     "s.started_at, s.ended_at, s.created_at, sv.template_id, sv.difficulty "
                     "from public.simulation_sessions s "
                     "join public.scenario_versions sv on sv.id = s.scenario_version_id "
-                    "where s.user_id = :uid order by s.created_at desc limit :lim"
+                    # Company assessment runs live in Company assessments, not in learning.
+                    "where s.user_id = :uid and not exists (select 1 from public.assessment_invites ai where ai.session_id = s.id) "
+                    "order by s.created_at desc limit :lim"
                 ),
                 {"uid": user_id, "lim": limit},
             )
@@ -774,6 +776,7 @@ class Repository:
                     "join public.simulation_sessions s on s.id = e.session_id "
                     "join public.scenario_versions sv on sv.id = s.scenario_version_id "
                     "where s.user_id = :uid and e.status = 'completed' "
+                    "and not exists (select 1 from public.assessment_invites ai where ai.session_id = s.id) "
                     "order by e.completed_at desc"
                 ),
                 {"uid": user_id},
@@ -790,6 +793,7 @@ class Repository:
                     "join public.evaluations e on e.id = ei.evaluation_id "
                     "join public.simulation_sessions s on s.id = e.session_id "
                     "where s.user_id = :uid and e.status = 'completed' and ei.status = 'scored' "
+                    "and not exists (select 1 from public.assessment_invites ai where ai.session_id = s.id) "
                     "group by ei.criterion_id, ei.criterion_name, e.rubric_version "
                     "order by ei.criterion_id"
                 ),

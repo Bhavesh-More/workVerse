@@ -36,11 +36,19 @@ def band(score: float | None) -> dict[str, str] | None:
     return None
 
 
-def candidate_status(inv: dict[str, Any]) -> str:
+def candidate_status(inv: dict[str, Any], assessment: dict[str, Any] | None = None) -> str:
+    """What the company sees for one person (see app.company.lifecycle for the candidate view)."""
     if inv.get("evaluation_status") == "completed":
         return "completed"
     if inv.get("session_id"):
-        return "in_progress"
+        return "submitted" if inv.get("session_status") in ("processing", "completed") else "in_progress"
+    st = inv.get("status") or "pending"
+    if st in ("revoked", "declined", "accepted"):
+        if st == "accepted" and assessment and _past(assessment):
+            return "missed"
+        return st
+    if assessment and (assessment.get("status") != "active" or _past(assessment)):
+        return "expired"
     if inv.get("opened_at"):
         return "opened"
     if inv.get("notified_at") or inv.get("email_status") == "sent":
@@ -48,9 +56,22 @@ def candidate_status(inv: dict[str, Any]) -> str:
     return "email_failed" if inv.get("email_status") == "failed" else "pending"
 
 
+def _past(a: dict[str, Any]) -> bool:
+    from datetime import UTC, datetime
+
+    due = a.get("due_at")
+    return bool(due and due <= datetime.now(UTC))
+
+
 STATUS_LABELS = {
     "completed": "Completed",
+    "submitted": "Submitted",
     "in_progress": "In progress",
+    "accepted": "Accepted",
+    "declined": "Declined",
+    "revoked": "Withdrawn",
+    "expired": "Expired",
+    "missed": "Missed deadline",
     "opened": "Opened invite",
     "invited": "Invited",
     "pending": "Not sent",
@@ -62,13 +83,13 @@ def _iso(v: Any) -> str | None:
     return v.isoformat() if v is not None and hasattr(v, "isoformat") else v
 
 
-def candidates(invites: list[dict[str, Any]], items: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def candidates(invites: list[dict[str, Any]], items: list[dict[str, Any]], assessment: dict[str, Any] | None = None) -> list[dict[str, Any]]:
     by_invite: dict[str, list[dict[str, Any]]] = {}
     for it in items:
         by_invite.setdefault(str(it["invite_id"]), []).append(it)
     out = []
     for inv in invites:
-        status = candidate_status(inv)
+        status = candidate_status(inv, assessment)
         score = float(inv["overall_score"]) if inv.get("overall_score") is not None and status == "completed" else None
         meta = inv.get("report_metadata") or {}
         conv = meta.get("conversation") or {}
@@ -96,6 +117,12 @@ def candidates(invites: list[dict[str, Any]], items: list[dict[str, Any]]) -> li
                 "email_status": inv.get("email_status"),
                 "email_error": inv.get("email_error"),
                 "channel": inv.get("channel") or "email",
+                "invitation": inv.get("status") or "pending",
+                "accepted_at": _iso(inv.get("accepted_at")),
+                "declined_at": _iso(inv.get("declined_at")),
+                "decline_reason": inv.get("decline_reason"),
+                "revoked_at": _iso(inv.get("revoked_at")),
+                "late": bool(assessment and assessment.get("due_at") and ended and ended > assessment["due_at"]),
                 "notified_at": _iso(inv.get("notified_at")),
                 "sent_at": _iso(inv.get("sent_at")),
                 "opened_at": _iso(inv.get("opened_at")),
@@ -125,6 +152,7 @@ def summary(rows: list[dict[str, Any]]) -> dict[str, Any]:
     funnel = [
         {"id": "invited", "label": "Invited", "count": sum(1 for r in rows if r["status"] not in ("pending", "email_failed"))},
         {"id": "opened", "label": "Opened invite", "count": sum(1 for r in rows if r["opened_at"] or r["session_id"])},
+        {"id": "accepted", "label": "Accepted", "count": sum(1 for r in rows if r.get("accepted_at") or r["session_id"])},
         {"id": "started", "label": "Started", "count": sum(1 for r in rows if r["session_id"])},
         {"id": "completed", "label": "Completed", "count": len(done)},
     ]

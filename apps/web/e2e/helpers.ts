@@ -29,3 +29,20 @@ export async function companyPage(browser: Browser, request: APIRequestContext, 
   }
   throw new Error("Could not find a test account without a company.");
 }
+
+/**
+ * On a company assessment briefing (/assessments/<id>): accept the invitation if it's pending,
+ * then start through the confirmation. Ends on the scenario briefing (/briefing/...?session=).
+ */
+export async function acceptAndStart(page: import("@playwright/test").Page) {
+  const { expect } = await import("@playwright/test");
+  await expect(page).toHaveURL(/\/assessments\/[0-9a-f-]+$/, { timeout: 60_000 });
+  await page.getByTestId("next-step").waitFor({ timeout: 60_000 });
+  if (await page.getByTestId("accept-invitation").count()) {
+    await page.getByTestId("accept-invitation").click();
+    await expect(page.getByTestId("start-assessment")).toBeVisible({ timeout: 30_000 });
+  }
+  await page.getByTestId("start-assessment").click();
+  await page.getByTestId("confirm-start").click();
+  await expect(page).toHaveURL(/\/briefing\/.*session=/, { timeout: 120_000 });
+}

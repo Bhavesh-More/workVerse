@@ -1,12 +1,15 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { CompanyGate } from "../../../../../components/CompanyGate";
 import { FormError } from "../../../../../components/AuthShell";
 import { BandDot, BandStack, FunnelChart, HistogramChart, RankingBars, SkillBars } from "../../../../../components/CompanyCharts";
-import { companyApi, parseCandidates, type AssessmentDetail, type Candidate, type InviteChannel, type InviteResult } from "../../../../../lib/company";
+import { BriefFields, DeadlineField, SKILL_OPTIONS } from "../../../../../components/company/AssessmentFields";
+import { CandidateEntry, type Person } from "../../../../../components/company/CandidateEntry";
+import { STATUS_FILTERS, STATUS_ORDER, companyApi, statusBadge, type AssessmentDetail, type AssessmentFields, type InviteChannel, type InviteResult } from "../../../../../lib/company";
+import { formatWhen, relative, zoneAbbr } from "../../../../../lib/time";
 import { useApi } from "../../../../../lib/useApi";
 
 export default function AssessmentPage() {
@@ -19,6 +22,8 @@ function Assessment() {
   const { data, error, setData } = useApi(key, () => companyApi.assessment(assessmentId));
   const [busy, setBusy] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [editing, setEditing] = useState(false);
+  const [confirmClose, setConfirmClose] = useState(false);
 
   const reload = async () => setData(await companyApi.assessment(assessmentId));
 
@@ -47,6 +52,16 @@ function Assessment() {
             {a.topic_title} · <span className={`badge${a.status === "active" ? " badge--ok" : ""}`}>{a.status}</span>
           </span>
           <h1 className="page-title">{a.title}</h1>
+          <p className="small" style={{ margin: 0 }} data-testid="assessment-deadline">
+            {a.due_at ? (
+              <>
+                <b>Due {formatWhen(a.due_at, a.timezone, true)} {zoneAbbr(a.due_at, a.timezone)}</b>{" "}
+                <span className={a.past_due ? "jr-err" : "muted"}>· {a.past_due ? `passed ${relative(a.due_at)}` : relative(a.due_at)}</span>
+              </>
+            ) : (
+              <span className="muted">No deadline</span>
+            )}
+          </p>
         </div>
         <div className="co-actions">
           <button className="btn btn--ghost" disabled={busy !== null} onClick={() => run("csv", () => companyApi.downloadCsv(a.id))} data-testid="export-csv">
@@ -55,22 +70,38 @@ function Assessment() {
           <button className="btn" disabled={busy !== null} onClick={() => run("pdf", () => companyApi.downloadPdf(a.id))} data-testid="export-pdf">
             {busy === "pdf" ? <span className="busy-dots">Building PDF</span> : "Export PDF report"}
           </button>
-          <button
-            className="btn btn--ghost"
-            disabled={busy !== null}
-            onClick={() => run("status", async () => {
-              await companyApi.setStatus(a.id, a.status === "active" ? "closed" : "active");
-              await reload();
-            })}
-          >
-            {a.status === "active" ? "Close" : "Reopen"}
-          </button>
+          <button className="btn btn--ghost" disabled={busy !== null} onClick={() => setEditing(true)} data-testid="edit-assessment">Edit details</button>
+          {a.status === "active" ? (
+            <button className="btn btn--ghost" disabled={busy !== null} onClick={() => setConfirmClose(true)} data-testid="withdraw-assessment">Withdraw</button>
+          ) : (
+            <button className="btn btn--ghost" disabled={busy !== null} onClick={() => run("status", async () => { await companyApi.setStatus(a.id, "active"); await reload(); })}>Reopen</button>
+          )}
         </div>
       </div>
       <FormError message={actionError} />
+      {confirmClose && (
+        <div className="banner banner--warn jr-confirm" role="alert" data-testid="withdraw-confirm">
+          <span>
+            Withdraw this assessment? People who haven&apos;t started can no longer accept or start it, and they&apos;ll be told. Anyone already in
+            the middle can finish, and finished reports stay.
+          </span>
+          <span className="row" style={{ gap: 8 }}>
+            <button className="btn btn--small" onClick={() => run("status", async () => { await companyApi.setStatus(a.id, "closed"); setConfirmClose(false); await reload(); })} data-testid="withdraw-yes">Withdraw</button>
+            <button className="btn btn--ghost btn--small" onClick={() => setConfirmClose(false)}>Keep it open</button>
+          </span>
+        </div>
+      )}
+      {editing && <EditDialog detail={data} onClose={() => setEditing(false)} onSaved={async () => { setEditing(false); await reload(); }} />}
+      <Brief detail={data} />
 
       <div className="co-kpis">
-        <div className="card"><span className="eyebrow">Invited</span><p className="stat" data-testid="kpi-invited">{sm.total}</p></div>
+        <div className="card">
+          <span className="eyebrow">Invited</span>
+          <p className="stat" data-testid="kpi-invited">{sm.total}</p>
+          <p className="xsmall muted" data-testid="kpi-responses">
+            {data.candidates.filter((c) => c.accepted_at || c.session_id).length} accepted · {data.candidates.filter((c) => c.invitation === "declined").length} declined
+          </p>
+        </div>
         <div className="card">
           <span className="eyebrow">Completed</span>
           <p className="stat" data-testid="kpi-completed">{sm.completed}</p>
@@ -133,41 +164,23 @@ function RankingPanel({ detail }: { detail: AssessmentDetail }) {
 }
 
 function InvitePanel({ detail, onDone }: { detail: AssessmentDetail; onDone: () => Promise<void> }) {
-  const [tab, setTab] = useState<"manual" | "paste" | "csv">("manual");
-  const [rows, setRows] = useState([{ name: "", email: "" }]);
-  const [paste, setPaste] = useState("");
-  const [csv, setCsv] = useState<{ file: string; text: string } | null>(null);
-  const [over, setOver] = useState(false);
+  const [people, setPeople] = useState<Person[]>([]);
+  const [reset, setReset] = useState(0);
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState<InviteResult | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const [channel, setChannel] = useState<InviteChannel>("app");
   const needsSmtp = channel !== "app";
-  const [error, setError] = useState<string | null>(null);
-  const fileRef = useRef<HTMLInputElement>(null);
-
-  const parsed = useMemo(() => {
-    if (tab === "manual") return parseCandidates(rows.filter((r) => r.email.trim()).map((r) => `${r.name} <${r.email.trim()}>`).join("\n"));
-    if (tab === "paste") return parseCandidates(paste);
-    return csv ? parseCandidates(csv.text) : [];
-  }, [tab, rows, paste, csv]);
-
-  const readFile = async (f: File | undefined) => {
-    if (!f) return;
-    setCsv({ file: f.name, text: await f.text() });
-  };
+  const a = detail.assessment;
 
   const send = async () => {
     setBusy(true);
     setError(null);
     setResult(null);
     try {
-      const res = await companyApi.invite(detail.assessment.id, parsed, channel);
+      const res = await companyApi.invite(a.id, people, channel);
       setResult(res);
-      if (res.sent) {
-        setRows([{ name: "", email: "" }]);
-        setPaste("");
-        setCsv(null);
-      }
+      if (res.sent) setReset((r) => r + 1);
       await onDone();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not send invites.");
@@ -176,13 +189,19 @@ function InvitePanel({ detail, onDone }: { detail: AssessmentDetail; onDone: () 
     }
   };
 
+  if (a.past_due)
+    return (
+      <section className="card stack co-section" style={{ marginTop: 0 }}>
+        <h2 className="section-title" style={{ margin: 0 }}>Invite candidates</h2>
+        <p className="small muted" style={{ margin: 0 }}>The deadline has passed. Move the due date (Edit details) to invite more people.</p>
+      </section>
+    );
+
   return (
     <section className="card stack co-section" style={{ marginTop: 0 }}>
-      <div className="row between">
-        <div>
-          <h2 className="section-title">Invite candidates</h2>
-          <p className="small muted">Each candidate gets a personal assessment link. Already-invited emails are skipped.</p>
-        </div>
+      <div>
+        <h2 className="section-title">Invite candidates</h2>
+        <p className="small muted">Each candidate gets a personal invitation they can accept or decline. Already-invited emails are skipped; inviting someone who declined or was withdrawn sends a fresh invitation.</p>
       </div>
       <fieldset className="co-channel" style={{ border: 0, padding: 0, margin: 0 }}>
         <legend className="eyebrow" style={{ marginBottom: 8 }}>Deliver</legend>
@@ -211,94 +230,96 @@ function InvitePanel({ detail, onDone }: { detail: AssessmentDetail; onDone: () 
           SMTP isn&apos;t set up yet, so invites can&apos;t be emailed. <Link className="text-link" href="/company/settings">Add your SMTP server →</Link>
         </div>
       )}
-      <div className="co-tabs" role="tablist">
-        {(
-          [
-            ["manual", "Type"],
-            ["paste", "Paste list"],
-            ["csv", "Upload CSV"],
-          ] as const
-        ).map(([id, label]) => (
-          <button key={id} type="button" role="tab" aria-selected={tab === id} onClick={() => setTab(id)}>
-            {label}
-          </button>
-        ))}
-      </div>
-
-      {tab === "manual" && (
-        <div className="stack--sm stack">
-          {rows.map((r, i) => (
-            <div key={i} className="co-manual-row">
-              <input className="input" aria-label={`Candidate ${i + 1} name`} placeholder="Full name (optional)" value={r.name} onChange={(e) => setRows(rows.map((x, j) => (j === i ? { ...x, name: e.target.value } : x)))} />
-              <input className="input" type="email" aria-label={`Candidate ${i + 1} email`} placeholder="email@example.com" value={r.email} onChange={(e) => setRows(rows.map((x, j) => (j === i ? { ...x, email: e.target.value } : x)))} />
-              <button type="button" className="btn btn--ghost btn--small" aria-label="Remove row" disabled={rows.length === 1} onClick={() => setRows(rows.filter((_, j) => j !== i))}>✕</button>
-            </div>
-          ))}
-          <button type="button" className="btn btn--ghost btn--small" style={{ justifySelf: "start" }} onClick={() => setRows([...rows, { name: "", email: "" }])}>+ Add another</button>
-        </div>
-      )}
-      {tab === "paste" && (
-        <div className="field">
-          <label htmlFor="invite-paste">Emails</label>
-          <textarea
-            id="invite-paste"
-            className="textarea"
-            rows={6}
-            placeholder={"One per line, or separated by commas:\nAsha Patel <asha@example.com>\nben@example.com, chen@example.com"}
-            value={paste}
-            onChange={(e) => setPaste(e.target.value)}
-          />
-        </div>
-      )}
-      {tab === "csv" && (
-        <div
-          className={`co-dropzone${over ? " is-over" : ""}`}
-          onClick={() => fileRef.current?.click()}
-          onDragOver={(e) => {
-            e.preventDefault();
-            setOver(true);
-          }}
-          onDragLeave={() => setOver(false)}
-          onDrop={(e) => {
-            e.preventDefault();
-            setOver(false);
-            void readFile(e.dataTransfer.files[0]);
-          }}
-        >
-          <input ref={fileRef} type="file" accept=".csv,text/csv,text/plain" hidden data-testid="csv-input" onChange={(e) => void readFile(e.target.files?.[0])} />
-          <p><strong>{csv ? csv.file : "Drop a CSV here or click to choose"}</strong></p>
-          <p className="xsmall muted">Needs an <span className="mono">email</span> column; <span className="mono">name</span> (or first/last name) is optional.</p>
-        </div>
-      )}
-
-      {parsed.length > 0 && (
-        <div className="stack--sm stack">
-          <span className="eyebrow" style={{ marginBottom: 0 }}>{parsed.length} candidate{parsed.length === 1 ? "" : "s"} ready</span>
-          <div className="co-preview">
-            {parsed.map((p) => (
-              <span key={p.email} className="chip chip--static">{p.name ? `${p.name} · ` : ""}{p.email}</span>
-            ))}
-          </div>
-        </div>
-      )}
+      <CandidateEntry onChange={setPeople} resetKey={reset} />
       <FormError message={error} />
       {result && (
-        <div className={`banner ${result.failed.length ? "banner--error" : "banner--info"}`} role="status" data-testid="invite-result">
+        <div className={`banner ${result.failed.length || result.email_failed?.length ? "banner--error" : "banner--info"}`} role="status" data-testid="invite-result">
           <span>
             {result.channel === "app" ? "Delivered" : "Sent"} {result.sent} invite{result.sent === 1 ? "" : "s"}{result.channel === "app" ? " in WorkVerse" : result.channel === "both" ? " (app + email)" : ""}.
             {(result.awaiting_signup?.length ?? 0) > 0 && ` ${result.awaiting_signup!.length} ${result.awaiting_signup!.length === 1 ? "person doesn't" : "people don't"} have an account yet and will see it when they sign up.`}
             {result.already_invited.length > 0 && ` ${result.already_invited.length} already invited.`}
             {result.invalid.length > 0 && ` Invalid: ${result.invalid.join(", ")}.`}
+            {result.channel === "both" && (result.email_failed?.length ?? 0) > 0 && ` Email not sent to ${result.email_failed!.map((f) => f.email).join(", ")} (${result.email_failed![0]!.error}); they still have it in WorkVerse.`}
             {result.failed.length > 0 && ` Failed: ${result.failed.map((f) => `${f.email} (${f.error})`).join("; ")}`}
           </span>
         </div>
       )}
       <div>
-        <button className="btn" onClick={send} disabled={busy || !parsed.length} data-testid="send-invites">
-          {busy ? <span className="busy-dots">Sending</span> : `Send ${parsed.length || ""} invite${parsed.length === 1 ? "" : "s"}`}
+        <button className="btn" onClick={send} disabled={busy || !people.length} data-testid="send-invites">
+          {busy ? <span className="busy-dots">Sending</span> : `Send ${people.length || ""} invite${people.length === 1 ? "" : "s"}`}
         </button>
       </div>
     </section>
+  );
+}
+
+function Brief({ detail }: { detail: AssessmentDetail }) {
+  const a = detail.assessment;
+  const skills = SKILL_OPTIONS.filter((s) => a.skills.includes(s.id));
+  const empty = !a.description && !a.expectations && !a.instructions;
+  return (
+    <details className="card co-brief" open={!empty} data-testid="assessment-brief">
+      <summary>
+        <span className="eyebrow" style={{ margin: 0 }}>What candidates see on their briefing</span>
+      </summary>
+      <div className="co-brief__grid">
+        <div>
+          <span className="eyebrow">Description</span>
+          <p className="small">{a.description || <span className="muted">Not written — the topic&apos;s description is shown.</span>}</p>
+        </div>
+        <div>
+          <span className="eyebrow">What you&apos;re looking for</span>
+          <p className="small">{a.expectations || <span className="muted">Not written.</span>}</p>
+        </div>
+        <div>
+          <span className="eyebrow">Skills emphasised</span>
+          <p className="small">{skills.length ? skills.map((s) => s.name).join(", ") : <span className="muted">All five equally.</span>}</p>
+        </div>
+        <div>
+          <span className="eyebrow">Instructions</span>
+          <p className="small" style={{ whiteSpace: "pre-line" }}>{a.instructions || <span className="muted">None.</span>}</p>
+        </div>
+      </div>
+    </details>
+  );
+}
+
+function EditDialog({ detail, onClose, onSaved }: { detail: AssessmentDetail; onClose: () => void; onSaved: () => Promise<void> }) {
+  const a = detail.assessment;
+  const [title, setTitle] = useState(a.title);
+  const [fields, setFields] = useState<AssessmentFields>({ description: a.description, expectations: a.expectations, instructions: a.instructions, skills: a.skills, due_at: a.due_at, timezone: a.timezone });
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const dueChanged = fields.due_at !== a.due_at;
+  const save = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      await companyApi.updateAssessment(a.id, { title: title.trim(), ...fields });
+      await onSaved();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not save.");
+      setBusy(false);
+    }
+  };
+  return (
+    <div className="we-modal" role="dialog" aria-modal="true" aria-label="Edit assessment" onClick={onClose}>
+      <div className="we-modal__card co-edit" onClick={(e) => e.stopPropagation()} data-testid="edit-dialog">
+        <h2 className="section-title" style={{ marginTop: 0 }}>Edit assessment</h2>
+        <div className="field">
+          <label htmlFor="ed-title">Title</label>
+          <input id="ed-title" className="input" value={title} maxLength={160} onChange={(e) => setTitle(e.target.value)} />
+        </div>
+        <BriefFields idPrefix="ed" value={fields} onChange={(p) => setFields((f) => ({ ...f, ...p }))} />
+        <DeadlineField idPrefix="ed" dueAt={fields.due_at} timezone={fields.timezone} onChange={(v) => setFields((f) => ({ ...f, ...v }))} />
+        {dueChanged && <p className="xsmall muted" data-testid="due-change-note">Everyone who hasn&apos;t finished will be notified of the new deadline.</p>}
+        <FormError message={error} />
+        <div className="we-actions" style={{ display: "flex", gap: 10 }}>
+          <button className="btn" onClick={save} disabled={busy || !title.trim()} data-testid="save-assessment">{busy ? <span className="busy-dots">Saving</span> : "Save changes"}</button>
+          <button className="btn btn--ghost" onClick={onClose} disabled={busy}>Cancel</button>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -317,7 +338,7 @@ function CandidateTable({
 }) {
   const [sort, setSort] = useState<SortKey>("score");
   const [filter, setFilter] = useState("all");
-  const order: Record<Candidate["status"], number> = { completed: 0, in_progress: 1, opened: 2, invited: 3, pending: 4, email_failed: 5 };
+  const order = STATUS_ORDER;
   const rows = detail.candidates
     .filter((c) => filter === "all" || c.status === filter)
     .sort((x, y) =>
@@ -331,11 +352,9 @@ function CandidateTable({
         <h2 className="section-title">Candidates ({detail.candidates.length})</h2>
         <select className="select" style={{ width: "auto" }} aria-label="Filter by status" value={filter} onChange={(e) => setFilter(e.target.value)}>
           <option value="all">All statuses</option>
-          <option value="completed">Completed</option>
-          <option value="in_progress">In progress</option>
-          <option value="opened">Opened invite</option>
-          <option value="invited">Invited</option>
-          <option value="email_failed">Email failed</option>
+          {STATUS_FILTERS.filter(([id]) => detail.candidates.some((c) => c.status === id)).map(([id, label]) => (
+            <option key={id} value={id}>{label}</option>
+          ))}
         </select>
       </div>
       {detail.candidates.length === 0 ? (
@@ -363,9 +382,16 @@ function CandidateTable({
                     <span className="xsmall muted">{c.email}</span>
                   </td>
                   <td>
-                    <span className={`badge${c.status === "completed" ? " badge--ok" : c.status === "email_failed" ? " badge--warn" : c.status === "in_progress" ? " badge--active" : ""}`} title={c.email_error ?? undefined}>
+                    <span className={statusBadge(c.status)} title={c.email_error ?? undefined} data-testid={`status-${c.email}`}>
                       {c.status_label}
                     </span>
+                    {c.late && <span className="badge badge--warn" style={{ marginLeft: 4 }}>Late</span>}
+                    {c.status === "declined" && c.decline_reason && (
+                      <>
+                        <br />
+                        <span className="xsmall muted">&ldquo;{c.decline_reason}&rdquo;</span>
+                      </>
+                    )}
                     <br />
                     <span className="xsmall muted" data-testid="invite-channel">{c.channel === "app" ? "via WorkVerse" : c.channel === "both" ? "via app + email" : "via email"}</span>
                   </td>
@@ -378,20 +404,24 @@ function CandidateTable({
                       <Link className="btn btn--ghost btn--small" href={`${base}/candidates/${c.id}`}>View report</Link>
                     ) : (
                       <>
-                        <button className="btn btn--ghost btn--small" disabled={busy !== null} onClick={() => run(`resend-${c.id}`, async () => {
-                          const res = await companyApi.resend(detail.assessment.id, c.id);
-                          if (!res.ok) throw new Error(`Resend failed: ${res.error}`);
-                          await reload();
-                        })}>
-                          {busy === `resend-${c.id}` ? "…" : "Resend"}
-                        </button>{" "}
-                        <button className="btn btn--ghost btn--small" aria-label={`Remove ${c.email}`} disabled={busy !== null} onClick={() => run(`rm-${c.id}`, async () => {
-                          if (!window.confirm(`Remove ${c.email} from this assessment?`)) return;
-                          await companyApi.removeInvite(detail.assessment.id, c.id);
-                          await reload();
-                        })}>
-                          ✕
-                        </button>
+                        {["pending", "invited", "opened", "email_failed", "accepted"].includes(c.status) && (
+                          <button className="btn btn--ghost btn--small" disabled={busy !== null} onClick={() => run(`resend-${c.id}`, async () => {
+                            const res = await companyApi.resend(detail.assessment.id, c.id);
+                            if (!res.ok) throw new Error(`Resend failed: ${res.error}`);
+                            await reload();
+                          })}>
+                            {busy === `resend-${c.id}` ? "…" : "Resend"}
+                          </button>
+                        )}{" "}
+                        {["invited", "opened", "accepted", "pending", "email_failed"].includes(c.status) && (
+                          <button className="btn btn--ghost btn--small" aria-label={`Withdraw ${c.email}`} disabled={busy !== null} data-testid={`revoke-${c.email}`} onClick={() => run(`rm-${c.id}`, async () => {
+                            if (!window.confirm(`Withdraw the invitation for ${c.email}? They'll be told it's no longer available.`)) return;
+                            await companyApi.revoke(detail.assessment.id, c.id);
+                            await reload();
+                          })}>
+                            Withdraw
+                          </button>
+                        )}
                       </>
                     )}
                   </td>
