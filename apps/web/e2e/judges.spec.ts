@@ -140,9 +140,30 @@ test("company configures its own AI judges and a candidate meets them", async ({
   await expect(page.getByTestId("judge-item-0")).toContainText("Zara Quinn");
   await shot(page, "54-judges-page");
 
+  // Topics list every configured judge; this scenario leaves Mina out and tunes Lee.
+  await page.goto("/company/topics/new");
+  await page.getByLabel("Topic", { exact: true }).fill(`Initech on-call ${RUN}`);
+  await page.getByLabel("Description").fill("On-call incident.");
+  await expect(page.locator('[data-testid^="topic-judge-toggle-"]')).toHaveCount(6);
+  const mina = roster.find((j) => j.name === "Mina Park")!;
+  await expect(page.getByTestId(`topic-judge-${mina.id}`)).toContainText("Mina Park");
+  await page.getByTestId(`topic-judge-toggle-${mina.id}`).uncheck({ force: true });
+  await expect(page.getByTestId("topic-judge-summary")).toContainText("5 of 6 judges");
+  await page.getByTestId(`topic-judge-tune-${lee.id}`).click();
+  await page.getByTestId(`topic-judge-focus-${lee.id}`).fill("Checks whether the candidate reads the release diff first.");
+  await shot(page, "58-topic-judges");
+  await page.getByTestId("save-topic").click();
+  await expect(page).toHaveURL(/\/company\/topics\/[0-9a-f-]+/);
+  const topicId = /topics\/([0-9a-f-]+)/.exec(page.url())![1]!;
+  const savedTopic = (await api(page, request, "GET", `/company/topics/${topicId}`)).body;
+  expect(savedTopic.judge_ids).toHaveLength(5);
+  expect(savedTopic.judge_ids).not.toContain(mina.id);
+  expect(savedTopic.judges[lee.id].focus).toContain("release diff");
+  expect((await api(page, request, "PUT", `/company/topics/${topicId}`, { ...savedTopic, judge_ids: [] })).status).toBe(422);
+
   // A candidate invited now meets these judges, placed where the company put them.
   expect((await api(page, request, "PATCH", "/company", { smtp: { host: "127.0.0.1", port: 1025, security: "none", from_email: "hiring@initech.test", from_name: "Initech" } })).status).toBe(200);
-  const topic = await api(page, request, "POST", "/company/topics", { title: `Initech on-call ${RUN}`, description: "On-call incident.", track: "backend", difficulty: "standard", judges: {} });
+  const topic = { body: savedTopic };
   const assessment = await api(page, request, "POST", "/company/assessments", { topic_id: topic.body.id, title: `Initech round ${RUN}`, message: "" });
   const candidate = await testUser(request, { preferEmail: `e2e-judges-cand-${RUN}@gmail.com` });
   expect((await api(page, request, "POST", `/company/assessments/${assessment.body.id}/invites`, { candidates: [{ email: candidate.email, name: "Casey" }] })).body.sent).toBe(1);
@@ -169,13 +190,14 @@ test("company configures its own AI judges and a candidate meets them", async ({
     return (await fetch(`http://localhost:8000/api/v1/sessions/${sid}`, { headers: { Authorization: `Bearer ${t}` } })).json();
   }, sessionId);
   const chars = session.world.characters as { id: string; name: string; profile?: { voice?: string; portrait?: string } }[];
-  expect(chars.map((c) => c.name)).toEqual(expect.arrayContaining(["Zara Quinn", "Lee Roy", "Mina Park"]));
+  expect(chars.map((c) => c.name)).toEqual(expect.arrayContaining(["Zara Quinn", "Lee Roy"]));
+  expect(chars.some((c) => c.name === "Mina Park")).toBe(false); // left out of this topic
   expect(chars.find((c) => c.name === "Lee Roy")!.id).toBe("teammate_2");
   expect(chars.find((c) => c.name === "Zara Quinn")!.profile).toMatchObject({ voice: "tony" });
   expect(chars.find((c) => c.name === "Zara Quinn")!.profile!.portrait).toContain("amara-osei");
   expect(chars.some((c) => c.id === "coworker")).toBe(false);
   const refs = (session.world.map.doc.people as { ref: string }[]).map((p) => p.ref).filter((r) => r.startsWith("judge:"));
-  expect(refs.sort()).toEqual(chars.map((c) => `judge:${c.id}`).sort());
+  expect(refs.sort()).toEqual(chars.map((c) => `judge:${c.id}`).sort()); // Mina's placement is dropped too
 
   await cand.getByRole("button", { name: "Enter the office" }).click();
   await expect(cand).toHaveURL(/\/session\//, { timeout: 60_000 });

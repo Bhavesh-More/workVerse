@@ -191,12 +191,15 @@ test.describe("Company assessments", () => {
     await expect(co.getByLabel("Topic", { exact: true })).not.toHaveValue("");
     await expect(co.getByLabel("Description")).not.toHaveValue("");
     await co.getByLabel("Topic", { exact: true }).fill(`Backend on-call ${RUN}`);
-    const manager = co.getByTestId("judge-manager");
-    await expect(manager).toContainText("Amara Osei"); // the roster owns names; a topic tunes behaviour
+    // Every configured judge is listed; the roster owns names, a topic picks who joins and tunes behaviour.
+    await expect(co.locator('[data-testid^="topic-judge-toggle-"]')).toHaveCount(5);
+    const manager = co.getByTestId("topic-judge-manager");
+    await expect(manager).toContainText("Amara Osei");
+    await co.getByTestId("topic-judge-tune-manager").click();
     await manager.getByLabel("Tone").selectOption("blunt");
-    await manager.getByLabel("How demanding").fill("5");
+    await manager.getByLabel(/How demanding/).fill("5");
     await manager.getByLabel("What they probe for").fill("Never accepts an update without an ETA and an owner.");
-    await expect(co.getByTestId("judge-qa").getByText("company judge", { exact: true })).toBeVisible();
+    await expect(manager.getByText("Tuned")).toBeVisible();
     await shot(co, "04-topic-form");
     await co.getByTestId("save-topic").click();
     await expect(co).toHaveURL(/\/company\/topics\/[0-9a-f-]+/);
@@ -222,6 +225,7 @@ test.describe("Company assessments", () => {
     const U3_PASSWORD = `WorkVerse!${RUN}`;
     await setPassword(request, U3.id, U3_PASSWORD);
     const cand = (n: number) => ({ 1: U1.email, 2: U2.email, 3: U3.email } as Record<number, string>)[n] ?? `e2e-cand${n}-${RUN}@gmail.com`;
+    await co.getByTestId("channel-both").check(); // email (read from mailpit below) and in-app
     await co.getByLabel("Candidate 1 name").fill("Asha Patel");
     await co.getByLabel("Candidate 1 email").fill(cand(1));
     await co.getByRole("tab", { name: "Paste list" }).click();
