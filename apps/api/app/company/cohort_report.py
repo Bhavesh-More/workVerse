@@ -156,10 +156,13 @@ def insights(rows: list[dict[str, Any]], sm: dict[str, Any]) -> list[str]:
     scores = [r["score"] for r in done]
     advance = [r for r in done if (r["band"] or {}).get("label") in ("Strong", "Good")]
     out.append(f"<b>{len(advance)} of {len(done)}</b> who completed ({round(100 * len(advance) / len(done))}%) scored Strong or Good and are suggested to advance.")
+    if len(done) < 5:
+        out.append(f"Only <b>{len(done)}</b> candidate{'s have' if len(done) != 1 else ' has'} completed so far — treat these numbers as early signals, not a trend.")
     skills = [s for s in sm["skills"] if s["average"] is not None]
     if len(skills) >= 2:
         best = max(skills, key=lambda s: s["average"])
         worst = min(skills, key=lambda s: s["average"])
+    if len(skills) >= 2 and best["average"] - worst["average"] >= 5:
         out.append(f"Strongest skill across the group: <b>{_esc(best['name'])}</b> (avg {best['average']:.0f}); weakest: <b>{_esc(worst['name'])}</b> (avg {worst['average']:.0f}) — a good focus for interviews.")
     gap_counts: dict[str, int] = {}
     for r in done:
@@ -187,6 +190,33 @@ def _kpis(items: list[tuple[str, str, str]]) -> Table:
     cells = [[Paragraph(_esc(a).upper(), S["kpil"]), Paragraph(b, S["kpi"]), Paragraph(_esc(c), S["muted"])] for a, b, c in items]
     t = Table([cells], colWidths=[CONTENT_W / len(items)] * len(items))
     t.setStyle(TableStyle([("BACKGROUND", (0, 0), (-1, -1), colors.HexColor(MIST)), ("VALIGN", (0, 0), (-1, -1), "TOP"), ("LEFTPADDING", (0, 0), (-1, -1), 9), ("TOPPADDING", (0, 0), (-1, -1), 7), ("BOTTOMPADDING", (0, 0), (-1, -1), 8), ("LINEAFTER", (0, 0), (-2, -1), 2, colors.white)]))
+    return t
+
+
+def _by_assessment(rows: list[dict[str, Any]]) -> Table:
+    """Across several assessments: how each round is doing, busiest first (top 6)."""
+    groups: dict[str, list[dict[str, Any]]] = {}
+    for r in rows:
+        groups.setdefault(str(r.get("assessment_id")), []).append(r)
+    data = [[Paragraph(f"<b>{h}</b>", S["cell"]) for h in ("Assessment", "Invited", "Completed", "Median", "To advance")]]
+    ordered = sorted(groups.items(), key=lambda kv: -len(kv[1]))
+    for _, rs in ordered[:6]:
+        title = rs[0].get("assessment_title") or "Assessment"
+        done = [x["score"] for x in rs if x["status"] == "completed" and x["score"] is not None]
+        adv = sum(1 for x in rs if x["status"] == "completed" and (x["band"] or {}).get("label") in ("Strong", "Good"))
+        data.append([
+            Paragraph(f"<b>{_esc(title)}</b>", S["cell"]),
+            Paragraph(str(len(rs)), S["cell"]),
+            Paragraph(f"{len(done)} <font color='{MUTED}'>({round(100 * len(done) / len(rs))}%)</font>", S["cell"]),
+            Paragraph(f"{round(median(done), 1):g}" if done else "—", S["cell"]),
+            Paragraph(str(adv), S["cell"]),
+        ])
+    if len(ordered) > 6:
+        data.append([Paragraph(f"<font color='{MUTED}'>+ {len(ordered) - 6} more assessments in the detailed overview</font>", S["cell"]), "", "", "", ""])
+    inner = Table(data, colWidths=[CONTENT_W - 96 * mm, 20 * mm, 28 * mm, 22 * mm, 26 * mm])
+    t = Table([[Paragraph("By assessment", S["h3"])], [inner]], colWidths=[CONTENT_W])
+    inner.setStyle(TableStyle([("BACKGROUND", (0, 0), (-1, 0), colors.HexColor(MIST)), ("LINEBELOW", (0, 0), (-1, -1), 0.4, colors.HexColor(HAIR)), ("VALIGN", (0, 0), (-1, -1), "MIDDLE"), ("TOPPADDING", (0, 0), (-1, -1), 3), ("BOTTOMPADDING", (0, 0), (-1, -1), 3), ("LEFTPADDING", (0, 0), (-1, -1), 4)]))
+    t.setStyle(TableStyle([("LEFTPADDING", (0, 0), (-1, -1), 0), ("RIGHTPADDING", (0, 0), (-1, -1), 0), ("TOPPADDING", (0, 0), (-1, -1), 0), ("BOTTOMPADDING", (0, 0), (-1, -1), 0)]))
     return t
 
 
@@ -219,13 +249,13 @@ def build_cohort_summary(*, company: str, assessment: dict[str, Any], rows: list
     scores = [r["score"] for r in done]
     bands = {label: sum(1 for r in done if (r["band"] or {}).get("label") == label) for label in BAND_ORDER}
     advance = bands["Strong"] + bands["Good"]
-    med = f"{median(scores):g}" if scores else "—"
+    med = f"{round(median(scores), 1):g}" if scores else "—"
 
     content: list[Any] = [
         Paragraph(f"{_esc(company).upper()} · GROUP SUMMARY · {datetime.now(UTC).strftime('%d %b %Y').upper()}", S["eyebrow"]),
         Spacer(1, 3),
         Paragraph(_esc(title), S["h1"]),
-        Paragraph(f"Topic: {_esc(assessment.get('topic_title'))} · {sm['total']} invited · {sm['completed']} completed", S["muted"]),
+        Paragraph(f"{_esc(assessment.get('subtitle') or 'Topic: ' + str(assessment.get('topic_title') or ''))} · {sm['total']} invited · {sm['completed']} completed", S["muted"]),
         Spacer(1, 8),
         _kpis(
             [
@@ -254,14 +284,25 @@ def build_cohort_summary(*, company: str, assessment: dict[str, Any], rows: list
         content += [_grid(left, right), Spacer(1, 8)]
 
         skills = [Paragraph("Skills across the group", S["h3"]), Paragraph("Dot = average · grey bar = middle half of candidates.", S["muted"]), _png(_skills_spread(done), half)]
-        top = done[:8]
+        multi = len({r.get("assessment_id") for r in rows if r.get("assessment_id")}) > 1
+        top = done[: 6 if multi else 8]
         data = [[Paragraph(f"<b>{h}</b>", S["cell"]) for h in ("#", "Candidate", "Score", "Band")]]
-        data += [[Paragraph(str(i), S["cell"]), Paragraph(f"<b>{_esc(r['name'])}</b>", S["cell"]), Paragraph(f"<b>{r['score']:g}</b>", S["cell"]), Paragraph(_band_pill((r["band"] or {}).get("label")), S["cell"])] for i, r in enumerate(top, 1)]
+        data += [
+            [
+                Paragraph(str(i), S["cell"]),
+                Paragraph(f"<b>{_esc(r['name'])}</b>" + (f"<br/><font size=6.5 color='{MUTED}'>{_esc(r.get('assessment_title'))}</font>" if multi else ""), S["cell"]),
+                Paragraph(f"<b>{r['score']:g}</b>", S["cell"]),
+                Paragraph(_band_pill((r["band"] or {}).get("label")), S["cell"]),
+            ]
+            for i, r in enumerate(top, 1)
+        ]
         tt = Table(data, colWidths=[6 * mm, half - 46 * mm, 14 * mm, 26 * mm])
         tt.setStyle(TableStyle([("BACKGROUND", (0, 0), (-1, 0), colors.HexColor(MIST)), ("LINEBELOW", (0, 0), (-1, -1), 0.4, colors.HexColor(HAIR)), ("VALIGN", (0, 0), (-1, -1), "MIDDLE"), ("TOPPADDING", (0, 0), (-1, -1), 3), ("BOTTOMPADDING", (0, 0), (-1, -1), 3), ("LEFTPADDING", (0, 0), (-1, -1), 4)]))
         more = len(done) - len(top)
         shortlist = [Paragraph(f"Top {len(top)} of {len(done)}", S["h3"]), tt] + ([Paragraph(f"+ {more} more in the detailed overview.", S["muted"])] if more > 0 else [])
         content += [_grid(skills, shortlist), Spacer(1, 8)]
+        if multi:
+            content += [_by_assessment(rows), Spacer(1, 8)]
 
     box = Table([[[Paragraph("KEY INSIGHTS", S["kpil"]), Spacer(1, 3), *[Paragraph(f"• {line}", S["body"]) for line in insights(rows, sm)]]]], colWidths=[CONTENT_W])
     box.setStyle(TableStyle([("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#fff8dc")), ("LEFTPADDING", (0, 0), (-1, -1), 12), ("RIGHTPADDING", (0, 0), (-1, -1), 12), ("TOPPADDING", (0, 0), (-1, -1), 8), ("BOTTOMPADDING", (0, 0), (-1, -1), 10)]))

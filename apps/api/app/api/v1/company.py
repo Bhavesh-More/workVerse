@@ -764,22 +764,26 @@ async def all_candidates_csv(principal: CurrentUser, crepo: CRepo) -> Response:
 
 
 @router.get("/company/candidates.pdf")
-async def all_candidates_pdf(principal: CurrentUser, crepo: CRepo) -> Response:
+async def all_candidates_pdf(principal: CurrentUser, crepo: CRepo, kind: Literal["summary", "detailed"] = "detailed") -> Response:
+    """Everyone across every assessment: a one-page summary, or the detailed overview."""
     import asyncio
+
+    from app.company.cohort_report import build_cohort_summary
 
     company, rows = await _all_candidates(principal, crepo)
     rounds = len({r["assessment_id"] for r in rows})
+    label = f"{rounds} assessment{'s' if rounds != 1 else ''}"
     pdf = await asyncio.to_thread(
-        build_pdf,
+        build_cohort_summary if kind == "summary" else build_pdf,
         company=company["name"],
-        assessment={"title": "All candidates", "topic_title": f"{rounds} assessment{'s' if rounds != 1 else ''}"},
+        assessment={"title": "All candidates", "topic_title": label, "subtitle": f"Across {label}"},
         rows=rows,
         sm=analytics.summary(rows),
     )
     return Response(
         content=pdf,
         media_type="application/pdf",
-        headers={"Content-Disposition": f'attachment; filename="{_slug(company["name"])}-all-candidates.pdf"'},
+        headers={"Content-Disposition": f'attachment; filename="{_slug(company["name"])}-all-candidates-{"summary" if kind == "summary" else "overview"}.pdf"'},
     )
 
 

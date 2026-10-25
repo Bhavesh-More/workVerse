@@ -388,14 +388,26 @@ test.describe("Company assessments", () => {
     await co.getByLabel("Filter by status").selectOption("completed");
     await expect(co.getByTestId("all-candidates-table").locator("tbody tr")).toHaveCount(2);
     await shot(co, "10-all-candidates");
-    for (const [testId, ext] of [["export-all-csv", "csv"], ["export-all-pdf", "pdf"]] as const) {
+    {
       const dl = co.waitForEvent("download", { timeout: 120_000 });
-      await co.getByTestId(testId).click();
-      const target = path.join(SHOTS, `all-candidates.${ext}`);
+      await co.getByTestId("export-all-csv").click();
+      const target = path.join(SHOTS, "all-candidates.csv");
       await (await dl).saveAs(target);
-      const head = fs.readFileSync(target).subarray(0, 64).toString("utf8");
-      if (ext === "csv") expect(head).toContain("Rank,Assessment,Name");
-      else expect(head.startsWith("%PDF")).toBeTruthy();
+      expect(fs.readFileSync(target).subarray(0, 64).toString("utf8")).toContain("Rank,Assessment,Name");
+    }
+    // Everyone's reports: a one-page summary and the detailed overview.
+    for (const [kind, name] of [["summary", "all-summary.pdf"], ["detailed", "all-detailed.pdf"]] as const) {
+      await co.getByTestId("export-all-pdf").click();
+      await expect(co.getByTestId("group-report-dialog")).toBeVisible();
+      await co.getByTestId(`group-kind-${kind}`).click();
+      if (kind === "summary") await shot(co, "10b-all-candidates-reports");
+      const dl = co.waitForEvent("download", { timeout: 180_000 });
+      await co.getByTestId("group-download").click();
+      const target = path.join(SHOTS, name);
+      await (await dl).saveAs(target);
+      expect(fs.readFileSync(target).subarray(0, 4).toString()).toBe("%PDF");
+      if (kind === "summary") expect(pdfPages(target)).toBe(1);
+      else expect(pdfPages(target)).toBeGreaterThanOrEqual(4);
     }
 
     // Overview reflects the round

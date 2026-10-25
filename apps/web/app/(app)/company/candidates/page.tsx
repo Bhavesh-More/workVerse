@@ -7,6 +7,7 @@ import { FormError } from "../../../../components/AuthShell";
 import { BandDot, BandStack, FunnelChart, SkillBars } from "../../../../components/CompanyCharts";
 import { STATUS_FILTERS, STATUS_ORDER, companyApi, statusBadge, type CompanyCandidate } from "../../../../lib/company";
 import { useApi } from "../../../../lib/useApi";
+import { GroupPdfDialog } from "../../../../components/company/ReportExport";
 
 export default function CandidatesPage() {
   return <CompanyGate>{() => <Candidates />}</CompanyGate>;
@@ -45,11 +46,12 @@ function Candidates() {
       );
   }, [all, query, status, band, round, sort]);
 
-  const exportFile = async (kind: "csv" | "pdf") => {
+  const [pdfOpen, setPdfOpen] = useState(false);
+  const exportFile = async (kind: "csv") => {
     setBusy(kind);
     setActionError(null);
     try {
-      await (kind === "csv" ? companyApi.downloadAllCsv() : companyApi.downloadAllPdf());
+      await companyApi.downloadAllCsv();
     } catch (err) {
       setActionError(err instanceof Error ? err.message : "Export failed.");
     } finally {
@@ -66,6 +68,14 @@ function Candidates() {
 
   return (
     <main className="app-main">
+      {pdfOpen && (
+        <GroupPdfDialog
+          title="Download reports"
+          subtitle={`Everyone you've assessed · ${new Set(all.map((c) => c.assessment_id)).size} assessment${new Set(all.map((c) => c.assessment_id)).size === 1 ? "" : "s"}`}
+          onDownload={(kind) => companyApi.downloadAllPdf(kind)}
+          onClose={() => setPdfOpen(false)}
+        />
+      )}
       <div className="co-head">
         <div>
           <span className="eyebrow">Candidates · all assessments</span>
@@ -77,8 +87,8 @@ function Candidates() {
           <button className="btn btn--ghost" disabled={busy !== null || !all.length} onClick={() => exportFile("csv")} data-testid="export-all-csv">
             {busy === "csv" ? <span className="busy-dots">Exporting</span> : "Export CSV"}
           </button>
-          <button className="btn" disabled={busy !== null || !all.length} onClick={() => exportFile("pdf")} data-testid="export-all-pdf">
-            {busy === "pdf" ? <span className="busy-dots">Building PDF</span> : "Export PDF report"}
+          <button className="btn" disabled={busy !== null || !all.length} onClick={() => setPdfOpen(true)} data-testid="export-all-pdf">
+            Download reports
           </button>
         </div>
       </div>

@@ -246,3 +246,76 @@ function KindIcon({ kind }: { kind: ReportKind }) {
     </svg>
   );
 }
+
+/** The two whole-group PDFs (summary on one page, or the detailed overview), for a list of candidates. */
+export function GroupPdfDialog({
+  title,
+  subtitle,
+  onDownload,
+  onClose,
+}: {
+  title: string;
+  subtitle: string;
+  onDownload: (kind: "summary" | "detailed") => Promise<void>;
+  onClose: () => void;
+}) {
+  const [kind, setKind] = useState<"summary" | "detailed">("summary");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    const k = (e: KeyboardEvent) => e.key === "Escape" && !busy && onClose();
+    window.addEventListener("keydown", k);
+    return () => window.removeEventListener("keydown", k);
+  }, [busy, onClose]);
+  const options = [
+    { id: "summary" as const, icon: "group-summary" as ReportKind, title: "Summary · 1 page", blurb: "Everyone on one page: key numbers, score distribution, bands, pipeline, skill spread, top candidates, a per-assessment breakdown and key insights." },
+    { id: "detailed" as const, icon: "group-detailed" as ReportKind, title: "Detailed overview", blurb: "Every chart and the full ranking of everyone, with a page per completed candidate and how to read the scores." },
+  ];
+  const go = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      await onDownload(kind);
+      onClose();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not build the report.");
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <div className="we-modal" role="dialog" aria-modal="true" aria-labelledby="gx-title" onClick={() => !busy && onClose()}>
+      <div className="we-modal__card rx" onClick={(e) => e.stopPropagation()} data-testid="group-report-dialog">
+        <div className="rx__head">
+          <div>
+            <span className="eyebrow" style={{ margin: 0 }}>{subtitle}</span>
+            <h2 id="gx-title" className="section-title" style={{ margin: "4px 0 0" }}>{title}</h2>
+          </div>
+          <button type="button" className="nt-popup__x" aria-label="Close" onClick={onClose} disabled={busy}>✕</button>
+        </div>
+        <div className="rx__pair">
+          {options.map((o) => (
+            <label key={o.id} className={`rx__kind${kind === o.id ? " is-on" : ""}`} data-testid={`group-kind-${o.id}`}>
+              <input type="radio" name="gx-kind" checked={kind === o.id} onChange={() => setKind(o.id)} />
+              <KindIcon kind={o.icon} />
+              <span>
+                <strong>{o.title}</strong>
+                <span className="xsmall muted">{o.blurb}</span>
+              </span>
+            </label>
+          ))}
+        </div>
+        {error && <div className="banner banner--error small" role="alert">{error}</div>}
+        <div className="rx__foot">
+          <span className="small muted">One PDF · {kind === "summary" ? "1 page" : "several pages"}</span>
+          <span className="row" style={{ gap: 8 }}>
+            <button type="button" className="btn btn--ghost" onClick={onClose} disabled={busy}>Cancel</button>
+            <button type="button" className="btn" onClick={go} disabled={busy} data-testid="group-download">
+              {busy ? <span className="busy-dots">Building PDF</span> : "Download PDF"}
+            </button>
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+}

@@ -289,7 +289,8 @@ export const companyApi = {
 
   allCandidates: () => request<AllCandidates>("/company/candidates"),
   downloadAllCsv: () => download("/company/candidates.csv", "all-candidates.csv"),
-  downloadAllPdf: () => download("/company/candidates.pdf", "all-candidates.pdf"),
+  /** Everyone across every assessment: one-page summary, or the detailed overview. */
+  downloadAllPdf: (kind: "summary" | "detailed" = "detailed") => download(`/company/candidates.pdf?kind=${kind}`, `all-candidates-${kind}.pdf`),
 
   invitePreview: (token: string) => request<InvitePreview>(`/invites/${token}`),
   /** Signed in with the emailed link: link the invitation to this account (never accepts or starts it). */
