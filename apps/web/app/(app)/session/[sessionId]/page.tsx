@@ -20,6 +20,7 @@ import {
   wordCount,
 } from "../../../../lib/practice";
 import { duckMusic, play } from "../../../../lib/sfx";
+import { readVoiceKey, saveVoiceKey, VOICE_KEY_CODES } from "../../../../lib/voiceKey";
 import { SoundToggles } from "../../../../components/Sound";
 import { ShiftComplete } from "../../../../components/ShiftComplete";
 import { ToolPopup, type ToolView } from "../../../../components/ToolPopup";
@@ -88,6 +89,9 @@ export default function SessionPage() {
   const [nearCharacter, setNearCharacter] = useState<string | null>(null);
   const [voice, setVoice] = useState<VoiceStartState | null>(null);
   const [voiceError, setVoiceError] = useState<string | null>(null);
+  // Every WorkVerse voice account is out of credits: ask for the player's own ElevenLabs key.
+  const [voiceKeyAsk, setVoiceKeyAsk] = useState<{ characterId: string; message: string } | null>(null);
+  const [voiceKeyDraft, setVoiceKeyDraft] = useState("");
   const [routeVisible, setRouteVisible] = useState(true);
   const [navStatus, setNavStatus] = useState<NavigationStatus>("idle");
   const [pendingText, setPendingText] = useState<string | null>(null);
@@ -367,6 +371,7 @@ export default function SessionPage() {
       if (!npc) return;
       voicePending.current = true;
       setVoiceError(null);
+      setVoiceKeyAsk(null);
       setNotice(`Calling ${npc.name}…`); // instant feedback; the token round trip can take a while
       play("call");
       try {
@@ -379,6 +384,7 @@ export default function SessionPage() {
           api.startVoiceSession(sessionId, {
             npc_id: characterId,
             client_request_id: crypto.randomUUID(),
+            elevenlabs_api_key: readVoiceKey() ?? undefined,
           }),
         ]);
         stream.getTracks().forEach((t) => t.stop()); // permission check only; the SDK opens its own
@@ -393,6 +399,13 @@ export default function SessionPage() {
         });
       } catch (e) {
         setNotice(null);
+        if (e instanceof ApiError && VOICE_KEY_CODES.has(e.code)) {
+          // A saved key that was rejected or has run dry is no use next time either.
+          if (e.code !== "voice_credits_exhausted") saveVoiceKey(null);
+          setVoiceKeyDraft("");
+          setVoiceKeyAsk({ characterId, message: e.message });
+          return;
+        }
         const denied = e instanceof DOMException && e.name === "NotAllowedError";
         setVoiceError(
           denied
@@ -767,6 +780,52 @@ export default function SessionPage() {
             >
               {voiceError}
             </div>
+          )}
+          {voiceKeyAsk && !voice && (
+            <form
+              className="banner banner--info"
+              role="alertdialog"
+              aria-label="Use your own ElevenLabs key"
+              data-testid="voice-key-ask"
+              style={{ position: "absolute", top: 56, left: "50%", translate: "-50% 0", width: "min(420px, calc(100% - 24px))", zIndex: 3, display: "grid", gap: 8 }}
+              onSubmit={(e) => {
+                e.preventDefault();
+                const key = voiceKeyDraft.trim();
+                if (!key) return;
+                saveVoiceKey(key);
+                setVoiceKeyDraft("");
+                const { characterId } = voiceKeyAsk;
+                setVoiceKeyAsk(null);
+                void startVoiceMeetingRef.current(characterId);
+              }}
+            >
+              <span>{voiceKeyAsk.message}</span>
+              <span className="xsmall muted">
+                Your key stays in this browser and is only used while WorkVerse&apos;s own voice credits are used up.
+                It needs ElevenAgents (write) and Voices access.
+              </span>
+              <input
+                className="input"
+                type="password"
+                autoComplete="off"
+                spellCheck={false}
+                placeholder="ElevenLabs API key (sk_…)"
+                aria-label="ElevenLabs API key"
+                data-testid="voice-key-input"
+                value={voiceKeyDraft}
+                onChange={(e) => setVoiceKeyDraft(e.target.value)}
+                onKeyDown={(e) => e.stopPropagation()}
+                autoFocus
+              />
+              <div className="chip-row">
+                <button type="submit" className="btn btn--small" data-testid="voice-key-submit" disabled={!voiceKeyDraft.trim()}>
+                  Use my key
+                </button>
+                <button type="button" className="btn btn--ghost btn--small" onClick={() => setVoiceKeyAsk(null)}>
+                  Not now
+                </button>
+              </div>
+            </form>
           )}
           {navigation && !voice && (
             <div className="overlay nav-chip" data-testid="nav-chip">

@@ -86,6 +86,8 @@ class CompleteRequest(BaseModel):
 class StartVoiceSessionRequest(BaseModel):
     npc_id: str = Field(min_length=1, max_length=80)
     client_request_id: UUID | None = None
+    # The player's own ElevenLabs key: used only once every server account is out of credits.
+    elevenlabs_api_key: str | None = Field(default=None, max_length=200, repr=False)
 
 
 class VoiceMessageRequest(BaseModel):

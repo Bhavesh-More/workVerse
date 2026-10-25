@@ -278,7 +278,10 @@ export const api = {
 
   competencies: () => request<{ items: CompetencyTrend[] }>("/progress/competencies"),
 
-  startVoiceSession: (sessionId: string, body: { npc_id: string; client_request_id?: string }) =>
+  startVoiceSession: (
+    sessionId: string,
+    body: { npc_id: string; client_request_id?: string; elevenlabs_api_key?: string },
+  ) =>
     request<VoiceSessionStart>(`/sessions/${sessionId}/voice-sessions`, {
       method: "POST",
       body,

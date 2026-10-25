@@ -55,6 +55,7 @@ async def start_voice_session(
     session_id: str,
     npc_id: str,
     client_request_id: str | None = None,
+    user_api_key: str | None = None,
 ) -> dict[str, Any]:
     row, blueprint, state = await _load(repo, user_id, session_id)
     if row["status"] != "active":
@@ -70,7 +71,10 @@ async def start_voice_session(
             "Real-time voice is disabled for this deployment.", code="voice_disabled"
         )
     # Picks the ElevenLabs account (and its agent) that can take the call; raises if none can.
-    token, agent_id = await voice_client.mint_for_npc(*voice_agent(blueprint, npc_id, character.name))
+    # The player's own key is only used once every server account is out of credits.
+    token, agent_id = await voice_client.mint_for_npc(
+        *voice_agent(blueprint, npc_id, character.name), user_api_key=user_api_key
+    )
 
     voice = await repo.get_active_voice_session(session_id, npc_id)
     if voice is None:

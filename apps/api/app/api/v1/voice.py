@@ -53,6 +53,7 @@ async def start_voice_session(
         session_id=session_id,
         npc_id=body.npc_id,
         client_request_id=str(body.client_request_id) if body.client_request_id else None,
+        user_api_key=body.elevenlabs_api_key,
     )
 
 

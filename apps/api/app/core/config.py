@@ -17,6 +17,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 ALLOWED_OLLAMA_HOSTS = {"ollama.com"}
 ALLOWED_ELEVENLABS_HOSTS = {"api.elevenlabs.io"}
+MAX_ELEVENLABS_ACCOUNTS = 12  # ELEVENLABS_API_KEY, then _2 … _12
 FORBIDDEN_HOSTS = {"localhost", "127.0.0.1", "0.0.0.0", "::1", "host.docker.internal"}
 
 
@@ -133,6 +134,28 @@ class Settings(BaseSettings):
     elevenlabs_api_key_5: str = ""
     elevenlabs_agent_id_5: str = ""
     elevenlabs_agent_map_5: str = "{}"
+    # Sixth to twelfth accounts, tried in order after the fifth.
+    elevenlabs_api_key_6: str = ""
+    elevenlabs_agent_id_6: str = ""
+    elevenlabs_agent_map_6: str = "{}"
+    elevenlabs_api_key_7: str = ""
+    elevenlabs_agent_id_7: str = ""
+    elevenlabs_agent_map_7: str = "{}"
+    elevenlabs_api_key_8: str = ""
+    elevenlabs_agent_id_8: str = ""
+    elevenlabs_agent_map_8: str = "{}"
+    elevenlabs_api_key_9: str = ""
+    elevenlabs_agent_id_9: str = ""
+    elevenlabs_agent_map_9: str = "{}"
+    elevenlabs_api_key_10: str = ""
+    elevenlabs_agent_id_10: str = ""
+    elevenlabs_agent_map_10: str = "{}"
+    elevenlabs_api_key_11: str = ""
+    elevenlabs_agent_id_11: str = ""
+    elevenlabs_agent_map_11: str = "{}"
+    elevenlabs_api_key_12: str = ""
+    elevenlabs_agent_id_12: str = ""
+    elevenlabs_agent_map_12: str = "{}"
     # Shared secret configured in the ElevenLabs Custom LLM secret store; authenticates
     # requests from ElevenLabs to our OpenAI-compatible bridge endpoint.
     voice_llm_bridge_secret: str = ""
@@ -204,12 +227,13 @@ class Settings(BaseSettings):
     @property
     def elevenlabs_accounts(self) -> list[tuple[str, dict[str, str]]]:
         """(api key, agent mapping) per configured ElevenLabs account, in the order calls try them."""
-        accounts = [
-            (self.elevenlabs_api_key, self.elevenlabs_agent_map, self.elevenlabs_agent_id),
-            (self.elevenlabs_api_key_2, self.elevenlabs_agent_map_2, self.elevenlabs_agent_id_2),
-            (self.elevenlabs_api_key_3, self.elevenlabs_agent_map_3, self.elevenlabs_agent_id_3),
-            (self.elevenlabs_api_key_4, self.elevenlabs_agent_map_4, self.elevenlabs_agent_id_4),
-            (self.elevenlabs_api_key_5, self.elevenlabs_agent_map_5, self.elevenlabs_agent_id_5),
+        accounts = [(self.elevenlabs_api_key, self.elevenlabs_agent_map, self.elevenlabs_agent_id)] + [
+            (
+                getattr(self, f"elevenlabs_api_key_{n}"),
+                getattr(self, f"elevenlabs_agent_map_{n}"),
+                getattr(self, f"elevenlabs_agent_id_{n}"),
+            )
+            for n in range(2, MAX_ELEVENLABS_ACCOUNTS + 1)
         ]
         return [(key.strip(), _agent_mapping(m, d)) for key, m, d in accounts if key.strip()]
 

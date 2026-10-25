@@ -277,7 +277,7 @@ class _FakeVoice:
         self.configured = True
         self.fail = fail
 
-    async def mint_for_npc(self, npc_id: str, gender: str | None = None) -> tuple[str, str]:
+    async def mint_for_npc(self, npc_id: str, gender: str | None = None, *, user_api_key: str | None = None) -> tuple[str, str]:
         if self.fail:
             raise AIConfigError("nope", code="voice_provider_auth")
         return "token-abc", "agent_x"
