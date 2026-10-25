@@ -282,6 +282,13 @@ export function createOfficeGame(parent: HTMLElement, options: OfficeOptions): P
         Phaser.Input.Keyboard.Key
       >;
       this.input.keyboard!.on("keydown-E", () => this.interact());
+      // Phaser prevents the default on mousedown, so clicking the game never takes focus from the
+      // chat box (or a button) you used last; arrows/WASD would stay blocked as "typing". Clicking
+      // the office means "back to walking", so let go of that focus.
+      this.input.on("pointerdown", () => {
+        const el = document.activeElement as HTMLElement | null;
+        if (el && el !== document.body) el.blur();
+      });
       // Keys aren't captured (so chat inputs still get them), which also let arrows/space scroll the page
       // while walking. Block just that default, unless the learner is typing or on a control.
       const stopScroll = (e: KeyboardEvent) => {
