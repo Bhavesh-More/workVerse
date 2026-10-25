@@ -14,6 +14,8 @@ import { useApi } from "../../../lib/useApi";
 import { preloadGame } from "../../../game/preload";
 import { candidateApi } from "../../../lib/candidate";
 import { Glyph } from "../../../components/Glyph";
+import { PixelLogo } from "../../../components/PixelLogo";
+import { IMOCHA_URL } from "../../../components/ImochaHub";
 
 const container = { hidden: {}, show: { transition: { staggerChildren: 0.07 } } };
 const item = {
@@ -86,6 +88,12 @@ export default function DashboardPage() {
             </p>
           </div>
         </m.div>
+
+        <m.a variants={item} className="im-partner" href={IMOCHA_URL} target="_blank" rel="noopener noreferrer">
+          <PixelLogo height={22} />
+          <span>Your practice reports become skills evidence on iMocha.</span>
+          <span className="im-partner__go">Explore iMocha ↗</span>
+        </m.a>
 
         {invites > 0 && (
           // A pointer, not the list: company assessments live in their own area.

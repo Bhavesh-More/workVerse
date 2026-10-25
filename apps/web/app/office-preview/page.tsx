@@ -5,6 +5,7 @@
 import { notFound } from "next/navigation";
 import { useRef, useState } from "react";
 import { PhaserGame, type PhaserGameHandle } from "../../game/PhaserGame";
+import { ImochaHub } from "../../components/ImochaHub";
 import type { WorldCharacter, WorldView } from "../../lib/types";
 import mock from "../intro-preview/mock.json";
 
@@ -31,13 +32,14 @@ const WORLD: WorldView = {
 export default function OfficePreview() {
   const ref = useRef<PhaserGameHandle>(null);
   const [prompt, setPrompt] = useState<string | null>(null);
+  const [hub, setHub] = useState(false);
   if (process.env.NODE_ENV === "production") notFound();
   return (
     <div style={{ height: "100svh", display: "flex", flexDirection: "column", gap: 8, padding: 12 }}>
       <div className="mono" style={{ display: "flex", gap: 12, alignItems: "center" }}>
         <span>Office preview</span>
         <span>{prompt ? `E · ${prompt}` : "WASD / arrows · Shift to hurry"}</span>
-        {["reception", "meeting_room", "manager_office", "engineering_workspace", "collaboration_area", "break_area"].map((id) => (
+        {["reception", "meeting_room", "manager_office", "engineering_workspace", "collaboration_area", "break_area", "imocha_hub"].map((id) => (
           <button key={id} type="button" onClick={() => ref.current?.travelTo(id)}>
             {id}
           </button>
@@ -54,12 +56,14 @@ export default function OfficePreview() {
           onInteractCharacter={() => {}}
           onVoiceCharacter={() => {}}
           onInteractObject={() => {}}
+          onOpenHub={() => setHub(true)}
           onLocationChange={() => {}}
           onReady={() => {
             (window as unknown as { __office?: PhaserGameHandle | null }).__office = ref.current;
           }}
         />
       </div>
+      {hub && <ImochaHub onClose={() => setHub(false)} />}
     </div>
   );
 }

@@ -55,6 +55,10 @@
   {
    "id": "break",
    "label": "Butter / sage"
+  },
+  {
+   "id": "imocha",
+   "label": "iMocha lavender / plum"
   }
  ],
  "assets": [
@@ -1180,6 +1184,101 @@
    "oy": -28,
    "solid": true,
    "interactive": "reception_desk"
+  },
+  {
+   "id": "imocha_sign",
+   "label": "iMocha partner sign",
+   "category": "wall",
+   "mount": "wall",
+   "w": 4,
+   "h": 2,
+   "frame": "imocha_sign",
+   "img_w": 128,
+   "img_h": 64,
+   "ox": 0,
+   "oy": 0,
+   "solid": false,
+   "tags": [
+    "imocha",
+    "logo",
+    "brand"
+   ]
+  },
+  {
+   "id": "imocha_hub_sign",
+   "label": "iMocha Hub sign",
+   "category": "wall",
+   "mount": "wall",
+   "w": 7,
+   "h": 2,
+   "frame": "imocha_hub_sign",
+   "img_w": 224,
+   "img_h": 64,
+   "ox": 0,
+   "oy": 0,
+   "solid": false,
+   "tags": [
+    "imocha",
+    "logo",
+    "brand"
+   ]
+  },
+  {
+   "id": "imocha_plaque",
+   "label": "iMocha Hub plaque",
+   "category": "wall",
+   "mount": "wall",
+   "w": 3,
+   "h": 2,
+   "frame": "imocha_plaque",
+   "img_w": 96,
+   "img_h": 64,
+   "ox": 0,
+   "oy": 0,
+   "solid": false,
+   "tags": [
+    "imocha",
+    "sign"
+   ]
+  },
+  {
+   "id": "imocha_standee",
+   "label": "iMocha standee",
+   "category": "imocha",
+   "mount": "floor",
+   "w": 2,
+   "h": 1,
+   "frame": "imocha_standee",
+   "img_w": 64,
+   "img_h": 86,
+   "ox": 0,
+   "oy": -54,
+   "solid": true,
+   "tags": [
+    "imocha",
+    "brand",
+    "banner"
+   ]
+  },
+  {
+   "id": "imocha_screen",
+   "label": "iMocha Hub screen",
+   "category": "imocha",
+   "mount": "floor",
+   "w": 3,
+   "h": 1,
+   "frame": "imocha_screen",
+   "img_w": 96,
+   "img_h": 62,
+   "ox": 0,
+   "oy": -30,
+   "solid": true,
+   "interactive": "imocha_hub",
+   "tags": [
+    "imocha",
+    "screen",
+    "kiosk"
+   ]
   }
  ]
 }

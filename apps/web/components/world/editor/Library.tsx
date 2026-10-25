@@ -32,6 +32,7 @@ const FURNITURE: { id: AssetCategory; label: string }[] = [
   { id: "kitchen", label: "Kitchen" },
   { id: "tech", label: "Tech & equipment" },
   { id: "plants", label: "Plants & decor" },
+  { id: "imocha", label: "iMocha partner kit" },
 ];
 
 type Props = {

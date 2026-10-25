@@ -8,6 +8,7 @@ from app.api.v1 import (
     candidate,
     company,
     context,
+    imocha,
     notifications,
     profile,
     scenarios,
@@ -26,3 +27,4 @@ api_router.include_router(company.router)
 api_router.include_router(workplace.router)
 api_router.include_router(notifications.router)
 api_router.include_router(candidate.router)
+api_router.include_router(imocha.router)

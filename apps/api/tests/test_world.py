@@ -97,4 +97,5 @@ def test_member_validation():
 def test_catalog_matches_the_editor():
     cat = W.catalog()
     assert len(cat) >= 70
-    assert sum(1 for a in cat.values() if a.get("interactive")) == 10
+    # 10 scenario tools + the iMocha Hub screen
+    assert sum(1 for a in cat.values() if a.get("interactive")) == 11

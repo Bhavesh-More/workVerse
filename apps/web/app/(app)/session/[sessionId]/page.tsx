@@ -25,6 +25,9 @@ import { ShiftComplete } from "../../../../components/ShiftComplete";
 import { ToolPopup, type ToolView } from "../../../../components/ToolPopup";
 import { TeamIntro } from "../../../../components/TeamIntro";
 import { Glyph } from "../../../../components/Glyph";
+import { PixelLogo } from "../../../../components/PixelLogo";
+import { ImochaHub, IMOCHA_URL } from "../../../../components/ImochaHub";
+import { ImochaGuide } from "../../../../components/ImochaGuide";
 
 // Browser-only SDK; never evaluated during SSR.
 const VoiceMeeting = dynamic(
@@ -172,6 +175,9 @@ export default function SessionPage() {
 
   const [toolView, setToolView] = useState<ToolView | null>(null);
   const closeTool = useCallback(() => setToolView(null), []);
+  const [guideOpen, setGuideOpen] = useState(false);
+  const [hubOpen, setHubOpen] = useState(false);
+  const closeHub = useCallback(() => setHubOpen(false), []);
 
   const runAction = useCallback(
     async (action: WorldAction, payload?: Record<string, unknown>) => {
@@ -218,7 +224,9 @@ export default function SessionPage() {
     (objectId: string) => {
       const list = actionsByObject.get(objectId) ?? [];
       if (list.length === 0) {
-        setNotice("Nothing to do here yet.");
+        // No scenario action here: still open the object's own screen (empty board, coffee...).
+        const obj = session?.world.objects.find((o) => o.id === objectId);
+        setToolView({ id: objectId, label: obj?.label ?? "Nothing here", findings: [] });
         return;
       }
       if (list.length > 1) {
@@ -237,7 +245,7 @@ export default function SessionPage() {
       }
       runAction(only);
     },
-    [actionsByObject, runAction],
+    [actionsByObject, runAction, session],
   );
 
   // Profile cards: "all" (team intro) or one colleague's id. `afterIntro` runs when it closes.
@@ -636,6 +644,10 @@ export default function SessionPage() {
           <Link href="/dashboard" className="sidebar__mark" aria-label="Back to dashboard" title="Dashboard">
             W
           </Link>
+          <span className="brand-x" aria-hidden="true">×</span>
+          <a href={IMOCHA_URL} target="_blank" rel="noopener noreferrer" aria-label="iMocha (opens in a new tab)">
+            <PixelLogo height={22} />
+          </a>
           <div>
             <span className="eyebrow" style={{ marginBottom: 6 }}>
               {String(incident.service ?? "service")} · {String(incident.severity ?? "?")} severity
@@ -646,6 +658,12 @@ export default function SessionPage() {
           </div>
         </div>
         <div className="row" style={{ gap: 8 }}>
+          {/* The default office has a Hub room; company offices only if they placed the Hub screen. */}
+          {(!session.world.map || session.world.map.doc.objects.some((o) => o.asset === "imocha_screen")) && (
+            <button className="btn btn--ghost btn--small" onClick={() => gameRef.current?.travelTo("imocha_hub")} title="Walk to the iMocha Hub">
+              iMocha Hub
+            </button>
+          )}
           <SoundToggles />
           {hasProfiles && (
             <button className="btn btn--ghost btn--small" onClick={() => setIntro("all")} title="Replay the team intro">
@@ -671,6 +689,7 @@ export default function SessionPage() {
         </div>
       </div>
 
+      {hubOpen && <ImochaHub onClose={closeHub} />}
       {toolView && <ToolPopup tool={toolView.id === "dialogue" ? { ...toolView, next: routeFrom(toolView.from) } : toolView} onClose={closeTool} />}
       {shiftDone && (
         <ShiftComplete
@@ -707,6 +726,8 @@ export default function SessionPage() {
             onInteractCharacter={openCharacter}
             onVoiceCharacter={startVoiceMeeting}
             onInteractObject={interactObject}
+            onInteractGuide={() => setGuideOpen(true)}
+            onOpenHub={() => setHubOpen(true)}
             onLocationChange={() => {}}
             onNavigationStatus={setNavStatus}
             onReady={() => setGameReady(true)}
@@ -1032,6 +1053,7 @@ export default function SessionPage() {
         </div>
 
         <aside className="sim-full__side">
+          <AnimatePresence>{guideOpen && <ImochaGuide key="im-guide" onClose={() => setGuideOpen(false)} />}</AnimatePresence>
           <AnimatePresence>
             {error && (
               <m.div key="err" {...pop} className="banner banner--error" role="alert">

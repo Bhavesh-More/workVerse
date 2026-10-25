@@ -10,6 +10,7 @@ import { drawGround, drawWalls } from "../lib/world/render";
 import { KIT } from "../lib/world/kit";
 import { REQUIRED_OBJECTS } from "../lib/world/validate";
 import type { CompiledWorld } from "../lib/world/types";
+import { BOARD_COLORS, IM, KIOSK_COLORS, MARK_SMALL, MONITOR, PIXEL_COLORS, STANDEE } from "../lib/imocha";
 
 // World units: art is authored on a 16px grid and exported at 2x by scripts/build_*.py, so one
 // tile is 32 world px and every image is drawn 1:1 (no sprite is ever scaled in the engine).
@@ -37,6 +38,12 @@ const DEPTH_GROUND = 0;
 const DEPTH_WALLS = 1;
 const DEPTH_UI = 5000;
 
+/** The iMocha product guide stands in the lobby; she isn't part of any scenario. */
+export const GUIDE_ID = "imocha_guide";
+const GUIDE_LABEL = "Mia · iMocha guide";
+export const HUB_ROOM = "imocha_hub";
+const HUB_LABEL = "iMocha Hub";
+
 export type OfficeOptions = {
   world: WorldView;
   playerTexture: string;
@@ -45,6 +52,10 @@ export type OfficeOptions = {
   onInteractCharacter: (characterId: string) => void;
   onVoiceCharacter: (characterId: string) => void;
   onInteractObject: (objectId: string) => void;
+  /** Talk to the iMocha guide (click or E). Without it she isn't placed. */
+  onInteractGuide?: () => void;
+  /** Use the iMocha Hub screen (click or E). */
+  onOpenHub?: () => void;
   onLocationChange: (locationId: string) => void;
   onNavigationStatus?: (status: NavigationStatus) => void;
   onReady: () => void;
@@ -81,7 +92,7 @@ type MapMeta = {
 type Dir = "down" | "left" | "right" | "up";
 
 type Interactable = {
-  kind: "character" | "object";
+  kind: "character" | "object" | "guide" | "hub";
   id: string;
   label: string;
   x: number;
@@ -229,9 +240,11 @@ export function createOfficeGame(parent: HTMLElement, options: OfficeOptions): P
 
       this.colliders = this.physics.add.staticGroup();
       this.buildAnimations();
+      const lobby = options.onInteractGuide ? this.reserveLobby() : null;
       this.buildCollision();
       this.buildIndicatorTexture();
       this.buildInteractables();
+      this.buildBranding(lobby);
       this.buildPlayer();
       this.buildPets();
       if (options.map) this.buildMembers(options.map);
@@ -323,6 +336,134 @@ export function createOfficeGame(parent: HTMLElement, options: OfficeOptions): P
         this.colliders.add(this.add.rectangle(x, y - 5, 20, 10, 0, 0));
         this.nameTag(x, y - 44, m.name);
       }
+    }
+
+    /** Paint a char grid (see lib/imocha.ts) into a texture: 1 art px = 2 world px, like all office art. */
+    private pixelTexture(key: string, rows: string[], colors: Record<string, string>) {
+      if (this.textures.exists(key)) return;
+      const g = this.make.graphics({ x: 0, y: 0 }, false);
+      rows.forEach((row, y) =>
+        [...row].forEach((ch, x) => {
+          const c = colors[ch];
+          if (!c) return;
+          g.fillStyle(Phaser.Display.Color.HexStringToColor(c).color, 1);
+          g.fillRect(x * 2, y * 2, 2, 2);
+        }),
+      );
+      g.generateTexture(key, (rows[0]?.length ?? 0) * 2, rows.length * 2);
+      g.destroy();
+    }
+
+    private buildBrandTextures() {
+      const colors = { ...PIXEL_COLORS, ...BOARD_COLORS };
+      this.pixelTexture("im_standee", STANDEE, colors);
+      this.pixelTexture("im_monitor", MONITOR, { ...colors, ...KIOSK_COLORS });
+    }
+
+    /** Pick the guide's and standee's floor tiles in the spawn room and make them solid. */
+    private reserveLobby(): { guide: { x: number; y: number }; standee: { x: number; y: number } } | null {
+      const spawn = this.meta.spawn;
+      const room = this.meta.rooms.find((r) => spawn.x >= r.x0 && spawn.x <= r.x1 && spawn.y >= r.y0 && spawn.y <= r.y1);
+      if (!room) return null;
+      const grid = this.meta.collision.map((r) => [...r]);
+      const free = (x: number, y: number) =>
+        x >= room.x0 && x <= room.x1 && y >= room.y0 && y <= room.y1 && grid[y]?.[x] === 0 && grid[y + 1]?.[x] === 0 && !(x === spawn.x && y === spawn.y);
+      // Nearest pair of free tiles to the room's top-right quarter, guide on the left of her standee.
+      const want = { x: Math.round(room.x0 + (room.x1 - room.x0) * 0.75), y: room.y0 + 1 };
+      let best: { x: number; y: number } | null = null;
+      let bestD = Infinity;
+      for (let y = room.y0; y < room.y1; y++)
+        for (let x = room.x0; x < room.x1; x++) {
+          if (!free(x, y) || !free(x + 1, y)) continue;
+          const d = Math.hypot(x - want.x, y - want.y);
+          if (d < bestD) [best, bestD] = [{ x, y }, d];
+        }
+      if (!best) return null;
+      grid[best.y]![best.x] = 1;
+      grid[best.y]![best.x + 1] = 1;
+      this.meta = { ...this.meta, collision: grid };
+      return { guide: best, standee: { x: best.x + 1, y: best.y } };
+    }
+
+    /** iMocha presence: the Hub showroom (its signs are baked into the map) and the guide at reception. */
+    private buildBranding(lobby: ReturnType<OfficeScene["reserveLobby"]>) {
+      this.buildBrandTextures();
+      const hub = this.meta.rooms.find((r) => r.id === HUB_ROOM);
+      if (hub) this.buildHub(hub);
+      // Company worlds: the iMocha Hub screen the company placed from the editor's partner kit.
+      const slot = this.meta.object_slots[HUB_ROOM];
+      if (!hub && slot) {
+        const sprite = this.add.image(slot.px, slot.py, "props", slot.frame).setOrigin(0, 0).setDepth(slot.d);
+        this.hubTarget(sprite, slot.px + sprite.width / 2, slot.py, slot.ax, slot.ay);
+      }
+      if (lobby) this.buildGuide(lobby);
+    }
+
+    /** The Hub: two standees and the interactive screen, kept below the baked wall sign. */
+    private buildHub(room: MapMeta["rooms"][number]) {
+      const cx = ((room.x0 + room.x1 + 1) / 2) * TILE;
+      for (const tx of [room.x0 + 1, room.x1 - 1]) {
+        const y = (room.y0 + 3) * TILE;
+        this.add.image(tx * TILE + TILE / 2, y, "im_standee").setOrigin(0.5, 1).setDepth(y);
+      }
+      // The screen stands centred on the back wall; you use it from the tile in front.
+      const mon = this.textures.getFrame("im_monitor");
+      const baseY = (room.y0 + 3) * TILE;
+      const sprite = this.add.image(Math.round(cx - mon.width / 2), baseY - mon.height, "im_monitor").setOrigin(0, 0).setDepth(baseY);
+      this.colliders.add(this.add.rectangle(cx, baseY - TILE / 2, mon.width, TILE, 0, 0));
+      this.hubTarget(sprite, cx, baseY - mon.height, cx, baseY + TILE / 2);
+    }
+
+    /** Make a screen sprite open the iMocha Hub deck (E or click), with the bobbing marker. */
+    private hubTarget(sprite: Phaser.GameObjects.Image, cx: number, top: number, ax: number, ay: number) {
+      sprite.setInteractive({ useHandCursor: true });
+      sprite.on("pointerdown", () => {
+        if (options.isLocked?.()) return;
+        options.onOpenHub?.();
+      });
+      const indicator = this.add.image(cx, top - 6, "indicator").setOrigin(0.5, 1).setDepth(DEPTH_UI - 1);
+      this.tweens.add({ targets: indicator, y: top - 11, duration: 700, ease: "Sine.easeInOut", yoyo: true, repeat: -1 });
+      const tag = this.nameTag(cx, top - 18, HUB_LABEL, true).setVisible(false);
+      this.interactables.push({ kind: "hub", id: HUB_ROOM, label: HUB_LABEL, x: ax, y: ay, gameObject: sprite, tag });
+    }
+
+    private buildGuide(lobby: NonNullable<ReturnType<OfficeScene["reserveLobby"]>>) {
+      const sx = lobby.standee.x * TILE + TILE / 2;
+      const sy = lobby.standee.y * TILE + TILE;
+      this.add.image(sx, sy, "im_standee").setOrigin(0.5, 1).setDepth(sy);
+
+      const taken = new Set(Object.values(assignCast(options.world.characters)));
+      const tex = CAST.female.find((f) => !taken.has(f)) ?? CAST.female[0]!;
+      const x = lobby.guide.x * TILE + TILE / 2;
+      const y = lobby.guide.y * TILE + TILE - 2;
+      const sprite = this.add.sprite(x, y, tex, 0).setOrigin(0.5, 1).setDepth(y);
+      sprite.anims.play(`${tex}-idle-down`, true);
+      sprite.setInteractive({
+        useHandCursor: true,
+        hitArea: new Phaser.Geom.Rectangle(16, 22, 32, 42),
+        hitAreaCallback: Phaser.Geom.Rectangle.Contains,
+      });
+      sprite.on("pointerdown", () => {
+        if (options.isLocked?.()) return;
+        options.onInteractGuide?.();
+      });
+      const tag = this.add
+        .text(x, y - 44, GUIDE_LABEL, {
+          fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
+          fontSize: "10px",
+          fontStyle: "bold",
+          color: "#ffffff",
+          backgroundColor: IM.orange,
+          padding: { left: 4, right: 4, top: 2, bottom: 2 },
+          resolution: 3,
+        })
+        .setOrigin(0.5, 1)
+        .setDepth(DEPTH_UI);
+      // A small bobbing mark over her head says "ask me about iMocha".
+      this.pixelTexture("im_badge", MARK_SMALL, PIXEL_COLORS);
+      const badge = this.add.image(x, y - 62, "im_badge").setOrigin(0.5, 1).setDepth(DEPTH_UI);
+      this.tweens.add({ targets: badge, y: y - 66, duration: 800, ease: "Sine.easeInOut", yoyo: true, repeat: -1 });
+      this.interactables.push({ kind: "guide", id: GUIDE_ID, label: GUIDE_LABEL, x, y, gameObject: sprite, npc: sprite, texture: tex, face: "down", tag });
     }
 
     /** Largest half-step zoom that still shows a comfortable slice of the office. */
@@ -624,6 +765,8 @@ export function createOfficeGame(parent: HTMLElement, options: OfficeOptions): P
       if (this.currentTarget) {
         const target = this.currentTarget;
         if (target.kind === "character") options.onVoiceCharacter(target.id);
+        else if (target.kind === "guide") options.onInteractGuide?.();
+        else if (target.kind === "hub") options.onOpenHub?.();
         else options.onInteractObject(target.id);
       }
     }
@@ -631,7 +774,7 @@ export function createOfficeGame(parent: HTMLElement, options: OfficeOptions): P
     private setTarget(next: Interactable | null) {
       const prev = this.currentTarget;
       if (prev?.sprite && prev.frame) prev.sprite.setFrame(prev.frame);
-      if (prev?.kind === "object") prev.tag?.setVisible(prev.id === this.navTargetId);
+      if (prev?.kind === "object" || prev?.kind === "hub") prev.tag?.setVisible(prev.id === this.navTargetId);
       if (next?.sprite && next.frame) {
         // The highlight frame has a 1 art px (2 world px) ring, so shift to keep the art still.
         next.sprite.setFrame(`${next.frame}_hl`);
@@ -823,6 +966,9 @@ export function createOfficeGame(parent: HTMLElement, options: OfficeOptions): P
     }
 
     travelTo(locationId: string) {
+      // The Hub: land in front of its screen (a room in the default office, a placed screen in company worlds).
+      const hub = this.interactables.find((i) => i.kind === "hub" && i.id === locationId);
+      if (hub) return this.placePlayerAt({ x: Math.floor(hub.x / TILE), y: Math.floor(hub.y / TILE) });
       const room = this.meta.rooms.find((r) => r.id === locationId);
       if (!room) return;
       this.placePlayerAt({ x: Math.round((room.x0 + room.x1) / 2), y: room.y1 });

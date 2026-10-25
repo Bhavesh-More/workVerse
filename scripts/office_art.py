@@ -13,6 +13,8 @@ export at ART_SCALE (nearest-neighbour) so the engine never scales a sprite. Con
 
 from __future__ import annotations
 
+import json
+import os
 import random
 
 from PIL import Image
@@ -67,6 +69,7 @@ WALL_PAINT = {
     "engineering": [(226, 230, 238), (206, 212, 224)],
     "collab": [(248, 226, 206), (236, 206, 182)],
     "break": [(248, 238, 196), (236, 222, 168)],
+    "imocha": [(244, 243, 250), (228, 222, 246)],  # iMocha light purple #F4F3FA
 }
 WAINSCOT = {
     "reception": OAK,
@@ -76,6 +79,7 @@ WAINSCOT = {
     "engineering": CHARCOAL,
     "collab": TEAL,
     "break": SAGE,
+    "imocha": PLUM,
 }
 CAP = [(46, 40, 58), (64, 58, 78), (86, 80, 102), (110, 104, 128)]
 
@@ -194,6 +198,7 @@ class Canvas:
 
 
 FONT: dict[str, list[str]] = {
+    ">": ["#..", ".#.", "..#", ".#.", "#.."],
     "A": [".#.", "#.#", "###", "#.#", "#.#"],
     "B": ["##.", "#.#", "##.", "#.#", "##."],
     "C": [".##", "#..", "#..", "#..", ".##"],
@@ -1137,3 +1142,78 @@ def outline_highlight(img: Image.Image, color: Color = (255, 238, 160)) -> Image
 
 def upscale(img: Image.Image, k: int = ART_SCALE) -> Image.Image:
     return img.resize((img.width * k, img.height * k), Image.NEAREST)
+
+# ---------------------------------------------------------------------------------- iMocha
+# Pixel grids come from apps/web/lib/imocha.ts (exported to scripts/imocha_pixels.json), so the
+# baked signs, the editor kit and the in-app logo are the same art.
+_IM = json.load(open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "imocha_pixels.json")))
+IM_ORANGE = (253, 91, 14)
+IM_VIOLET = (73, 26, 235)
+IM_PURPLE = (34, 0, 50)
+
+
+def _grid(c: "Canvas", rows: list[str], x: int, y: int, colors: dict[str, Color]) -> int:
+    for gy, row in enumerate(rows):
+        for gx, ch in enumerate(row):
+            if ch in colors:
+                c.px(x + gx, y + gy, colors[ch])
+    return x + len(rows[0])
+
+
+def _im_board(w: int, h: int) -> "Canvas":
+    """White board, ink outline, orange base stripe: the iMocha sign blank."""
+    c = Canvas(w, h)
+    c.rect(0, 0, w - 1, h - 1, OUT)
+    c.rect(1, 1, w - 2, h - 2, WHITE[3])
+    c.rect(1, h - 3, w - 2, h - 2, IM_ORANGE)
+    return c
+
+
+def imocha_cobrand() -> "Canvas":
+    """Small 'iMocha' sign that hangs beside the WorkVerse sign."""
+    mark, word = _IM["mark_small"], _IM["word1"]
+    w = 3 + len(mark[0]) + 3 + len(word[0]) + 3
+    c = _im_board(w, len(mark) + 6)
+    x = _grid(c, mark, 3, 2, {"o": IM_ORANGE})
+    _grid(c, word, x + 3, 2 + (len(mark) - len(word)) // 2 + 1, {"p": IM_PURPLE})
+    return c
+
+
+def imocha_hub_sign() -> "Canvas":
+    """The Hub's wall sign: full mark, 'iMocha' wordmark, and 'Hub' in violet underneath."""
+    mark, word, hub = _IM["mark"], _IM["word2"], _IM["hub1"]
+    body = len(word) + 2 + len(hub)
+    c = _im_board(4 + len(mark[0]) + 4 + len(word[0]) + 4, body + 7)
+    x = _grid(c, mark, 4, 2 + (body - len(mark)) // 2, {"o": IM_ORANGE})
+    _grid(c, word, x + 4, 2, {"p": IM_PURPLE})
+    _grid(c, hub, x + 4, 2 + len(word) + 2, {"p": IM_VIOLET})
+    return c
+
+
+def _hex(h: str) -> Color:
+    return (int(h[1:3], 16), int(h[3:5], 16), int(h[5:7], 16))
+
+
+def _grid_prop(rows: list[str], fw: int) -> "Prop":
+    """A pixel grid from imocha.ts as a floor prop, centred on an fw-tile footprint."""
+    colors = {k: _hex(v) for k, v in _IM["colors"].items()}
+    c = Canvas(fw * T, len(rows))
+    _grid(c, rows, (fw * T - len(rows[0])) // 2, 0, colors)
+    return c, fw, 1
+
+
+def imocha_standee() -> "Prop":
+    return _grid_prop(_IM["standee"], 2)
+
+
+def imocha_screen() -> "Prop":
+    return _grid_prop(_IM["monitor"], 3)
+
+
+def imocha_plaque(text: str) -> "Canvas":
+    """Room plaque in iMocha orange (same shape as the navy room plaques)."""
+    width = Canvas(1, 1).text(text, 0, 0, OUT) + 5
+    c = Canvas(width, 9)
+    c.box(0, 0, width - 1, 8, IM_ORANGE, (255, 127, 66), (200, 71, 16))
+    c.text(text, 3, 2, WHITE[3])
+    return c

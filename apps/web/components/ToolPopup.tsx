@@ -21,7 +21,7 @@ export type ToolView = {
 };
 
 // Which "screen" each workplace tool opens as. Unknown tools fall back to a plain document.
-type Kind = "terminal" | "chart" | "pipeline" | "document" | "dialogue";
+type Kind = "terminal" | "chart" | "pipeline" | "document" | "dialogue" | "board" | "whiteboard" | "coffee" | "desk";
 const KIND: Record<string, Kind> = {
   log_viewer: "terminal",
   metrics_panel: "chart",
@@ -30,6 +30,11 @@ const KIND: Record<string, Kind> = {
   runbook: "document",
   migration_notes: "document",
   dialogue: "dialogue", // a colleague told you something
+  // Ambient objects: their own screen even when the scenario gives them nothing to reveal.
+  team_board: "board",
+  meeting_whiteboard: "whiteboard",
+  coffee_machine: "coffee",
+  reception_desk: "desk",
 };
 
 /** Pixel-art window that shows what a workplace tool revealed, styled like that tool. */
@@ -72,6 +77,10 @@ export function ToolPopup({ tool, onClose }: { tool: ToolView; onClose: () => vo
           {kind === "pipeline" && <Pipeline tool={tool} />}
           {kind === "document" && <Document tool={tool} />}
           {kind === "dialogue" && <Dialogue tool={tool} />}
+          {kind === "board" && <Board tool={tool} />}
+          {kind === "whiteboard" && <Whiteboard tool={tool} />}
+          {kind === "coffee" && <Coffee />}
+          {kind === "desk" && <Desk tool={tool} />}
         </div>
         {tool.next && (
           <div className="px-next" data-testid="popup-next">
@@ -190,6 +199,62 @@ function Document({ tool }: { tool: ToolView }) {
   return (
     <div className="px-doc">
       <Findings findings={tool.findings} prefix="§" />
+    </div>
+  );
+}
+
+function Board({ tool }: { tool: ToolView }) {
+  return (
+    <div className="px-board">
+      {["To do", "Doing", "Done"].map((col, c) => (
+        <section key={col}>
+          <h3>{col}</h3>
+          {c === 0 && tool.findings.length ? (
+            tool.findings.map((f) => (
+              <p key={f.id} className="px-card">
+                {f.label}
+              </p>
+            ))
+          ) : (
+            <p className="px-dim">{c === 0 ? "No tasks for now" : "—"}</p>
+          )}
+        </section>
+      ))}
+    </div>
+  );
+}
+
+function Whiteboard({ tool }: { tool: ToolView }) {
+  return (
+    <div className="px-whiteboard">
+      {tool.findings.length ? <Findings findings={tool.findings} prefix="✎" /> : <p className="px-dim">The board is wiped clean. Nothing written yet.</p>}
+      <span className="px-markers" aria-hidden="true">
+        <i />
+        <i />
+        <i />
+      </span>
+    </div>
+  );
+}
+
+function Coffee() {
+  return (
+    <div className="px-coffee">
+      <span className="px-cup" aria-hidden="true">
+        <i />
+        <i />
+        <i />
+      </span>
+      <p>Coffee&apos;s ready. Take a breath — then back to it.</p>
+    </div>
+  );
+}
+
+function Desk({ tool }: { tool: ToolView }) {
+  return (
+    <div className="px-doc">
+      <p className="px-desk__head">Visitor log · today</p>
+      {tool.findings.length ? <Findings findings={tool.findings} prefix="›" /> : <p className="px-dim">No visitors expected today.</p>}
     </div>
   );
 }

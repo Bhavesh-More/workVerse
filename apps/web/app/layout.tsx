@@ -20,7 +20,7 @@ const schibsted = Schibsted_Grotesk({
 });
 
 export const metadata: Metadata = {
-  title: "WorkVerse AI",
+  title: { default: "WorkVerse | iMocha", template: "%s | iMocha" },
   description:
     "A safe place for students and early-career engineers to practise real workplace moments — incidents, updates, tough conversations — with AI colleagues, then get feedback that cites what you actually said.",
 };

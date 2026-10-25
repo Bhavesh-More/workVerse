@@ -172,6 +172,10 @@ export function clearCache() {
 export const api = {
   getMe: () => request<Profile>("/me"),
 
+  imochaGuide: () => request<{ name: string; suggestions: string[] }>("/imocha/guide"),
+  imochaAsk: (body: { question: string; history: { role: "user" | "assistant"; content: string }[] }) =>
+    request<{ answer: string }>("/imocha/guide/ask", { method: "POST", body }),
+
   updateMe: (body: Partial<Profile>) => request<Profile>("/me", { method: "PATCH", body }),
 
   addSkill: (body: { name: string; level_self_reported?: string | null }) =>

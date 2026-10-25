@@ -54,6 +54,7 @@ PAINTS = {
     "engineering": "Cool grey / charcoal",
     "collab": "Peach / teal",
     "break": "Butter / sage",
+    "imocha": "iMocha lavender / plum",
 }
 PATCH = 8  # floor variation period in tiles
 
@@ -278,6 +279,13 @@ add("obj_runbook", "Runbook lectern", "interactive", art.lectern_runbook(), inte
 add("obj_team_board", "Task board", "interactive", art.kanban_board(), interactive="team_board")
 add("obj_coffee_machine", "Coffee station", "interactive", art.coffee_station(), interactive="coffee_machine")
 add("obj_reception_desk", "Reception desk", "interactive", art.reception_desk(), interactive="reception_desk")
+
+# iMocha partner kit: signage for a reception partner wall or an iMocha Hub room.
+add("imocha_sign", "iMocha partner sign", "wall", centred(art.imocha_cobrand(), 6), mount="wall", solid=False, tags=("imocha", "logo", "brand"))
+add("imocha_hub_sign", "iMocha Hub sign", "wall", centred(art.imocha_hub_sign(), 1), mount="wall", solid=False, tags=("imocha", "logo", "brand"))
+add("imocha_plaque", "iMocha Hub plaque", "wall", centred(art.imocha_plaque("IMOCHA HUB"), 6), mount="wall", solid=False, tags=("imocha", "sign"))
+add("imocha_standee", "iMocha standee", "imocha", art.imocha_standee(), tags=("imocha", "brand", "banner"))
+add("imocha_screen", "iMocha Hub screen", "imocha", art.imocha_screen(), interactive="imocha_hub", tags=("imocha", "screen", "kiosk"))
 
 
 # ------------------------------------------------------------------------------------ packing

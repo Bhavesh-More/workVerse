@@ -26,6 +26,10 @@ type Props = {
   onInteractCharacter: (characterId: string) => void;
   onVoiceCharacter: (characterId: string) => void;
   onInteractObject: (objectId: string) => void;
+  /** Talk to the iMocha guide in the lobby; she is only placed when this is set. */
+  onInteractGuide?: () => void;
+  /** Use the screen in the iMocha Hub. */
+  onOpenHub?: () => void;
   onLocationChange: (locationId: string) => void;
   onNavigationStatus?: (status: NavigationStatus) => void;
   onReady: () => void;
@@ -88,6 +92,8 @@ export const PhaserGame = forwardRef<PhaserGameHandle, Props>(function PhaserGam
         onInteractCharacter: (id) => callbacks.current.onInteractCharacter(id),
         onVoiceCharacter: (id) => callbacks.current.onVoiceCharacter(id),
         onInteractObject: (id) => callbacks.current.onInteractObject(id),
+        onInteractGuide: callbacks.current.onInteractGuide ? () => callbacks.current.onInteractGuide?.() : undefined,
+        onOpenHub: () => callbacks.current.onOpenHub?.(),
         onLocationChange: (id) => callbacks.current.onLocationChange(id),
         onNavigationStatus: (status) => callbacks.current.onNavigationStatus?.(status),
         onReady: () => callbacks.current.onReady(),

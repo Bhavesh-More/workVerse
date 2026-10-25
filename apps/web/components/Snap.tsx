@@ -1,7 +1,8 @@
 import type { CSSProperties } from "react";
 
-// The office map is three stacked 2048×1408 layers; a "snap" is a crop of all three.
-const MAP_W = 2048;
+// The office map is three stacked layers; crops below are in 2048×1408 units of the original
+// 46-tile-wide map. The map grew to 56 tiles (iMocha Hub), so the width scales to keep them put.
+const MAP_W = (2048 * 56) / 46;
 const MAP_H = 1408;
 const LAYERS = ["foreground", "walls", "ground"]
   .map((l) => `url(/assets/game/map/${l}.png)`)

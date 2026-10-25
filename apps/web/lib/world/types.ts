@@ -12,7 +12,7 @@ export const MAX_W = 96;
 export const MAX_H = 72;
 
 export type FloorKind = "stone" | "oak" | "walnut" | "concrete" | "carpet" | "checker";
-export type Paint = "reception" | "meeting" | "manager" | "corridor" | "engineering" | "collab" | "break";
+export type Paint = "reception" | "meeting" | "manager" | "corridor" | "engineering" | "collab" | "break" | "imocha";
 export type Dir = "down" | "left" | "right" | "up";
 
 /** One character per cell in WorldDoc.floor rows; "." is wall (or empty space). */
@@ -108,7 +108,8 @@ export type AssetCategory =
   | "tech"
   | "plants"
   | "wall"
-  | "interactive";
+  | "interactive"
+  | "imocha";
 
 export type Asset = {
   id: string;

@@ -32,7 +32,7 @@ from office_art import ART_SCALE, T, Canvas  # noqa: E402
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 OUT = os.path.join(ROOT, "apps", "web", "public", "assets", "game", "map")
-W, H = 46, 35  # world size in tiles
+W, H = 56, 35  # world size in tiles
 WT = T * ART_SCALE  # world px per tile
 
 # ---------------------------------------------------------------------------------- layout
@@ -45,6 +45,8 @@ ROOMS = [
     ("engineering_workspace", (1, 20, 22, 33), "carpet", "engineering"),
     ("collaboration_area", (24, 20, 33, 33), "oak", "collab"),
     ("break_area", (35, 20, 44, 33), "checker", "break"),
+    # iMocha Hub: a branded showroom off the east end of the corridor (signage is drawn in-engine).
+    ("imocha_hub", (47, 9, 54, 19), "stone", "imocha"),
 ]
 
 # Doorways: (x0, x1, y0, y1) inclusive tiles cut through walls, and the floor they get.
@@ -57,6 +59,7 @@ DOORS = [
     ((39, 40, 17, 19), "concrete"),
     ((23, 23, 26, 27), "carpet"),  # engineering <-> collaboration
     ((34, 34, 26, 27), "oak"),  # collaboration <-> break
+    ((45, 46, 15, 16), "concrete"),  # corridor <-> iMocha Hub
 ]
 
 floor_kind: dict[tuple[int, int], str] = {}
@@ -119,6 +122,7 @@ add_rug(35 * T + 8, 3 * T + 8, 7 * T, 5 * T, "terracotta")  # manager
 add_rug(24 * T + 8, 25 * T, 8 * T, 7 * T, "sage")  # collaboration lounge
 add_rug(11 * T + 8, 24 * T + 4, 10 * T, 6 * T, "plum")  # engineering pods
 add_rug(37 * T + 8, 30 * T + 8, 6 * T, 3 * T + 4, "terracotta")  # break lounge
+add_rug(48 * T + 8, 12 * T, 6 * T, 5 * T, "plum")  # iMocha Hub
 # corridor runner
 ground.rect(2 * T, 15 * T - 3, 44 * T - 1, 15 * T + 2, art.mix(art.SAGE[1], art.STONE[2], 0.25))
 ground.hline(2 * T, 44 * T - 1, 15 * T - 3, art.SAGE[2])
@@ -224,8 +228,8 @@ def glass_door(tx: int, ty_face_top: int) -> None:
     walls.paste(c, tx * T, ty_face_top * T)
 
 
-# Reception (north face rows 1-2)
-window(1, 1, 2, seed=1)
+# Reception (north face rows 1-2): partner wall, iMocha beside WorkVerse
+on_face(1, 1, art.imocha_cobrand(), dx=2, dy=6)
 on_face(4, 1, art.logo_sign(), dx=8, dy=7)
 glass_door(9, 1)
 art.clock(walls, 12 * T + 4, 1 * T + 6)
@@ -250,7 +254,8 @@ art.frame_art(walls, 10 * T + 4, 12 * T + 5, 20, 14, 0)
 art.frame_art(walls, 15 * T + 2, 12 * T + 5, 14, 14, 2)
 art.frame_art(walls, 28 * T + 4, 12 * T + 5, 24, 14, 3)
 art.clock(walls, 33 * T + 4, 12 * T + 6)
-art.frame_art(walls, 42 * T + 2, 12 * T + 5, 16, 14, 1)
+hub_plaque = art.imocha_plaque("IMOCHA HUB >")
+walls.paste(hub_plaque, 45 * T - 4 - hub_plaque.w, 12 * T + 6)
 # Engineering (face rows 18-19)
 window(7, 18, 2, seed=6)
 window(13, 18, 2, seed=7)
@@ -258,6 +263,9 @@ art.clock(walls, 10 * T + 4, 18 * T + 6)
 # Collaboration
 window(30, 18, 2, seed=8)
 art.frame_art(walls, 32 * T + 2, 18 * T + 6, 14, 12, 0)
+# iMocha Hub (face rows 7-8)
+hub_sign = art.imocha_hub_sign()
+walls.paste(hub_sign, (47 * T + 55 * T - hub_sign.w) // 2, 7 * T + 1)
 # Break
 upper_cabinets(35, 18, 4)
 window(42, 18, 2, seed=9)
@@ -408,6 +416,14 @@ place("water_cooler", 17, 14)
 place("trash", 18, 14)
 place("plant_small", 31, 14)
 place("trash", 9, 14)
+# iMocha Hub
+place("plant_tall", 47, 9)
+place("plant_tall_b", 54, 9)
+place("plant_small", 47, 19)
+place("plant_snake", 54, 19)
+place("armchair_coral", 49, 17)
+place("round_table", 50, 17)
+place("armchair_navy", 51, 17)
 # Engineering: ops island, dev pods, servers
 # Two back-to-back pods of four, one chair centred on each desk.
 def pod(x0: int, y0: int) -> None:

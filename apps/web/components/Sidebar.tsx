@@ -9,6 +9,7 @@ import { clearCache } from "../lib/api";
 import { prefetchRoute } from "../lib/useApi";
 import { Avatar } from "./Avatar";
 import { SoundToggles } from "./Sound";
+import { PixelLogo } from "./PixelLogo";
 import { NotificationBell, useNotifications } from "./Notifications";
 import { candidateApi } from "../lib/candidate";
 
@@ -204,7 +205,14 @@ export function Sidebar({ variant = "learner" }: { variant?: "learner" | "compan
       <div className="sidebar__head">
         <Link href={home} className="sidebar__brand" aria-label="WorkVerse dashboard">
           <span className="sidebar__mark">W</span>
-          {!collapsed && <span className="sidebar__wordmark">WorkVerse</span>}
+          {!collapsed && (
+            <span className="sidebar__words">
+              <span className="sidebar__wordmark">WorkVerse</span>
+              <span className="sidebar__by">
+                by <PixelLogo height={13} />
+              </span>
+            </span>
+          )}
         </Link>
         {!collapsed && (
           <button

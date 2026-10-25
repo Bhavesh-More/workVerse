@@ -91,7 +91,7 @@ export const PRESETS: RoomPreset[] = [
     h: 8,
     capacity: "Desk + 2 guests",
     objects: [
-      o("window_2", 0, -2), o("logo_sign", 4, -2), o("window_2", 8, -2), o("clock", 11, -2),
+      o("imocha_sign", 0, -2), o("logo_sign", 4, -2), o("window_2", 8, -2), o("clock", 11, -2),
       o("coat_rack", 0, 0), o("plant_snake", 10, 0), o("plant_tall", 11, 0),
       o("obj_reception_desk", 4, 3),
       o("water_cooler", 0, 4),
@@ -161,6 +161,24 @@ export const PRESETS: RoomPreset[] = [
       o("armchair_coral", 2, 7), o("low_table3", 3, 7), o("armchair_mustard", 6, 7),
       o("beanbag_teal", 9, 7), o("cat_bed", 10, 8),
       o("plant_tall", 0, 8), o("plant_tall_b", 11, 8), o("trash", 0, 4),
+    ],
+  },
+  {
+    id: "imocha_hub",
+    name: "iMocha Hub",
+    description: "iMocha's showroom: the Hub sign, two standees and a screen that plays the iMocha product tour.",
+    useFor: "Showing candidates and visitors who iMocha is. Not part of the scenario.",
+    purpose: "other",
+    paint: "imocha",
+    floor: "stone",
+    w: 9,
+    h: 9,
+    capacity: "Screen + 2 guests",
+    objects: [
+      o("imocha_hub_sign", 1, -2),
+      o("imocha_standee", 0, 1), o("imocha_screen", 3, 1), o("imocha_standee", 7, 1),
+      o("armchair_coral", 3, 6), o("round_table", 4, 6), o("armchair_navy", 5, 6),
+      o("plant_tall", 0, 8), o("plant_snake", 8, 8),
     ],
   },
 ];

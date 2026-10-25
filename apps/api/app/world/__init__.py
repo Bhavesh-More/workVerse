@@ -16,7 +16,7 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 
 MIN_W, MIN_H, MAX_W, MAX_H = 16, 12, 96, 72
 FLOOR_CODES = {"s", "o", "w", "c", "p", "k"}
-PAINTS = {"reception", "meeting", "manager", "corridor", "engineering", "collab", "break"}
+PAINTS = {"reception", "meeting", "manager", "corridor", "engineering", "collab", "break", "imocha"}
 FLOORS = {"stone", "oak", "walnut", "concrete", "carpet", "checker"}
 PURPOSES = {
     "reception",
@@ -58,7 +58,7 @@ class Room(BaseModel):
     y: int
     w: int = Field(ge=2, le=MAX_W)
     h: int = Field(ge=2, le=MAX_H)
-    paint: Literal["reception", "meeting", "manager", "corridor", "engineering", "collab", "break"]
+    paint: Literal["reception", "meeting", "manager", "corridor", "engineering", "collab", "break", "imocha"]
     floor: Literal["stone", "oak", "walnut", "concrete", "carpet", "checker"]
 
 

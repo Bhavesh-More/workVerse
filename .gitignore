@@ -53,3 +53,7 @@ venv/
 
 # Claude Code agent worktrees (local only)
 .claude/worktrees/
+
+# Seeded demo account credentials
+imocha-demo.local.json
+imocha-demo.local.md
