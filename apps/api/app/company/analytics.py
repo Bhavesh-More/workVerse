@@ -43,9 +43,9 @@ def candidate_status(inv: dict[str, Any]) -> str:
         return "in_progress"
     if inv.get("opened_at"):
         return "opened"
-    if inv.get("email_status") == "failed":
-        return "email_failed"
-    return "invited" if inv.get("email_status") == "sent" else "pending"
+    if inv.get("notified_at") or inv.get("email_status") == "sent":
+        return "invited"
+    return "email_failed" if inv.get("email_status") == "failed" else "pending"
 
 
 STATUS_LABELS = {
@@ -95,6 +95,8 @@ def candidates(invites: list[dict[str, Any]], items: list[dict[str, Any]]) -> li
                 "status_label": STATUS_LABELS[status],
                 "email_status": inv.get("email_status"),
                 "email_error": inv.get("email_error"),
+                "channel": inv.get("channel") or "email",
+                "notified_at": _iso(inv.get("notified_at")),
                 "sent_at": _iso(inv.get("sent_at")),
                 "opened_at": _iso(inv.get("opened_at")),
                 "started_at": _iso(inv.get("started_at")),
@@ -121,7 +123,7 @@ def summary(rows: list[dict[str, Any]]) -> dict[str, Any]:
     done = [r for r in rows if r["status"] == "completed"]
     scores = [r["score"] for r in done if r["score"] is not None]
     funnel = [
-        {"id": "invited", "label": "Invited", "count": sum(1 for r in rows if r["email_status"] == "sent" or r["status"] not in ("pending", "email_failed"))},
+        {"id": "invited", "label": "Invited", "count": sum(1 for r in rows if r["status"] not in ("pending", "email_failed"))},
         {"id": "opened", "label": "Opened invite", "count": sum(1 for r in rows if r["opened_at"] or r["session_id"])},
         {"id": "started", "label": "Started", "count": sum(1 for r in rows if r["session_id"])},
         {"id": "completed", "label": "Completed", "count": len(done)},

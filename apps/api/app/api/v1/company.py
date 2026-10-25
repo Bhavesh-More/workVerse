@@ -23,6 +23,7 @@ from app.core.errors import ConflictError, ForbiddenError, NotFoundError, Valida
 from app.db.company_repository import CompanyRepository
 from app.db.session import get_db
 from app.deps import AIDep, CurrentUser, Repo, SettingsDep
+from app.notifications import NotificationRepository, notify_company
 from app.services import mailer, scenario_service, session_service
 
 router = APIRouter(tags=["company"])
@@ -288,9 +289,49 @@ class InviteEntry(BaseModel):
     name: str | None = Field(default=None, max_length=120)
 
 
+Channel = Literal["app", "email", "both"]
+
+
 class InviteBody(BaseModel):
     candidates: list[InviteEntry] = Field(min_length=1, max_length=500)
     resend: bool = False
+    # "app": a notification inside WorkVerse (and a live popup if they're online); "email": the
+    # company's SMTP; "both". The API default stays email for existing integrations.
+    channel: Channel = "email"
+
+
+def _delivered(inv: dict) -> bool:
+    return inv.get("email_status") == "sent" or inv.get("notified_at") is not None
+
+
+async def _deliver(
+    settings: Any, company: dict, a: dict, invites: list[dict], crepo: CompanyRepository, channel: str
+) -> tuple[dict[str, str | None], list[str]]:
+    """Deliver invites over `channel`. Returns ({invite id: error or None}, emails without an account yet).
+    An invite counts as delivered when any of its channels worked."""
+    errors: dict[str, str | None] = {}
+    waiting: list[str] = []
+    if channel in ("app", "both"):
+        nrepo = NotificationRepository(crepo.session)
+        for inv in invites:
+            n = await nrepo.create(
+                kind="assessment_invite",
+                title=f"{company['name']} invited you to an assessment",
+                body=f"{a['title']}. {(a.get('message') or '').strip()}".strip()[:1000],
+                link=f"/invite/{inv['token']}",
+                data={"assessment_id": str(a["id"]), "company": company["name"], "assessment": a["title"]},
+                email=inv["email"],
+            )
+            await crepo.mark_invite_notified(str(inv["id"]), channel)
+            errors[str(inv["id"])] = None
+            if n["recipient_profile_id"] is None:
+                waiting.append(inv["email"])
+    if channel in ("email", "both"):
+        mail = await _send_invites(settings, company, a, invites, crepo)
+        for iid, err in mail.items():
+            if channel == "email" or err is None:
+                errors[iid] = err
+    return errors, waiting
 
 
 async def _send_invites(settings: Any, company: dict, a: dict, invites: list[dict], crepo: CompanyRepository) -> dict[str, str | None]:
@@ -336,16 +377,18 @@ async def invite(principal: CurrentUser, crepo: CRepo, settings: SettingsDep, as
             continue
         seen.add(email)
         inv, created = await crepo.upsert_invite(assessment_id, email, (entry.name or "").strip() or None, secrets.token_urlsafe(24))
-        if created or body.resend or inv["email_status"] != "sent":
+        if created or body.resend or not _delivered(inv):
             to_send.append(inv)
         else:
             skipped.append(email)
-    errors = await _send_invites(settings, company, a, to_send, crepo)
+    errors, waiting = await _deliver(settings, company, a, to_send, crepo, body.channel)
     return {
         "sent": sum(1 for e in errors.values() if e is None),
         "failed": [{"email": inv["email"], "error": errors[str(inv["id"])]} for inv in to_send if errors[str(inv["id"])]],
         "invalid": invalid,
         "already_invited": skipped,
+        "channel": body.channel,
+        "awaiting_signup": waiting,
     }
 
 
@@ -356,7 +399,8 @@ async def resend(principal: CurrentUser, crepo: CRepo, settings: SettingsDep, as
     inv = await crepo.get_invite(assessment_id, invite_id) if a else None
     if inv is None:
         raise NotFoundError("Invite not found.")
-    err = (await _send_invites(settings, company, a, [inv], crepo))[invite_id]
+    errors, _ = await _deliver(settings, company, a, [inv], crepo, inv.get("channel") or "email")
+    err = errors[invite_id]
     return {"ok": err is None, "error": err}
 
 
@@ -574,6 +618,7 @@ async def accept_invite(principal: CurrentUser, crepo: CRepo, repo: Repo, ai: AI
     )
     if await crepo.claim_invite(str(inv["id"]), principal.user_id, str(session["id"])) is None:
         raise ForbiddenError("This invite was already used by another account.", code="invite_claimed")
+    await notify_company(crepo.session, str(session["id"]), "candidate_started")
     return {"session_id": str(session["id"]), "scenario_instance_id": instance["scenario_instance_id"], "status": "active"}
 
 

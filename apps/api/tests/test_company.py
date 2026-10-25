@@ -115,3 +115,11 @@ def test_csv_ranks_and_tags_assessment():
     assert body[1].startswith("1,Round 1,a,a@x.com,Completed,85")
     assert body[2].startswith("2,Round 1,b,b@x.com")
     assert len(body) == 5
+
+
+def test_in_app_invites_count_as_invited_even_without_email():
+    base = {"evaluation_status": None, "session_id": None, "opened_at": None}
+    assert analytics.candidate_status({**base, "email_status": "pending", "notified_at": dt.datetime.now(dt.UTC)}) == "invited"
+    assert analytics.candidate_status({**base, "email_status": "failed", "notified_at": dt.datetime.now(dt.UTC)}) == "invited"
+    assert analytics.candidate_status({**base, "email_status": "failed", "notified_at": None}) == "email_failed"
+    assert analytics.candidate_status({**base, "email_status": "pending", "notified_at": None}) == "pending"

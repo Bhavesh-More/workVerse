@@ -155,6 +155,15 @@ class CompanyRepository:
             {"st": "sent" if ok else "failed", "err": error, "ok": ok, "id": invite_id},
         )
 
+    async def mark_invite_notified(self, invite_id: str, channel: str) -> None:
+        await self.session.execute(
+            text(
+                "update public.assessment_invites set channel = :ch, notified_at = now(), "
+                "sent_at = coalesce(sent_at, now()) where id = :id"
+            ),
+            {"ch": channel, "id": invite_id},
+        )
+
     async def list_invites(self, assessment_id: str) -> list[dict[str, Any]]:
         """Invites with the candidate's session status and latest evaluation."""
         return await self._all(
