@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Body
+from sqlalchemy import text
 
-from app.core.errors import NotFoundError
+from app.core.errors import ConflictError, NotFoundError
 from app.deps import AIDep, CurrentUser, Repo
 from app.evaluation.evaluator import evaluation_view
 from app.schemas.api import ActionRequest, CompleteRequest, StartSessionRequest, TurnRequest
@@ -117,6 +118,10 @@ async def retry(
     row = await repo.get_session(session_id)
     if row is None or str(row["user_id"]) != str(principal.user_id):
         raise NotFoundError("Session not found.")
+    # A company assessment is a single submission; practice retries come from Practice.
+    linked = await repo.session.execute(text("select 1 from public.assessment_invites where session_id = :sid"), {"sid": session_id})
+    if linked.first() is not None:
+        raise ConflictError("Company assessments can't be retried.", code="assessment_no_retry")
     version_row = await repo.get_scenario_version(str(row["scenario_version_id"]))
     if version_row is None:
         raise NotFoundError("Scenario version not found.")

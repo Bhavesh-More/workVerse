@@ -153,6 +153,11 @@ def avatars() -> list[dict[str, str]]:
     return out
 
 
+def avatar_portrait(avatar_id: str | None) -> str | None:
+    a = _avatar(avatar_id or "")
+    return a["portrait"] if a else None
+
+
 def _avatar(avatar_id: str) -> dict[str, str] | None:
     return next((a for a in avatars() if a["id"] == avatar_id), None)
 

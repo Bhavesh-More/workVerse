@@ -46,11 +46,11 @@ class CompanyRepository:
 
     async def update_company(self, company_id: str, fields: dict[str, Any]) -> dict[str, Any]:
         sets, params = [], {"id": company_id}
-        for key in ("name", "smtp", "judge_defaults", "judge_roster"):
+        for key in ("name", "smtp", "judge_defaults", "judge_roster", "tagline", "about", "mission", "vision", "company_values", "industry", "website"):
             if key in fields:
-                if key == "name":
-                    sets.append("name = :name")
-                    params["name"] = fields["name"]
+                if key not in ("smtp", "judge_defaults", "judge_roster"):
+                    sets.append(f"{key} = :{key}")
+                    params[key] = fields[key]
                 else:
                     sets.append(f"{key} = cast(:{key} as jsonb)")
                     params[key] = json.dumps(fields[key])
@@ -121,16 +121,54 @@ class CompanyRepository:
             {"id": assessment_id, "cid": company_id},
         )
 
-    async def insert_assessment(self, company_id: str, topic_id: str, title: str, message: str) -> dict[str, Any]:
-        return await self._one(  # type: ignore[return-value]
-            "insert into public.assessments (company_id, topic_id, title, message) "
-            "values (:cid, :tid, :title, :message) returning *",
-            {"cid": company_id, "tid": topic_id, "title": title, "message": message},
+    async def insert_assessment(self, company_id: str, topic_id: str, title: str, message: str, extra: dict[str, Any] | None = None) -> dict[str, Any]:
+        """Create an assessment. With extra["client_request_id"], a repeat returns the first one."""
+        x = {"description": "", "expectations": "", "instructions": "", "skills": [], "due_at": None, "timezone": None, "client_request_id": None, **(extra or {})}
+        row = await self._one(
+            "insert into public.assessments (company_id, topic_id, title, message, description, expectations, instructions, "
+            " skills, due_at, timezone, client_request_id) "
+            "values (:cid, :tid, :title, :message, :description, :expectations, :instructions, cast(:skills as jsonb), "
+            " :due_at, :timezone, :crid) "
+            "on conflict (company_id, client_request_id) where client_request_id is not null do nothing returning *",
+            {
+                "cid": company_id, "tid": topic_id, "title": title, "message": message,
+                "description": x["description"], "expectations": x["expectations"], "instructions": x["instructions"],
+                "skills": json.dumps(x["skills"]), "due_at": x["due_at"], "timezone": x["timezone"], "crid": x["client_request_id"],
+            },
         )
+        if row is not None:
+            return row | {"_created": True}
+        existing = await self._one(
+            "select * from public.assessments where company_id = :cid and client_request_id = :crid",
+            {"cid": company_id, "crid": x["client_request_id"]},
+        )
+        return existing | {"_created": False}  # type: ignore[operator]
+
+    async def update_assessment(self, company_id: str, assessment_id: str, fields: dict[str, Any]) -> dict[str, Any] | None:
+        allowed = ("title", "message", "description", "expectations", "instructions", "skills", "due_at", "timezone")
+        sets, params = [], {"id": assessment_id, "cid": company_id}
+        for k in allowed:
+            if k in fields:
+                if k == "skills":
+                    sets.append("skills = cast(:skills as jsonb)")
+                    params["skills"] = json.dumps(fields[k])
+                else:
+                    sets.append(f"{k} = :{k}")
+                    params[k] = fields[k]
+        if not sets:
+            return await self.get_assessment(company_id, assessment_id)
+        await self.session.execute(
+            text(f"update public.assessments set {', '.join(sets)} where id = :id and company_id = :cid"), params
+        )
+        return await self.get_assessment(company_id, assessment_id)
 
     async def set_assessment_status(self, company_id: str, assessment_id: str, status: str) -> None:
         await self.session.execute(
-            text("update public.assessments set status = :s where id = :id and company_id = :cid"),
+            text(
+                "update public.assessments set status = :s, "
+                "closed_at = case when :s = 'closed' then coalesce(closed_at, now()) else null end "
+                "where id = :id and company_id = :cid"
+            ),
             {"s": status, "id": assessment_id, "cid": company_id},
         )
 
@@ -207,9 +245,96 @@ class CompanyRepository:
             {"id": invite_id, "aid": assessment_id},
         )
 
+    # ---- candidate side -------------------------------------------------------
+    # A candidate reaches an invitation if it is linked to their profile, or (until someone links
+    # it) if it was sent to their verified email. Everything else is invisible to them.
+    _CANDIDATE_SELECT = (
+        "select i.id, i.assessment_id, i.email, i.candidate_name, i.token, i.status, i.accepted_at, i.declined_at, "
+        " i.revoked_at, i.created_at, i.sent_at, i.opened_at, i.session_id, i.profile_id, i.started_at, "
+        " a.title, a.description, a.expectations, a.instructions, a.skills, a.due_at, a.timezone, a.message, "
+        " a.status as assessment_status, a.closed_at, a.topic_id, a.company_id, a.created_at as assessment_created_at, "
+        " c.name as company_name, c.tagline, c.about, c.mission, c.vision, c.company_values, c.industry, c.website, "
+        " c.judge_roster, t.title as topic_title, t.description as topic_description, t.track, t.difficulty, t.judge_ids, "
+        " s.status as session_status, s.scenario_version_id, s.ended_at, e.status as evaluation_status "
+        "from public.assessment_invites i "
+        "join public.assessments a on a.id = i.assessment_id "
+        "join public.companies c on c.id = a.company_id "
+        "join public.company_topics t on t.id = a.topic_id "
+        "left join public.simulation_sessions s on s.id = i.session_id "
+        "left join lateral (select ev.status from public.evaluations ev where ev.session_id = i.session_id "
+        "  order by ev.created_at desc limit 1) e on true "
+    )
+    _MINE = "(i.profile_id = :pid or (i.profile_id is null and cast(:email as text) is not null and lower(i.email) = lower(cast(:email as text))))"
+
+    async def candidate_invites(self, profile_id: str, email: str | None) -> list[dict[str, Any]]:
+        return await self._all(
+            self._CANDIDATE_SELECT + f"where {self._MINE} order by i.created_at desc",
+            {"pid": profile_id, "email": email},
+        )
+
+    async def candidate_invite(self, invite_id: str, profile_id: str, email: str | None, *, lock: bool = False) -> dict[str, Any] | None:
+        if lock:
+            # Serialise accept/start for one invitation (two tabs, two devices, retries).
+            await self.session.execute(
+                text("select id from public.assessment_invites where id = cast(:id as uuid) for update"), {"id": invite_id}
+            )
+        return await self._one(
+            self._CANDIDATE_SELECT + f"where i.id = cast(:id as uuid) and {self._MINE}",
+            {"id": invite_id, "pid": profile_id, "email": email},
+        )
+
+    async def accept_invite(self, invite_id: str, profile_id: str) -> None:
+        await self.session.execute(
+            text(
+                "update public.assessment_invites set status = 'accepted', accepted_at = coalesce(accepted_at, now()), "
+                " profile_id = coalesce(profile_id, :pid), opened_at = coalesce(opened_at, now()) "
+                "where id = :id and status = 'pending'"
+            ),
+            {"id": invite_id, "pid": profile_id},
+        )
+
+    async def decline_invite(self, invite_id: str, profile_id: str, reason: str | None) -> None:
+        await self.session.execute(
+            text(
+                "update public.assessment_invites set status = 'declined', declined_at = now(), decline_reason = :r, "
+                " profile_id = coalesce(profile_id, :pid) where id = :id and status = 'pending'"
+            ),
+            {"id": invite_id, "pid": profile_id, "r": reason},
+        )
+
+    async def link_invite(self, invite_id: str, profile_id: str) -> dict[str, Any] | None:
+        """Link an invitation to the account opening its emailed link (possession of the link
+        proves the email). Only an unlinked invite, or one already linked to this account."""
+        return await self._one(
+            "update public.assessment_invites set profile_id = :pid, opened_at = coalesce(opened_at, now()) "
+            "where id = :id and (profile_id is null or profile_id = :pid) returning *",
+            {"id": invite_id, "pid": profile_id},
+        )
+
+    async def set_invite_session(self, invite_id: str, session_id: str) -> None:
+        await self.session.execute(
+            text("update public.assessment_invites set session_id = :sid, started_at = coalesce(started_at, now()) where id = :id"),
+            {"id": invite_id, "sid": session_id},
+        )
+
+    async def reopen_invite(self, invite_id: str) -> dict[str, Any] | None:
+        return await self._one(
+            "update public.assessment_invites set status = 'pending', declined_at = null, decline_reason = null, "
+            " revoked_at = null, accepted_at = null where id = :id and session_id is null returning *",
+            {"id": invite_id},
+        )
+
+    async def revoke_invite(self, assessment_id: str, invite_id: str) -> dict[str, Any] | None:
+        return await self._one(
+            "update public.assessment_invites set status = 'revoked', revoked_at = now() "
+            "where id = :id and assessment_id = :aid and status in ('pending', 'accepted') and session_id is null returning *",
+            {"id": invite_id, "aid": assessment_id},
+        )
+
     async def get_invite_by_token(self, token: str) -> dict[str, Any] | None:
         return await self._one(
             "select i.*, a.title as assessment_title, a.message, a.status as assessment_status, a.topic_id, "
+            " a.due_at, a.timezone, a.description as assessment_description, c.tagline, "
             " a.company_id, c.name as company_name, t.title as topic_title, t.description as topic_description, "
             " t.difficulty, t.track "
             "from public.assessment_invites i "

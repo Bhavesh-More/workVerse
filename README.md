@@ -71,6 +71,7 @@ used only as the PostgreSQL database, and internal profile rows are keyed by a `
    psql "$DATABASE_URL" -f supabase/migrations/0006_judge_roster.sql
    psql "$DATABASE_URL" -f supabase/migrations/0007_notifications.sql
    psql "$DATABASE_URL" -f supabase/migrations/0008_topic_judges.sql
+   psql "$DATABASE_URL" -f supabase/migrations/0009_company_assessment_lifecycle.sql
    ```
 
    Use a plain `postgresql://` URL (drop `+asyncpg`). The files are safe to re-run. If
