@@ -1,9 +1,11 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { CompanyGate } from "../../../../components/CompanyGate";
 import { companyApi } from "../../../../lib/company";
 import { useApi } from "../../../../lib/useApi";
+import { AssessmentsPdfDialog } from "../../../../components/company/ReportExport";
 
 export default function AssessmentsPage() {
   return <CompanyGate>{() => <Assessments />}</CompanyGate>;
@@ -12,8 +14,10 @@ export default function AssessmentsPage() {
 function Assessments() {
   const { data } = useApi("/company/assessments", companyApi.assessments);
   const items = data?.items ?? [];
+  const [pdfOpen, setPdfOpen] = useState(false);
   return (
     <main className="app-main">
+      {pdfOpen && <AssessmentsPdfDialog assessments={items} onClose={() => setPdfOpen(false)} />}
       <div className="co-head">
         <div>
           <span className="eyebrow">Assessments</span>
@@ -21,7 +25,12 @@ function Assessments() {
             Hiring <span className="hl">rounds</span>
           </h1>
         </div>
-        <Link className="btn" href="/company/assessments/new">New assessment</Link>
+        <div className="row" style={{ gap: 8 }}>
+          <button type="button" className="btn btn--ghost" disabled={!items.length} onClick={() => setPdfOpen(true)} data-testid="assessments-report">
+            Download reports
+          </button>
+          <Link className="btn" href="/company/assessments/new">New assessment</Link>
+        </div>
       </div>
       {data && !items.length && <p className="muted">No assessments yet.</p>}
       {items.length > 0 && (

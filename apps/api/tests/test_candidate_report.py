@@ -108,3 +108,47 @@ def test_detailed_review_has_every_section():
         assert heading in text, heading
     assert "What changed in the last deploy?" in text  # quoted evidence
     assert "Inspect application logs" in text  # evidence ledger checks
+
+
+def _synthetic_rows(rng, n: int, mean: float, prefix: str) -> list[dict]:
+    from app.company import analytics
+
+    rows = []
+    for i in range(n):
+        r = _candidate(f"{prefix} {i:02d}", 0)["row"]
+        score = round(min(97, max(15, rng.gauss(mean, 14))), 1) if rng.random() < 0.75 else None
+        r.update(
+            id=f"{prefix}-{i}", score=score, status="completed" if score is not None else "invited", minutes=round(rng.uniform(6, 25), 1),
+            band=analytics.band(score), accepted_at="x", opened_at="x", session_id="s" if score is not None else None,
+            skills={k: rng.choice([25, 50, 75, 100]) for k in COHORT}, email_status="sent",
+        )
+        rows.append(r)
+    return rows
+
+
+def test_assessment_results_summary_is_one_page_and_detailed_covers_each():
+    import random
+
+    from app.company import analytics
+    from app.company.assessments_report import _stats, build_assessments_report, insights
+
+    rng = random.Random(11)
+    items = []
+    for k in range(9):
+        rows = _synthetic_rows(rng, 30, 45 + 4 * k, f"R{k}")
+        items.append({"assessment": {**ASSESSMENT, "title": f"Round {k}", "status": "active", "due_at": None}, "rows": rows, "sm": analytics.summary(rows)})
+    items.append({"assessment": {**ASSESSMENT, "title": "Empty round", "status": "active", "due_at": None}, "rows": [], "sm": analytics.summary([])})
+
+    summary = _pages(build_assessments_report(kind="summary", company="Acme", items=items))
+    assert len(summary.pages) == 1
+    text = summary.pages[0].extract_text()
+    for part in ("Assessment results", "How the assessments compare", "Round 0", "Round 8", "Empty round", "KEY INSIGHTS"):
+        assert part in text, part
+
+    detailed = _pages(build_assessments_report(kind="detailed", company="Acme", items=items))
+    assert len(detailed.pages) >= 1 + 9 * 2
+    full = "\n".join(p.extract_text() for p in detailed.pages)
+    assert full.count("Everyone invited ·") == 9  # empty round has nobody to rank
+
+    lines = insights([_stats(i) for i in items])
+    assert any("Highest median score" in line for line in lines)

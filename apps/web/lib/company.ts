@@ -289,6 +289,9 @@ export const companyApi = {
 
   allCandidates: () => request<AllCandidates>("/company/candidates"),
   downloadAllCsv: () => download("/company/candidates.csv", "all-candidates.csv"),
+  /** Assessment-wise results: the chosen assessments (none = all) compared on one page, or in detail. */
+  downloadAssessmentsReport: (kind: "summary" | "detailed", ids: string[] = []) =>
+    download(`/company/assessments-report.pdf?kind=${kind}${ids.length ? `&ids=${ids.join(",")}` : ""}`, `assessment-results-${kind}.pdf`),
   /** Everyone across every assessment: one-page summary, or the detailed overview. */
   downloadAllPdf: (kind: "summary" | "detailed" = "detailed") => download(`/company/candidates.pdf?kind=${kind}`, `all-candidates-${kind}.pdf`),
 

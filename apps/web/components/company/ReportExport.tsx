@@ -3,7 +3,7 @@
 // Download reports for an assessment: choose the report (one-page summary per candidate, the
 // in-detail review, or the group report) and, for the per-candidate ones, which candidates.
 import { useEffect, useMemo, useState } from "react";
-import { BAND_COLORS, companyApi, type AssessmentDetail } from "../../lib/company";
+import { BAND_COLORS, companyApi, type AssessmentDetail, type AssessmentSummary } from "../../lib/company";
 import "./report-export.css";
 
 export type ReportKind = "summary" | "detailed" | "group-summary" | "group-detailed";
@@ -311,6 +311,114 @@ export function GroupPdfDialog({
           <span className="row" style={{ gap: 8 }}>
             <button type="button" className="btn btn--ghost" onClick={onClose} disabled={busy}>Cancel</button>
             <button type="button" className="btn" onClick={go} disabled={busy} data-testid="group-download">
+              {busy ? <span className="busy-dots">Building PDF</span> : "Download PDF"}
+            </button>
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/** Assessment-wise results: pick the assessments, then a one-page comparison or the detailed report. */
+export function AssessmentsPdfDialog({ assessments, onClose }: { assessments: AssessmentSummary[]; onClose: () => void }) {
+  const [kind, setKind] = useState<"summary" | "detailed">("summary");
+  const [picked, setPicked] = useState<Set<string>>(() => new Set(assessments.map((a) => a.id)));
+  const [query, setQuery] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    const k = (e: KeyboardEvent) => e.key === "Escape" && !busy && onClose();
+    window.addEventListener("keydown", k);
+    return () => window.removeEventListener("keydown", k);
+  }, [busy, onClose]);
+  const shown = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return q ? assessments.filter((a) => `${a.title} ${a.topic_title}`.toLowerCase().includes(q)) : assessments;
+  }, [assessments, query]);
+  const toggle = (id: string) =>
+    setPicked((p) => {
+      const n = new Set(p);
+      if (n.has(id)) n.delete(id);
+      else n.add(id);
+      return n;
+    });
+  const count = picked.size;
+  const options = [
+    { id: "summary" as const, icon: "group-summary" as ReportKind, title: "Summary · 1 page", blurb: "Every assessment side by side: score spread, band mix and completion, a table with each round's numbers and top candidate, and key insights." },
+    { id: "detailed" as const, icon: "group-detailed" as ReportKind, title: "Detailed report", blurb: "The comparison page, then for each assessment its one-page result and the full ranking of everyone invited." },
+  ];
+  const go = async () => {
+    setBusy(true);
+    setError(null);
+    try {
+      await companyApi.downloadAssessmentsReport(kind, count === assessments.length ? [] : [...picked]);
+      onClose();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not build the report.");
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <div className="we-modal" role="dialog" aria-modal="true" aria-labelledby="ax-title" onClick={() => !busy && onClose()}>
+      <div className="we-modal__card rx" onClick={(e) => e.stopPropagation()} data-testid="assessments-report-dialog">
+        <div className="rx__head">
+          <div>
+            <span className="eyebrow" style={{ margin: 0 }}>Assessment results</span>
+            <h2 id="ax-title" className="section-title" style={{ margin: "4px 0 0" }}>Download reports</h2>
+          </div>
+          <button type="button" className="nt-popup__x" aria-label="Close" onClick={onClose} disabled={busy}>✕</button>
+        </div>
+        <fieldset className="rx__kinds">
+          <legend className="eyebrow">1 · Report</legend>
+          <div className="rx__pair">
+            {options.map((o) => (
+              <label key={o.id} className={`rx__kind${kind === o.id ? " is-on" : ""}`} data-testid={`assessments-kind-${o.id}`}>
+                <input type="radio" name="ax-kind" checked={kind === o.id} onChange={() => setKind(o.id)} />
+                <KindIcon kind={o.icon} />
+                <span>
+                  <strong>{o.title}</strong>
+                  <span className="xsmall muted">{o.blurb}</span>
+                </span>
+              </label>
+            ))}
+          </div>
+        </fieldset>
+        <fieldset className="rx__people">
+          <legend className="eyebrow">2 · Assessments</legend>
+          <div className="rx__tools">
+            <input className="input" type="search" placeholder="Search assessments" value={query} onChange={(e) => setQuery(e.target.value)} aria-label="Search assessments" />
+            <button type="button" className="text-link xsmall" onClick={() => setPicked(new Set(assessments.map((a) => a.id)))} data-testid="assessments-select-all">Select all</button>
+            <button type="button" className="text-link xsmall" onClick={() => setPicked(new Set())} data-testid="assessments-select-none">Clear</button>
+          </div>
+          <ul className="list-reset rx__list" data-testid="assessments-list">
+            {shown.map((a) => (
+              <li key={a.id}>
+                <label className={`rx__person${picked.has(a.id) ? " is-on" : ""}`}>
+                  <input type="checkbox" checked={picked.has(a.id)} onChange={() => toggle(a.id)} data-testid={`assessments-pick-${a.id}`} />
+                  <span className="rx__who">
+                    <strong>{a.title}</strong>
+                    <span className="xsmall muted">{a.topic_title} · {a.status === "active" ? "open" : "closed"}</span>
+                  </span>
+                  <span className="rx__score">
+                    <b>{a.completed}/{a.invited}</b>
+                    <span className="xsmall muted">completed</span>
+                  </span>
+                </label>
+              </li>
+            ))}
+            {shown.length === 0 && <li className="small muted" style={{ padding: 10 }}>No match for “{query}”.</li>}
+          </ul>
+        </fieldset>
+        {error && <div className="banner banner--error small" role="alert">{error}</div>}
+        <div className="rx__foot">
+          <span className="small muted" data-testid="assessments-summary">
+            {count ? `${count} assessment${count === 1 ? "" : "s"} · one PDF · ${kind === "summary" ? "1 page" : "several pages"}` : "Choose at least one assessment"}
+          </span>
+          <span className="row" style={{ gap: 8 }}>
+            <button type="button" className="btn btn--ghost" onClick={onClose} disabled={busy}>Cancel</button>
+            <button type="button" className="btn" onClick={go} disabled={busy || count === 0} data-testid="assessments-download">
               {busy ? <span className="busy-dots">Building PDF</span> : "Download PDF"}
             </button>
           </span>

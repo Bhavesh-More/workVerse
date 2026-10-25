@@ -787,6 +787,35 @@ async def all_candidates_pdf(principal: CurrentUser, crepo: CRepo, kind: Literal
     )
 
 
+@router.get("/company/assessments-report.pdf")
+async def assessments_report_pdf(
+    principal: CurrentUser, crepo: CRepo, kind: Literal["summary", "detailed"] = "summary", ids: str = ""
+) -> Response:
+    """Assessment-wise results: the selected assessments (empty = all) compared on one page, or
+    in detail with each assessment's own summary and ranking."""
+    import asyncio
+
+    from app.company.assessments_report import build_assessments_report
+
+    company = await _company(principal, crepo)
+    wanted = {i for i in ids.split(",") if i.strip()}
+    items = []
+    for a in await crepo.list_assessments(str(company["id"])):
+        aid = str(a["id"])
+        if wanted and aid not in wanted:
+            continue
+        rows = analytics.candidates(await crepo.list_invites(aid), await crepo.invite_item_scores(aid), a)
+        items.append({"assessment": a, "rows": rows, "sm": analytics.summary(rows)})
+    if not items:
+        raise NotFoundError("No assessments to report on.", code="no_assessments")
+    pdf = await asyncio.to_thread(build_assessments_report, kind=kind, company=company["name"], items=items)
+    return Response(
+        content=pdf,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{_slug(company["name"])}-assessment-results-{kind}.pdf"'},
+    )
+
+
 @router.get("/company/assessments/{assessment_id}/candidate-reports.pdf")
 async def candidate_reports_pdf(
     principal: CurrentUser,

@@ -410,6 +410,28 @@ test.describe("Company assessments", () => {
       else expect(pdfPages(target)).toBeGreaterThanOrEqual(4);
     }
 
+    // Assessment-wise results: every assessment on one page, then the detailed report for just this round.
+    await co.goto("/company/assessments");
+    for (const kind of ["summary", "detailed"] as const) {
+      await co.getByTestId("assessments-report").click();
+      await expect(co.getByTestId("assessments-report-dialog")).toBeVisible();
+      await co.getByTestId(`assessments-kind-${kind}`).click();
+      if (kind === "detailed") {
+        await co.getByTestId("assessments-select-none").click();
+        await expect(co.getByTestId("assessments-download")).toBeDisabled();
+        await co.getByLabel("Search assessments").fill(`Backend on-call ${RUN}`);
+        await co.getByTestId("assessments-list").getByRole("checkbox").first().check();
+        await expect(co.getByTestId("assessments-summary")).toContainText("1 assessment");
+      } else await shot(co, "10c-assessment-results-reports");
+      const dl = co.waitForEvent("download", { timeout: 180_000 });
+      await co.getByTestId("assessments-download").click();
+      const target = path.join(SHOTS, `assessment-results-${kind}.pdf`);
+      await (await dl).saveAs(target);
+      expect(fs.readFileSync(target).subarray(0, 4).toString()).toBe("%PDF");
+      if (kind === "summary") expect(pdfPages(target)).toBe(1);
+      else expect(pdfPages(target)).toBeGreaterThanOrEqual(2);
+    }
+
     // Overview reflects the round
     await co.goto("/company");
     await expect(co.getByText(`Backend on-call ${RUN}`).first()).toBeVisible();

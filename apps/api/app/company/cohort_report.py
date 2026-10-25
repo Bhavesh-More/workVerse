@@ -227,23 +227,29 @@ def _grid(left: list[Any], right: list[Any], gap: float = 6 * mm) -> Table:
     return t
 
 
-def build_cohort_summary(*, company: str, assessment: dict[str, Any], rows: list[dict[str, Any]], sm: dict[str, Any]) -> bytes:
-    buf = io.BytesIO()
-    title = assessment["title"]
-    doc = BaseDocTemplate(buf, pagesize=(W, H), leftMargin=MARGIN, rightMargin=MARGIN, topMargin=MARGIN, bottomMargin=16 * mm, title=f"{title} — group summary", author=company)
+def make_doc(buf: io.BytesIO, title: str, company: str, label: str) -> BaseDocTemplate:
+    """A4 document whose footer names the company, the report and the section on the page."""
+    doc = BaseDocTemplate(buf, pagesize=(W, H), leftMargin=MARGIN, rightMargin=MARGIN, topMargin=MARGIN, bottomMargin=16 * mm, title=title, author=company)
     frame = Frame(MARGIN, 16 * mm, CONTENT_W, FRAME_H, leftPadding=0, rightPadding=0, topPadding=0, bottomPadding=0)
 
-    def footer(canvas: Any, _doc: Any) -> None:
+    def footer(canvas: Any, d: Any) -> None:
         canvas.saveState()
         canvas.setFont("Courier", 7.5)
         canvas.setFillColor(colors.HexColor(MUTED))
-        canvas.drawString(MARGIN, 8 * mm, f"{company} · {title} · group summary".upper()[:100])
-        canvas.drawRightString(W - MARGIN, 8 * mm, datetime.now(UTC).strftime("%d %b %Y").upper())
+        section = getattr(canvas, "_wv_label", "")
+        canvas.drawString(MARGIN, 8 * mm, " · ".join(x for x in (company, label, section) if x).upper()[:100])
+        canvas.drawRightString(W - MARGIN, 8 * mm, f"{datetime.now(UTC).strftime('%d %b %Y').upper()} · PAGE {d.page}")
         canvas.setStrokeColor(colors.HexColor(HAIR))
         canvas.line(MARGIN, 11 * mm, W - MARGIN, 11 * mm)
         canvas.restoreState()
 
     doc.addPageTemplates([PageTemplate(frames=[frame], onPageEnd=footer)])
+    return doc
+
+
+def summary_page(*, company: str, assessment: dict[str, Any], rows: list[dict[str, Any]], sm: dict[str, Any], eyebrow: str = "GROUP SUMMARY") -> KeepInFrame:
+    """The one-page group summary as a single flowable (scaled to fit one page)."""
+    title = assessment["title"]
     half = (CONTENT_W - 6 * mm) / 2
     done = sorted([r for r in rows if r["status"] == "completed" and r["score"] is not None], key=lambda r: -r["score"])
     scores = [r["score"] for r in done]
@@ -252,7 +258,7 @@ def build_cohort_summary(*, company: str, assessment: dict[str, Any], rows: list
     med = f"{round(median(scores), 1):g}" if scores else "—"
 
     content: list[Any] = [
-        Paragraph(f"{_esc(company).upper()} · GROUP SUMMARY · {datetime.now(UTC).strftime('%d %b %Y').upper()}", S["eyebrow"]),
+        Paragraph(f"{_esc(company).upper()} · {eyebrow} · {datetime.now(UTC).strftime('%d %b %Y').upper()}", S["eyebrow"]),
         Spacer(1, 3),
         Paragraph(_esc(title), S["h1"]),
         Paragraph(f"{_esc(assessment.get('subtitle') or 'Topic: ' + str(assessment.get('topic_title') or ''))} · {sm['total']} invited · {sm['completed']} completed", S["muted"]),
@@ -307,5 +313,11 @@ def build_cohort_summary(*, company: str, assessment: dict[str, Any], rows: list
     box = Table([[[Paragraph("KEY INSIGHTS", S["kpil"]), Spacer(1, 3), *[Paragraph(f"• {line}", S["body"]) for line in insights(rows, sm)]]]], colWidths=[CONTENT_W])
     box.setStyle(TableStyle([("BACKGROUND", (0, 0), (-1, -1), colors.HexColor("#fff8dc")), ("LEFTPADDING", (0, 0), (-1, -1), 12), ("RIGHTPADDING", (0, 0), (-1, -1), 12), ("TOPPADDING", (0, 0), (-1, -1), 8), ("BOTTOMPADDING", (0, 0), (-1, -1), 10)]))
     content += [box, Spacer(1, 6), Paragraph("Scores come from a simulated workday, rated against written anchors with quoted evidence. Use bands to plan next steps and combine with interviews.", S["muted"])]
-    doc.build([KeepInFrame(CONTENT_W, FRAME_H, content, mode="shrink")])
+    return KeepInFrame(CONTENT_W, FRAME_H, content, mode="shrink")
+
+
+def build_cohort_summary(*, company: str, assessment: dict[str, Any], rows: list[dict[str, Any]], sm: dict[str, Any]) -> bytes:
+    buf = io.BytesIO()
+    doc = make_doc(buf, f"{assessment['title']} — group summary", company, f"{assessment['title']} · group summary")
+    doc.build([summary_page(company=company, assessment=assessment, rows=rows, sm=sm)])
     return buf.getvalue()
