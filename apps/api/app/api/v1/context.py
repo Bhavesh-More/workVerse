@@ -29,7 +29,7 @@ async def upload_document(
 ) -> dict:
     data = await file.read(MAX_DOCUMENT_BYTES + 1)
     if len(data) > MAX_DOCUMENT_BYTES:
-        raise ValidationAppError("Files can be up to 5 MB.", code="file_too_large")
+        raise ValidationAppError("Files can be up to 4 MB.", code="file_too_large")
     return await context_service.upload_document(
         repo, principal.user_id, kind, file.filename or "document", data
     )

@@ -261,7 +261,7 @@ export default function ProfilePage() {
             </div>
             <FormError message={ctxError} />
             {ctx?.context && <ContextSummary view={ctx} />}
-            <DocumentUpload kind="cv" label="CV / résumé" hint="PDF, Word or text, up to 5 MB." source={ctx?.sources.find((s) => s.kind === "cv")} onChange={(s) => onDocument("cv", s)} />
+            <DocumentUpload kind="cv" label="CV / résumé" hint="PDF, Word or text, up to 4 MB." source={ctx?.sources.find((s) => s.kind === "cv")} onChange={(s) => onDocument("cv", s)} />
             <DocumentUpload kind="linkedin_pdf" label="LinkedIn PDF" hint="LinkedIn profile → More → Save to PDF." source={ctx?.sources.find((s) => s.kind === "linkedin_pdf")} onChange={(s) => onDocument("linkedin_pdf", s)} />
             {ctx && ctx.sources.some((s) => !["cv", "linkedin_pdf"].includes(s.kind)) && (
               <ul className="list-reset stack stack--sm" aria-label="Linked sources">

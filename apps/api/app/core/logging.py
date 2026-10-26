@@ -1,8 +1,7 @@
-"""Structured JSON logging with lightweight secret redaction.
+"""Structured JSON logging with key-based secret redaction.
 
-We never intentionally log secrets. This module adds a defensive filter so that if a
-secret value were ever passed in a log record it is masked, and emits one JSON object
-per line for easy ingestion.
+We never intentionally log secrets. This module masks selected sensitive fields and
+emits one JSON object per line for easy ingestion.
 """
 
 from __future__ import annotations
@@ -26,20 +25,13 @@ _REDACT_KEYS = (
 _REDACTED = "***REDACTED***"
 
 
-def redact(value: str) -> str:
-    out = value
-    for marker in ("c52265172a2148b9b1a7090ff9b5c576", "f16e30e4cd9744b793d52fd5daefdadc"):
-        out = out.replace(marker, _REDACTED)
-    return out
-
-
 class JsonFormatter(logging.Formatter):
     def format(self, record: logging.LogRecord) -> str:
         payload = {
             "ts": datetime.now(UTC).isoformat(),
             "level": record.levelname,
             "logger": record.name,
-            "message": redact(record.getMessage()),
+            "message": record.getMessage(),
         }
         for key, val in record.__dict__.items():
             if key in ("request_id", "session_id", "user_id", "event", "model", "latency_ms"):
@@ -48,7 +40,7 @@ class JsonFormatter(logging.Formatter):
             if key in payload:
                 payload[key] = _REDACTED
         if record.exc_info:
-            payload["exc"] = redact(self.formatException(record.exc_info))
+            payload["exc"] = self.formatException(record.exc_info)
         return json.dumps(payload, default=str)
 
 

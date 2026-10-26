@@ -185,7 +185,7 @@ export default function OnboardingPage() {
     </div>,
     <div key="s2" className="stack">
       <p className="small muted">All optional. We keep only extracted text.</p>
-      <DocumentUpload kind="cv" label="CV / résumé" hint="PDF, Word or text, up to 5 MB." source={docs.cv} onChange={(s) => onDocument("cv", s)} />
+      <DocumentUpload kind="cv" label="CV / résumé" hint="PDF, Word or text, up to 4 MB." source={docs.cv} onChange={(s) => onDocument("cv", s)} />
       <div className="field">
         <label htmlFor="gh">GitHub</label>
         <input id="gh" className="input" value={github} onChange={(e) => setGithub(e.target.value)} placeholder="github.com/your-username" autoComplete="url" />

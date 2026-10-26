@@ -22,7 +22,7 @@ from urllib.parse import urljoin, urlparse
 
 import httpx
 
-MAX_DOCUMENT_BYTES = 5 * 1024 * 1024
+MAX_DOCUMENT_BYTES = 4 * 1024 * 1024
 MAX_PAGE_BYTES = 1_500_000
 MAX_DOCUMENT_CHARS = 20_000
 MAX_PAGE_CHARS = 6_000
@@ -103,7 +103,7 @@ def read_document(filename: str, data: bytes) -> dict[str, Any]:
     if not data:
         raise SourceError("The file is empty.")
     if len(data) > MAX_DOCUMENT_BYTES:
-        raise SourceError("Files can be up to 5 MB.")
+        raise SourceError("Files can be up to 4 MB.")
     name = (filename or "document").lower()
     if name.endswith(".pdf") or data[:5] == b"%PDF-":
         text, links = _pdf_text(data)
