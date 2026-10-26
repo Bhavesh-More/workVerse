@@ -24,7 +24,6 @@ async def ready() -> dict:
         "llm_configured": bool(settings.ollama_key_pool),
         "voice_configured": bool(settings.voice_configured),
         "voice_llm_bridge_configured": bool(settings.voice_llm_bridge_configured),
-        "object_storage_configured": bool(settings.minio_endpoint and settings.minio_access_key),
     }
     status = "ready"
     try:

@@ -39,8 +39,8 @@ This file records honest limitations and the deliberate scope decisions for the 
 - Evaluation quotes are verified in two places: the application verifies each cited id belongs
   to the session and stores an exact substring of the persisted source, and a database trigger
   re-checks quote/session membership on insert.
-- Uploaded documents are not yet ingested (no resume parsing). The storage adapter and MinIO
-  compose file are present but the core flow does not depend on them.
+- Uploaded documents are not yet ingested (no resume parsing). Files are read into memory for
+  text extraction and are not persisted to object storage.
 
 ## Simulation
 
@@ -50,12 +50,6 @@ This file records honest limitations and the deliberate scope decisions for the 
   session are rejected with `409`.
 - Scenario variation changes surface details (service, timing, impact, stakeholder voice) while
   keeping the action graph, required facts and rubric stable, so attempts remain comparable.
-
-## Object storage
-
-- MinIO is provided for local development only. The upstream community distribution's
-  maintenance/licensing status should be reviewed and an image pinned (the compose file
-  intentionally requires an explicit `MINIO_IMAGE`) before any real use.
 
 ## Real-time voice (ElevenAgents)
 

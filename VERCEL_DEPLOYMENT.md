@@ -343,8 +343,7 @@ Optional:
 | `GITHUB_TOKEN` | Higher GitHub scraping limit |
 | `VERCEL_SUPPORT_LARGE_FUNCTIONS` | Only if the Python bundle exceeds 500 MB; set to `1` |
 
-Do not set `MINIO_*` or `SUPABASE_*`; those settings are not used by the running app. The health
-check may report `object_storage_configured: false`; that is expected.
+Do not set `SUPABASE_*`; those settings are not used by the running app.
 
 ### 5.4 Environment notes
 
@@ -418,8 +417,6 @@ Expected:
 - `voice_llm_bridge_configured: true`
 
 `/health/ready` returns HTTP 200 even when degraded. Inspect the JSON, not just the status code.
-
-`object_storage_configured: false` is fine; MinIO is not used.
 
 ### 7.2 Routing
 
@@ -520,7 +517,7 @@ DNS can take up to 48 hours.
   need a real size test.
 - **300-second Hobby limit.** Large evaluations may need Pro (800 seconds) or a background job.
 - **Cold starts.** `matplotlib` is imported at module scope in `report_pdf.py`; lazy import would
-  improve non-report routes. `boto3` is unused and can be removed.
+  improve non-report routes.
 - **No persistent filesystem.** Generated reports are built in memory. Do not add code that
   expects local files to survive between requests.
 - **Server-side API calls.** Current `lib/api` consumers are client components, so relative
@@ -576,7 +573,7 @@ VOICE_LLM_MAX_OUTPUT_TOKENS=100
 
 Optional: `SMTP_*`, `GITHUB_TOKEN`, `VERCEL_SUPPORT_LARGE_FUNCTIONS`.
 
-Do not add `MINIO_*`, `SUPABASE_*`, or `NEXT_PUBLIC_SUPABASE_*` unless you add code that uses them.
+Do not add `SUPABASE_*` or `NEXT_PUBLIC_SUPABASE_*` unless you add code that uses them.
 
 ---
 

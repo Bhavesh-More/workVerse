@@ -52,5 +52,5 @@ def configure_logging(level: str = "INFO") -> None:
     root.addHandler(handler)
     root.setLevel(level.upper())
     # Quiet noisy third-party loggers.
-    for noisy in ("httpx", "httpcore", "uvicorn.access", "botocore", "boto3"):
+    for noisy in ("httpx", "httpcore", "uvicorn.access"):
         logging.getLogger(noisy).setLevel(logging.WARNING)

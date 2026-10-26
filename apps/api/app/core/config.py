@@ -173,16 +173,6 @@ class Settings(BaseSettings):
     github_token: str = ""
     scrape_timeout_seconds: float = 8.0
 
-    # --- MinIO / S3-compatible object storage -----------------------------
-    minio_endpoint: str = ""
-    minio_access_key: str = ""
-    minio_secret_key: str = ""
-    minio_bucket: str = "workverse-private"
-    minio_region: str = "us-east-1"
-    minio_secure: bool = False
-    minio_presigned_url_ttl_seconds: int = 300
-    minio_max_upload_bytes: int = 10_485_760
-
     # --- Company assessments: invite links and the fallback SMTP server ----
     # Companies can store their own SMTP settings; these are used when they haven't.
     web_base_url: str = "http://localhost:3000"

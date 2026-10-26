@@ -15,7 +15,6 @@ This repository is a pnpm + Turborepo monorepo containing:
   simulation state, hosted Ollama Cloud AI orchestration, and evaluation.
 - `packages/*` — existing shared UI / eslint / TypeScript configs.
 - `supabase/` — SQL schema and migrations.
-- `infra/` — local MinIO compose file (optional).
 - `assets/` — the supplied art packs (Neko Office, PixelSerial RPG characters) and license.
 - `scripts/build_office_map.py` — deterministic generator for the office: baked floor/wall layers,
   the prop atlas and `map.json` (collision, props, NPC/object slots). Art lives in
@@ -38,7 +37,6 @@ used only as the PostgreSQL database, and internal profile rows are keyed by a `
 - Node.js ≥ 20 (repo engines target ≥ 24; Node 22 works for the web app)
 - pnpm (this repo pins `pnpm@11.25.0`)
 - Python 3.12+ and [uv](https://docs.astral.sh/uv/)
-- Docker (only for the optional MinIO container)
 - A Clerk application (publishable + secret keys), a Supabase project (database only), and an
   Ollama Cloud API key
 
@@ -89,12 +87,6 @@ used only as the PostgreSQL database, and internal profile rows are keyed by a `
 
 ```sh
 pnpm dev            # starts apps/web (3000) and apps/api (8000) via Turbo
-```
-
-Optional local object storage (private bucket, loopback only):
-
-```sh
-docker compose -f infra/docker-compose.minio.yml --env-file .env up
 ```
 
 ## Verify
