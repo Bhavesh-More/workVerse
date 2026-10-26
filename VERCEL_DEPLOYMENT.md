@@ -231,8 +231,9 @@ For the running API, use the Supabase **transaction pooler** on port `6543`:
 postgresql+asyncpg://postgres.<project-ref>:<password>@<pooler-host>:6543/postgres
 ```
 
-Use `DATABASE_POOL_SIZE=1` and `DATABASE_MAX_OVERFLOW=0`. The code already disables prepared
-statements when it sees port `6543`, and sets SSL to `require`.
+The engine uses `NullPool` and disables prepared-statement caching for the transaction pooler.
+It also sets SSL to `require`. Do not set `DATABASE_POOL_SIZE` or `DATABASE_MAX_OVERFLOW`; they
+are no longer read.
 
 URL-encode any reserved characters in the password.
 
@@ -284,8 +285,6 @@ actually uses the value.
 | `APP_ENV` | `production` | API |
 | `LOG_LEVEL` | `INFO` | API |
 | `DATABASE_URL` | Supabase transaction-pooler URI on `:6543` | API |
-| `DATABASE_POOL_SIZE` | `1` | API |
-| `DATABASE_MAX_OVERFLOW` | `0` | API |
 | `CLERK_PUBLISHABLE_KEY` | `pk_test_...` for demo, `pk_live_...` for production | API |
 | `CLERK_SECRET_KEY` | matching `sk_test_...` or `sk_live_...` | API + web |
 | `CORS_ALLOWED_ORIGINS` | `https://<domain>` | API |
@@ -535,8 +534,6 @@ Use this as a final check before deploying.
 APP_ENV=production
 LOG_LEVEL=INFO
 DATABASE_URL=postgresql+asyncpg://postgres.<ref>:<password>@<pooler-host>:6543/postgres
-DATABASE_POOL_SIZE=1
-DATABASE_MAX_OVERFLOW=0
 CLERK_PUBLISHABLE_KEY=pk_test_... or pk_live_...
 CLERK_SECRET_KEY=sk_test_... or sk_live_...
 CORS_ALLOWED_ORIGINS=https://<domain>

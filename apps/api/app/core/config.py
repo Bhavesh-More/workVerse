@@ -97,8 +97,6 @@ class Settings(BaseSettings):
 
     # --- Database ----------------------------------------------------------
     database_url: str = ""
-    database_pool_size: int = 5
-    database_max_overflow: int = 5
     database_command_timeout_seconds: int = 15
 
     # --- Ollama Cloud (hosted inference ONLY) ------------------------------

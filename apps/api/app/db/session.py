@@ -11,6 +11,7 @@ from uuid import uuid4
 from fastapi import Request
 from sqlalchemy.engine import make_url
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.pool import NullPool
 
 from app.core.config import Settings
 
@@ -37,28 +38,20 @@ def init_engine(settings: Settings) -> None:
     if not settings.database_url:
         logger.warning("database_url_missing", extra={"event": "startup"})
         return
-    # Server-side keepalives stop idle pooled connections being dropped by NAT/proxies, which
-    # is what lets us skip pool_pre_ping (a full DB round trip — ~350 ms to a remote region —
-    # on every request).
+    # Server-side keepalives reduce idle-connection drops through NAT/proxies.
     connect_args: dict = {
-        "server_settings": {"application_name": "workverse-api", "tcp_keepalives_idle": "60"}
+        "server_settings": {"application_name": "workverse-api", "tcp_keepalives_idle": "60"},
+        # Supabase's transaction pooler cannot reuse session-level prepared statements.
+        "statement_cache_size": 0,
+        "prepared_statement_cache_size": 0,
+        "prepared_statement_name_func": lambda: f"__asyncpg_{uuid4()}__",
     }
     parsed_ssl = "require"
     connect_args["ssl"] = parsed_ssl if parsed_ssl else ssl.create_default_context()
     url = make_url(_async_url(settings.database_url))
-    if url.port == 6543:
-        # Supabase transaction pooler: backends are shared between clients, so prepared
-        # statements can't be cached per connection (session mode on 5432 caps clients at ~15).
-        connect_args["statement_cache_size"] = 0
-        connect_args["prepared_statement_name_func"] = lambda: f"__asyncpg_{uuid4()}__"
-        url = url.update_query_dict({"prepared_statement_cache_size": "0"})
     _engine = create_async_engine(
         url,
-        pool_size=settings.database_pool_size,
-        max_overflow=settings.database_max_overflow,
-        # ponytail: no pre-ping; a connection dropped despite keepalives fails one request,
-        # then SQLAlchemy invalidates it. Re-enable pool_pre_ping if that shows up in logs.
-        pool_recycle=1800,
+        poolclass=NullPool,
         connect_args=connect_args,
         echo=False,
     )
