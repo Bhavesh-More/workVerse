@@ -789,6 +789,11 @@ class Repository:
             )
         )
 
+    async def delete_evaluation(self, session_id: str) -> None:
+        await self.session.execute(
+            text("delete from public.evaluations where session_id = :sid"), {"sid": session_id}
+        )
+
     async def list_evaluation_items(self, evaluation_id: str) -> list[dict[str, Any]]:
         return _rows(
             await self.session.execute(

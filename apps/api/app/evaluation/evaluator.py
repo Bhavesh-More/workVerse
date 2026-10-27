@@ -302,6 +302,8 @@ async def generate_evaluation(
     warnings.extend(vwarnings)
     overall = _overall(results, blueprint.rubric.scale_max)
 
+    # A session has one report, refreshed as the learner keeps talking.
+    await repo.delete_evaluation(session_id)
     evaluation_row = await repo.create_evaluation(
         session_id=session_id,
         rubric_version=blueprint.rubric.version,

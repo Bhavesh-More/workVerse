@@ -111,6 +111,13 @@ async def get_evaluation(principal: CurrentUser, repo: Repo, session_id: str) ->
     return await evaluation_view(repo, evaluation, blueprint)
 
 
+@router.post("/sessions/{session_id}/evaluate")
+async def evaluate(principal: CurrentUser, repo: Repo, ai: AIDep, session_id: str) -> dict:
+    return await session_service.evaluate_session(
+        repo=repo, ai=ai, user_id=principal.user_id, session_id=session_id
+    )
+
+
 @router.post("/sessions/{session_id}/retry", status_code=201)
 async def retry(
     principal: CurrentUser, repo: Repo, ai: AIDep, session_id: str

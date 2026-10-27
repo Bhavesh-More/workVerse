@@ -118,3 +118,63 @@ def test_overall_requires_at_least_two_scored_criteria() -> None:
     assert _overall(one, 4) is None
     two = [{"status": "scored", "rating": 4}, {"status": "scored", "rating": 2}]
     assert _overall(two, 4) == 75.0
+
+
+def test_generate_evaluation_replaces_the_previous_report() -> None:
+    import asyncio
+
+    from app.evaluation import evaluator
+    from app.simulation.engine import build_initial_state
+
+    bp = build_production_incident(seed=1)
+    state = build_initial_state(bp, "v1")
+    calls: list[str] = []
+
+    class Repo:
+        async def list_messages(self, *_args):
+            return []
+
+        async def list_events(self, *_args):
+            return []
+
+        async def list_deliverables(self, *_args):
+            return []
+
+        async def delete_evaluation(self, session_id):
+            calls.append(f"delete:{session_id}")
+
+        async def create_evaluation(self, **kwargs):
+            calls.append(f"create:{kwargs['session_id']}")
+            return {
+                "id": "e1",
+                "session_id": kwargs["session_id"],
+                "status": "completed",
+                "rubric_version": kwargs["rubric_version"],
+                "evaluator_version": kwargs["evaluator_version"],
+                "overall_score": None,
+                "report_summary": kwargs["report_summary"],
+                "limitations": kwargs["limitations"],
+                "validation_warnings": kwargs["validation_warnings"],
+                "report_metadata": kwargs["report_metadata"],
+                "model_name": None,
+                "created_at": None,
+            }
+
+        async def insert_evaluation_item(self, **_kwargs):
+            return {"id": "i1"}
+
+        async def list_evaluation_items(self, *_args):
+            return []
+
+        async def list_evaluation_evidence(self, *_args):
+            return []
+
+    class AI:
+        configured = False
+
+    asyncio.run(
+        evaluator.generate_evaluation(
+            repo=Repo(), ai=AI(), session_id="s", blueprint=bp, state=state
+        )
+    )
+    assert calls == ["delete:s", "create:s"]

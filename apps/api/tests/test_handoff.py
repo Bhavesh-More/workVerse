@@ -102,8 +102,9 @@ def test_voice_turns_reveal_facts_from_question_and_from_reply(monkeypatch):
     view = asyncio.run(vs2._learn_from_voice(repo2, object(), "u", "s", "manager", "npc", "and the deadline is 5pm"))
     assert view and set(rest) <= set(view["facts"])
     assert character_done(bp, state, next(c for c in bp.characters if c.id == "manager"))
-    # Nothing new said: no update.
-    assert asyncio.run(vs2._learn_from_voice(repo2, object(), "u", "s", "manager", "npc", "ok")) is None
+    # Nothing new said: the client still gets the current view so bridge-side facts reach it.
+    view = asyncio.run(vs2._learn_from_voice(repo2, object(), "u", "s", "manager", "npc", "ok"))
+    assert view and set(rest) <= set(view["facts"])
 
 
 async def _ret(state, bp):
@@ -116,6 +117,8 @@ def test_vague_reply_does_not_count_for_a_fact_with_numbers():
     detail = "About 24% of checkouts are failing; revenue is dropping by the minute."
     assert not says_specifics(detail, "Impact is that checkout is failing for customers right now.")
     assert says_specifics(detail, "Roughly 24 percent of checkouts fail.")
+    assert says_specifics(detail, "Roughly twenty four percent of checkouts fail.")
+    assert says_specifics(detail, "Roughly twenty-four percent of checkouts fail.")
     assert says_specifics("The release went out this morning.", "We shipped a release this morning.")
 
 

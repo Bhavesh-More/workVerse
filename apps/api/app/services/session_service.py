@@ -340,7 +340,7 @@ async def complete_session(
     row, blueprint, state = await _load(repo, user_id, session_id, for_update=True)
 
     existing = await repo.get_evaluation(session_id)
-    if existing is not None and existing["status"] == "completed":
+    if row["status"] == "completed" and existing is not None:
         return {"status": "completed", "evaluation": await _evaluation_view(repo, existing, blueprint)}
 
     status_info = completion_status(blueprint, state)
@@ -394,6 +394,32 @@ async def _evaluation_view(repo: Repository, evaluation_row: dict[str, Any], blu
     from app.evaluation.evaluator import evaluation_view
 
     return await evaluation_view(repo, evaluation_row, blueprint)
+
+
+async def evaluate_session(
+    *, repo: Repository, ai: OllamaCloudClient, user_id: str, session_id: str
+) -> dict[str, Any]:
+    """Refresh the score while the call is still open, once the learner has the specifics."""
+    row, blueprint, state = await _load(repo, user_id, session_id)
+    if row["status"] not in {"active", "completed"}:
+        raise ConflictError("This session is not active.", code="session_not_active")
+    specifics_done = completion_status(blueprint, state)["ready"] or any(
+        character_done(blueprint, state, character) for character in blueprint.characters
+    )
+    if not specifics_done:
+        raise ConflictError(
+            "Talk to a colleague until they have told you what they know first.",
+            code="specifics_incomplete",
+        )
+    from app.evaluation.evaluator import generate_evaluation
+
+    return await generate_evaluation(
+        repo=repo,
+        ai=ai,
+        session_id=session_id,
+        blueprint=blueprint,
+        state=state,
+    )
 
 
 async def skip_character(*, repo: Repository, user_id: str, session_id: str, character_id: str) -> dict[str, Any]:

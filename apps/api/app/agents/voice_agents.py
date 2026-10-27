@@ -34,13 +34,12 @@ def prompt_for(slot: str) -> str:
         "Facts you can share on this call (exact, use these words and numbers; anything else you don't know):\n"
         "{{shared_facts}}\n\n"
         "When they ask about one of these, tell them plainly and say the numbers and times exactly. "
-        "When the conversation is wrapped up (they say no, thanks, bye, or that they're good), say one short goodbye "
-        "and call the end_call tool in that same turn. Never wait for a reply after saying goodbye."
+        "Once you have told them every fact listed above (if there are any), say one short sentence "
+        "handing them on to their next step, but keep answering if they ask you more. "
+        "Only they end the call."
     )
 
 
-# Lets the character hang up after saying goodbye (ElevenLabs system tool).
-END_CALL = {"end_call": {"name": "end_call", "description": "End the call once the conversation is wrapped up.", "params": {"system_tool_type": "end_call"}}}
 # Default for calls started without the variable (e.g. testing in the ElevenLabs dashboard).
 FACT_DEFAULTS = {"dynamic_variable_placeholders": {"shared_facts": "None."}}
 
@@ -53,7 +52,7 @@ def payload(slot: str, gender: str, label: str, first: str) -> dict:
             "agent": {
                 "first_message": first,
                 "language": "en",
-                "prompt": {"prompt": prompt_for(slot), "llm": "deepseek-v41-flash", "temperature": 0.3, "max_tokens": 100, "built_in_tools": END_CALL},
+                "prompt": {"prompt": prompt_for(slot), "llm": "deepseek-v41-flash", "temperature": 0.3, "max_tokens": 100, "built_in_tools": {}},
                 "dynamic_variables": FACT_DEFAULTS,
             },
             "tts": {"voice_id": VOICES[voice][0], "model_id": "eleven_v4_turbo", "stability": 0.5, "similarity_boost": 0.8},

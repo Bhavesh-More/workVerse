@@ -7,7 +7,6 @@ import {
   type MessagePayload,
 } from "@elevenlabs/react";
 import { api } from "../lib/api";
-import { isSignOff } from "../lib/signoff";
 import type { SessionView, VoiceNpc, VoiceTranscriptEntry } from "../lib/types";
 
 export type VoicePhase =
@@ -29,8 +28,12 @@ type Props = {
   onSkip?: () => void;
   /** Called when a voice turn taught the learner something (the server returns the new session). */
   onSession?: (session: SessionView) => void;
+  /** Called after the learner's spoken turn is saved, so the score can be refreshed. */
+  onUserTurn?: () => void;
+  /** Formative score refreshed while the call is still open. */
+  liveScore?: { score: number | null; delta: number | null } | null;
   /** Shown once this colleague has told the learner everything: where to go next. */
-  handoff?: { text: string; goLabel: string; onGo: () => void; secs: number } | null;
+  handoff?: { text: string; goLabel: string; onGo: () => void } | null;
 };
 
 const PHASE_LABEL: Record<VoicePhase, string> = {
@@ -63,49 +66,71 @@ function VoiceSession({
   onEnd,
   onSkip,
   onSession,
+  onUserTurn,
+  liveScore,
   handoff,
 }: Props) {
-  const goRef = useRef(handoff?.onGo);
-  const byeRef = useRef(false);
-  const byeTimer = useRef<number | undefined>(undefined);
-  const endRef = useRef<() => void>(() => {});
+  const ended = useRef(false);
   const onSessionRef = useRef(onSession);
   onSessionRef.current = onSession;
+  const onUserTurnRef = useRef(onUserTurn);
+  onUserTurnRef.current = onUserTurn;
   const [entries, setEntries] = useState<VoiceTranscriptEntry[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [detail, setDetail] = useState<string | null>(null);
   const [phase, setPhase] = useState<VoicePhase>("connecting");
   const logRef = useRef<HTMLDivElement>(null);
   const timersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+  const pendingRef = useRef<Map<string, { speaker: "user" | "npc"; text: string }>>(new Map());
   const conversationIdRef = useRef<string | null>(null);
+
+  const send = useCallback(
+    (id: string, speaker: "user" | "npc", text: string) => {
+      pendingRef.current.delete(id);
+      return api
+        .ingestVoiceMessage(sessionId, voiceSessionId, {
+          speaker,
+          text,
+          provider_message_id: id,
+          provider_conversation_id: conversationIdRef.current,
+        })
+        .then((res) => {
+          if (res.session) onSessionRef.current?.(res.session);
+          if (speaker === "user") onUserTurnRef.current?.();
+        })
+        .catch(() => {
+          /* transcript persistence is best-effort; the server also reconciles */
+        });
+    },
+    [sessionId, voiceSessionId],
+  );
+  const sendRef = useRef(send);
+  sendRef.current = send;
 
   const persist = useCallback(
     (id: string, speaker: "user" | "npc", text: string) => {
       const existing = timersRef.current.get(id);
       if (existing) clearTimeout(existing);
+      pendingRef.current.set(id, { speaker, text });
       // Debounce so an updated/partial segment replaces the stored turn instead of duplicating.
       timersRef.current.set(
         id,
         setTimeout(() => {
           timersRef.current.delete(id);
-          api
-            .ingestVoiceMessage(sessionId, voiceSessionId, {
-              speaker,
-              text,
-              provider_message_id: id,
-              provider_conversation_id: conversationIdRef.current,
-            })
-            .then((res) => {
-              if (res.session) onSessionRef.current?.(res.session);
-            })
-            .catch(() => {
-              /* transcript persistence is best-effort; the server also reconciles */
-            });
+          void send(id, speaker, text);
         }, 600),
       );
     },
-    [sessionId, voiceSessionId],
+    [send],
   );
+
+  const flush = useCallback(async () => {
+    timersRef.current.forEach((timer) => clearTimeout(timer));
+    timersRef.current.clear();
+    await Promise.all(
+      [...pendingRef.current.entries()].map(([id, pending]) => send(id, pending.speaker, pending.text)),
+    );
+  }, [send]);
 
   const handleMessage = useCallback(
     (message: MessagePayload) => {
@@ -114,13 +139,6 @@ function VoiceSession({
       // Drop expressive voice tags like "[calm]": they steer the voice, they aren't words.
       const text = (message.message || "").replace(/\[[a-z][a-z \-]*\]\s*/gi, "").trim();
       if (!text) return;
-      // A goodbye from the colleague closes the call once they've finished saying it; anything the
-      // learner says afterwards cancels that.
-      if (speaker === "npc" && isSignOff(text)) byeRef.current = true;
-      if (speaker === "user") {
-        byeRef.current = false;
-        window.clearTimeout(byeTimer.current);
-      }
       setEntries((prev) => {
         const index = prev.findIndex((entry) => entry.id === id);
         if (index === -1) return [...prev, { id, speaker, text, status: "final" }];
@@ -147,13 +165,8 @@ function VoiceSession({
       const close = closeCode ?? closeReason;
       setPhase("ended");
       if (reason === "agent") {
-        // The colleague said goodbye and hung up: close the call like the End button would, after a
-        // moment so the last line is saved and seen, and carry on to the next step if there is one.
-        setDetail(`${npc.name.split(" ")[0]} ended the call.`);
-        window.setTimeout(() => {
-          endRef.current();
-          goRef.current?.();
-        }, 1500);
+        // The agent hung up itself; keep the overlay so the learner still chooses when to move on.
+        setDetail(`${npc.name.split(" ")[0]} ended the call. Press End voice to continue.`);
         return;
       }
       console.warn("[voice] disconnect", details);
@@ -172,14 +185,6 @@ function VoiceSession({
     onMessage: handleMessage,
     onModeChange: ({ mode }) => {
       setPhase(mode === "speaking" ? "speaking" : "listening");
-      window.clearTimeout(byeTimer.current);
-      if (mode !== "speaking" && byeRef.current) {
-        byeTimer.current = window.setTimeout(() => {
-          setDetail(`${npc.name.split(" ")[0]} ended the call.`);
-          endRef.current();
-          goRef.current?.();
-        }, 2500);
-      }
     },
   });
 
@@ -224,15 +229,20 @@ function VoiceSession({
 
   useEffect(() => {
     const timers = timersRef.current;
-    const bye = byeTimer;
+    const pending = pendingRef.current;
     return () => {
-      window.clearTimeout(bye.current);
       timers.forEach((timer) => clearTimeout(timer));
       timers.clear();
+      // Best effort if the page unmounts without End voice: don't lose the last line.
+      pending.forEach((entry, id) => void sendRef.current(id, entry.speaker, entry.text));
+      pending.clear();
     };
   }, []);
 
-  const endMeeting = useCallback(() => {
+  const endMeeting = useCallback(async () => {
+    if (ended.current) return;
+    ended.current = true;
+    await flush();
     try {
       conversation.endSession();
     } catch {
@@ -240,17 +250,7 @@ function VoiceSession({
     }
     api.endVoiceSession(sessionId, voiceSessionId, "user_ended").catch(() => {});
     onEnd();
-  }, [conversation, sessionId, voiceSessionId, onEnd]);
-
-  endRef.current = endMeeting;
-  // The handoff countdown reached zero: hang up properly and move on.
-  goRef.current = handoff?.onGo;
-  const autoEnd = handoff != null && handoff.secs <= 0;
-  useEffect(() => {
-    if (!autoEnd) return;
-    endMeeting();
-    goRef.current?.();
-  }, [autoEnd, endMeeting]);
+  }, [conversation, flush, sessionId, voiceSessionId, onEnd]);
 
   const connected = conversation.status === "connected";
   // Only the learner's own Mute button touches the mic. Toggling it on every speaking/listening
@@ -290,6 +290,12 @@ function VoiceSession({
             <span />
           </span>
           {PHASE_LABEL[phase]}
+          {liveScore && (
+            <span data-testid="voice-live-score">
+              {" "}· Score {liveScore.score ?? "—"}
+              {liveScore.delta ? ` (${liveScore.delta > 0 ? "+" : ""}${liveScore.delta})` : ""}
+            </span>
+          )}
         </span>
       </div>
 
@@ -333,12 +339,12 @@ function VoiceSession({
             <button
               className="btn btn--small"
               data-testid="voice-handoff-go"
-              onClick={() => {
-                endMeeting();
+              onClick={async () => {
+                await endMeeting();
                 handoff.onGo();
               }}
             >
-              {handoff.goLabel} ({handoff.secs}s)
+              {handoff.goLabel}
             </button>
           </div>
         </div>
@@ -364,7 +370,7 @@ function VoiceSession({
           type="button"
           className="btn btn--small"
           data-testid="voice-end"
-          onClick={endMeeting}
+          onClick={() => void endMeeting()}
         >
           End voice
         </button>

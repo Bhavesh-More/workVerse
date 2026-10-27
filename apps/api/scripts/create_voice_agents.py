@@ -17,7 +17,6 @@ import sys
 from app.agents.voice_agents import (
     AGENTS,
     CLIENT_EVENTS,
-    END_CALL,
     FACT_DEFAULTS,
     payload,
     prompt_for,
@@ -64,7 +63,7 @@ def main() -> None:
                 "conversation": {"client_events": CLIENT_EVENTS},
                 "agent": {
                     "first_message": first,
-                    "prompt": {"prompt": prompt_for(slot), "built_in_tools": END_CALL},
+                    "prompt": {"prompt": prompt_for(slot), "built_in_tools": {}},
                     "dynamic_variables": FACT_DEFAULTS,
                 },
             }

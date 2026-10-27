@@ -19,13 +19,45 @@ from app.simulation.engine import disclosable_now
 logger = logging.getLogger(__name__)
 
 _NUMBER = re.compile(r"\d+(?:[.:]\d+)?")
+_ONES = (
+    "zero", "one", "two", "three", "four", "five", "six", "seven", "eight", "nine",
+    "ten", "eleven", "twelve", "thirteen", "fourteen", "fifteen", "sixteen", "seventeen",
+    "eighteen", "nineteen",
+)
+_TENS = {2: "twenty", 3: "thirty", 4: "forty", 5: "fifty", 6: "sixty", 7: "seventy", 8: "eighty", 9: "ninety"}
+
+
+def _number_words(n: int) -> list[str]:
+    """Spoken forms of an integer, e.g. 42 -> ["forty two", "forty-two"]."""
+    if 0 <= n < 20:
+        return [_ONES[n]]
+    if n < 100:
+        tens, ones = divmod(n, 10)
+        if not ones:
+            return [_TENS[tens]]
+        return [f"{_TENS[tens]} {_ONES[ones]}", f"{_TENS[tens]}-{_ONES[ones]}"]
+    if n < 1000:
+        hundreds, rest = divmod(n, 100)
+        head = f"{_ONES[hundreds]} hundred"
+        return [head] if not rest else [f"{head} {word}" for word in _number_words(rest)]
+    return []
 
 
 def says_specifics(detail: str, reply: str) -> bool:
     """A fact with numbers (24%, 16:00, 3 devices) only counts if the reply says at least one of them:
-    "checkout is failing" is not "24% of checkouts are failing"."""
+    "checkout is failing" is not "24% of checkouts are failing". Voice agents say numbers as words,
+    so "forty two percent" also counts for 42%."""
     needed = set(_NUMBER.findall(detail))
-    return not needed or bool(needed & set(_NUMBER.findall(reply)))
+    if not needed:
+        return True
+    if needed & set(_NUMBER.findall(reply)):
+        return True
+    spoken = reply.lower()
+    return any(
+        any(form in spoken for form in _number_words(int(token)))
+        for token in needed
+        if token.isdigit()
+    )
 
 
 async def facts_stated(

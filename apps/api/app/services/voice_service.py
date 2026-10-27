@@ -251,15 +251,21 @@ async def _learn_from_voice(
 ) -> dict[str, Any] | None:
     """A fact counts only once the colleague actually says it. (Unlike text chat, the voice agent has
     already answered by the time the learner's question arrives here, so keywords in the question
-    would claim facts the colleague never gave.) Returns the new session view, else None."""
-    if speaker != "npc" or ai is None:
+    would claim facts the colleague never gave.)
+
+    Returns the current session view for every colleague turn, even when this turn revealed nothing
+    new: the custom-LLM bridge may have disclosed a fact from the learner's question, and the browser
+    needs that update to hand the learner on like text chat does."""
+    if speaker != "npc":
         return None
     row, blueprint, state = await _load(repo, user_id, session_id, for_update=True)
     if row["status"] != "active":
         return None
+    if ai is None:
+        return session_view(row, blueprint, state)
     newly, events = reveal_facts(blueprint, state, npc_id, await facts_stated(ai, blueprint, state, npc_id, text))
     if not newly:
-        return None
+        return session_view(row, blueprint, state)
     await _persist_pending_events(repo, session_id, state, events)
     saved = await repo.save_session_state(
         session_id=session_id,

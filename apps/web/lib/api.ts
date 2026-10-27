@@ -268,6 +268,10 @@ export const api = {
   getEvaluation: (sessionId: string) =>
     request<Evaluation>(`/sessions/${sessionId}/evaluation`),
 
+  /** Refresh the formative score while the session is still open. */
+  evaluate: (sessionId: string) =>
+    request<Evaluation>(`/sessions/${sessionId}/evaluate`, { method: "POST" }),
+
   retry: (sessionId: string) =>
     request<{ scenario_instance_id: string; session: SessionView; prebrief: ScenarioInstance["prebrief"] }>(
       `/sessions/${sessionId}/retry`,

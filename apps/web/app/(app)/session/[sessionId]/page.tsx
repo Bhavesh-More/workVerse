@@ -89,6 +89,7 @@ export default function SessionPage() {
   const [nearCharacter, setNearCharacter] = useState<string | null>(null);
   const [voice, setVoice] = useState<VoiceStartState | null>(null);
   const [voiceError, setVoiceError] = useState<string | null>(null);
+  const [liveScore, setLiveScore] = useState<{ score: number | null; delta: number | null } | null>(null);
   // Every WorkVerse voice account is out of credits: ask for the player's own ElevenLabs key.
   const [voiceKeyAsk, setVoiceKeyAsk] = useState<{ characterId: string; message: string } | null>(null);
   const [voiceKeyDraft, setVoiceKeyDraft] = useState("");
@@ -104,6 +105,10 @@ export default function SessionPage() {
   const completedIds = useRef<Set<string> | null>(null);
   const interactionLocked = useRef(false);
   const voicePending = useRef(false);
+  const liveScoreValue = useRef<number | null>(null);
+  const evalChain = useRef<Promise<void>>(Promise.resolve());
+  const evalTimer = useRef<number | undefined>(undefined);
+  const specificsDone = useRef(false);
 
   const load = useCallback(async () => {
     try {
@@ -118,6 +123,34 @@ export default function SessionPage() {
   useEffect(() => {
     load();
   }, [load]);
+
+  // Live formative score: refresh after the learner speaks once the specifics are in, and once
+  // more when they end the call. Requests are chained so an older score never overwrites a newer one.
+  const evaluateNow = useCallback(() => {
+    evalChain.current = evalChain.current.then(async () => {
+      try {
+        const evaluation = await api.evaluate(sessionId);
+        const score = evaluation.overall_score;
+        setLiveScore({
+          score,
+          delta:
+            liveScoreValue.current != null && score != null ? score - liveScoreValue.current : null,
+        });
+        liveScoreValue.current = score;
+      } catch {
+        /* best effort; the debrief still evaluates when the session completes */
+      }
+    });
+    return evalChain.current;
+  }, [sessionId]);
+
+  const evaluateLive = useCallback(
+    (delay = 600) => {
+      window.clearTimeout(evalTimer.current);
+      evalTimer.current = window.setTimeout(() => void evaluateNow(), delay);
+    },
+    [evaluateNow],
+  );
 
   // The voice SDK (~600 KB) is only needed once the learner can press E next to someone.
   useEffect(() => {
@@ -326,12 +359,12 @@ export default function SessionPage() {
     setHandoff({ from: talkingTo, to, secs: 6 });
   }, [session, talkingTo]);
   useEffect(() => {
-    // Counts down to switching chat to the next person, or (in a call) to ending the call;
-    // paused while the "told you" box is open so there's time to read it.
-    if (!handoff || toolView || (!handoff.to && !voice)) return;
+    // Chat only: count down to switching the chat to the next person, paused while the
+    // "told you" box is open so there's time to read it. In a call the learner decides when
+    // to hang up; the handoff box just offers the next step.
+    if (!handoff || voice || toolView || !handoff.to) return;
     if (handoff.secs <= 0) {
-      if (voice) return; // the call ends itself at 0 (VoiceMeeting), then runs onGo
-      openCharacter(handoff.to!);
+      openCharacter(handoff.to);
       setHandoff(null);
       return;
     }
@@ -342,6 +375,15 @@ export default function SessionPage() {
     // Picking someone else yourself cancels the handoff.
     setHandoff((h) => (h && h.from !== talkingTo ? null : h));
   }, [talkingTo]);
+
+  // Score as soon as this call's colleague has shared everything (or the whole shift is ready).
+  useEffect(() => {
+    const ready = Boolean(
+      voice && session && (session.characters_done?.includes(voice.npc.id) || session.completion.ready),
+    );
+    if (ready && !specificsDone.current) evaluateLive();
+    specificsDone.current = ready;
+  }, [session, voice, evaluateLive]);
 
   // Facts a colleague tells you (typed or spoken) pop up as a dialogue box, like tool findings do.
   // Facts from tools are skipped here: the tool's own window already showed them.
@@ -390,6 +432,8 @@ export default function SessionPage() {
         stream.getTracks().forEach((t) => t.stop()); // permission check only; the SDK opens its own
         setNotice(null);
         interactionLocked.current = true;
+        liveScoreValue.current = null;
+        setLiveScore(null);
         setVoice({
           npc: res.npc,
           voiceSessionId: res.voice_session_id,
@@ -442,9 +486,14 @@ export default function SessionPage() {
 
   const endVoiceMeeting = useCallback(async () => {
     interactionLocked.current = false;
+    const wasReady = Boolean(
+      voice && session && (session.characters_done?.includes(voice.npc.id) || session.completion.ready),
+    );
     setVoice(null);
     await load();
-  }, [load]);
+    // VoiceMeeting flushes its last transcript before calling this, so score the final words.
+    if (wasReady) await evaluateNow();
+  }, [load, voice, session, evaluateNow]);
 
   // Hang up the current call properly (server record too), e.g. when a popup's "Next" is chosen.
   const hangUp = useCallback(async () => {
@@ -879,11 +928,14 @@ export default function SessionPage() {
               onEnd={endVoiceMeeting}
               onSkip={() => void skipTo(voice.npc.id)}
               onSession={setSession}
+              liveScore={liveScore}
+              onUserTurn={() => {
+                if (session.characters_done?.includes(voice.npc.id) || session.completion.ready) evaluateLive();
+              }}
               handoff={
                 handoff && handoff.from === voice.npc.id
                   ? handoff.to
                     ? {
-                        secs: handoff.secs,
                         text: `talk to ${characters.find((c) => c.id === handoff.to)?.name}.`,
                         goLabel: `End call · talk to ${characters.find((c) => c.id === handoff.to)?.name.split(" ")[0]}`,
                         onGo: () => {
@@ -893,7 +945,6 @@ export default function SessionPage() {
                         },
                       }
                     : {
-                        secs: handoff.secs,
                         text: `${navigation?.action_label ?? navigation?.objective_label ?? "check the guide"} — follow the arrow in the office.`,
                         goLabel: "End call · go there",
                         onGo: () => setHandoff(null),
